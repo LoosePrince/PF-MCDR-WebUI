@@ -3484,9 +3484,9 @@ async def send_chat_message(request: Request):
             player_uuid = "未知"
         
         # 构建tellraw命令
-		hover_event_key = "hoverEvent"
-		server_version = server.get_server_information().version
-		from packaging import version as version_tool
+        hover_event_key = "hoverEvent"
+        server_version = server.get_server_information().version
+        from packaging import version as version_tool
         server_version = version_tool.parse(server_version)
         tellraw_format_changed_from = version_tool.parse("1.21.5")
         if server_version >= tellraw_format_changed_from:
