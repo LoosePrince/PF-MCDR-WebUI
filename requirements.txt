@@ -14,3 +14,4 @@ python-multipart
 typing-extensions
 aiohttp
 uvicorn[standard]
+mcstatus

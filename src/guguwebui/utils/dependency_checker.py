@@ -110,7 +110,8 @@ def check_and_install_dependencies(server: PluginServerInterface):
         'uvicorn': 'uvicorn',
         'itsdangerous': 'itsdangerous',
         'jinja2': 'jinja2',
-        'aiohttp': 'aiohttp'
+        'aiohttp': 'aiohttp',
+        'mcstatus': 'mcstatus'
     }
     
     for package_spec in REQUIRED_PACKAGES:
