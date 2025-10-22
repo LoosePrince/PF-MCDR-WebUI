@@ -10,7 +10,7 @@
 [![最新发布下载量](https://img.shields.io/github/downloads/LoosePrince/PF-MCDR-WebUI/latest/total?style=flat-square&label=最新版本下载量)](https://github.com/LoosePrince/PF-MCDR-WebUI/releases/latest)
 
 > [!NOTE]
-> 由于 **GUGUbot** 和 **WebUI** 项目庞大，但迄今为止仅有开发者一名，所以我们从现在开始招募有志者加入我们！<br>
+> 招募有志者加入WebUI项目！<br>
 > 有意者请加 QQ[1377820366](http://wpa.qq.com/msgrd?v=3&uin=1377820366&site=qq&menu=yes) 或 QQ群[726741344](https://qm.qq.com/q/TqmRHmTmcU)
 
 ## 插件说明
@@ -208,6 +208,7 @@ AI分析![image](https://github.com/user-attachments/assets/91276765-ec5b-47eb-8
 |---|---|
 | [树梢 (LoosePrince)](https://github.com/LoosePrince) | 功能设计、文档编写、Web设计、前端编写 |
 | [雪开 (XueK66)](https://github.com/XueK66) | 代码开发、维护、功能设计 |
+| 见 [贡献者](https://github.com/LoosePrince/PF-MCDR-WebUI/graphs/contributors) | 贡献者 |
 
 | 贡献项目 | 功能 | 备注 |
 |---|---|---|
