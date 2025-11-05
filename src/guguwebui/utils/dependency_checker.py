@@ -19,7 +19,8 @@ REQUIRED_PACKAGES = [
     'argon2_cffi',
     'python-multipart',
     'typing-extensions',
-    'aiohttp'
+    'aiohttp',
+    'mcstatus'
 ]
 
 
