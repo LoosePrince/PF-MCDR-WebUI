@@ -166,11 +166,15 @@ class MetaRegistry:
                     continue
                 
                 plugin_id = plugin_info.get('id')
+                if not plugin_id:
+                    continue
                 
                 # 处理依赖
                 dependencies = {}
-                for dep_id, dep_req in plugin_info.get('dependencies', {}).items():
-                    dependencies[dep_id] = ExtendedVersionRequirement(dep_req)
+                dependencies_dict = plugin_info.get('dependencies') or {}
+                if isinstance(dependencies_dict, dict):
+                    for dep_id, dep_req in dependencies_dict.items():
+                        dependencies[dep_id] = ExtendedVersionRequirement(dep_req)
                 
                 # 从repository_url提取仓库信息
                 repos_owner = ""
@@ -220,12 +224,36 @@ class MetaRegistry:
         elif isinstance(self.data, dict) and 'plugins' in self.data:
             # 标准格式的仓库
             for plugin_id, plugin_info in self.data['plugins'].items():
-                meta = plugin_info.get('meta', {})
-                release_info = plugin_info.get('release', {})
+                # 检查plugin_info是否为None或不是字典
+                if not isinstance(plugin_info, dict):
+                    continue
+                
+                # 安全获取meta和release，确保不是None
+                meta = plugin_info.get('meta') or {}
+                release_info = plugin_info.get('release') or {}
+                
+                # 确保meta和release_info是字典类型
+                if not isinstance(meta, dict):
+                    meta = {}
+                if not isinstance(release_info, dict):
+                    release_info = {}
+                
                 releases = []
                 
-                for rel in release_info.get('releases', []):
-                    asset = rel.get('asset', {})
+                # 安全获取releases列表
+                releases_list = release_info.get('releases', [])
+                if not isinstance(releases_list, list):
+                    releases_list = []
+                
+                for rel in releases_list:
+                    # 检查rel是否为None或不是字典
+                    if not isinstance(rel, dict):
+                        continue
+                    
+                    asset = rel.get('asset') or {}
+                    if not isinstance(asset, dict):
+                        asset = {}
+                    
                     release_data = ReleaseData(
                         name=rel.get('name', ''),
                         tag_name=rel.get('tag_name', ''),
@@ -241,8 +269,10 @@ class MetaRegistry:
                     releases.append(release_data)
                 
                 dependencies = {}
-                for dep_id, dep_req in meta.get('dependencies', {}).items():
-                    dependencies[dep_id] = ExtendedVersionRequirement(dep_req)
+                dependencies_dict = meta.get('dependencies', {})
+                if isinstance(dependencies_dict, dict):
+                    for dep_id, dep_req in dependencies_dict.items():
+                        dependencies[dep_id] = ExtendedVersionRequirement(dep_req)
                 
                 plugin_data = PluginData(
                     id=meta.get('id', plugin_id),
