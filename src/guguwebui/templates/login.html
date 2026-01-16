@@ -254,7 +254,16 @@
                     this.isLoading = true;
                     this.error = '';
 
-                    const formData = new FormData(document.getElementById('login-form'));
+                    const form = document.getElementById('login-form');
+                    const formData = new FormData(form);
+                    
+                    // 确保 remember 字段正确设置（checkbox 未选中时不发送，需要显式设置为 false）
+                    const rememberCheckbox = form.querySelector('input[name="remember"]');
+                    if (!rememberCheckbox || !rememberCheckbox.checked) {
+                        formData.set('remember', 'false');
+                    } else {
+                        formData.set('remember', 'true');
+                    }
 
                     try {
                         const response = await fetch('api/login', {
@@ -269,10 +278,16 @@
                             window.location.href = 'index';
                         } else {
                             // 登录失败，显示错误信息
-                            this.error = result.message || '登录失败';
+                            this.error = result.message || '登录失败，请检查账号和密码';
                         }
                     } catch (error) {
-                        this.error = '网络错误，请稍后重试';
+                        // 处理网络错误或 JSON 解析错误
+                        if (error instanceof TypeError && error.message.includes('JSON')) {
+                            // JSON 解析失败，可能是服务器返回了非 JSON 响应
+                            this.error = '服务器响应格式错误，请稍后重试';
+                        } else {
+                            this.error = '网络错误，请稍后重试';
+                        }
                         console.error('Login error:', error);
                     } finally {
                         this.isLoading = false;
@@ -298,10 +313,16 @@
                             window.location.href = 'index';
                         } else {
                             // 登录失败，显示错误信息
-                            this.error = result.message || '登录失败';
+                            this.error = result.message || '临时登录码无效或已过期';
                         }
                     } catch (error) {
-                        this.error = '网络错误，请稍后重试';
+                        // 处理网络错误或 JSON 解析错误
+                        if (error instanceof TypeError && error.message.includes('JSON')) {
+                            // JSON 解析失败，可能是服务器返回了非 JSON 响应
+                            this.error = '服务器响应格式错误，请稍后重试';
+                        } else {
+                            this.error = '网络错误，请稍后重试';
+                        }
                         console.error('Temp login error:', error);
                     } finally {
                         this.isLoading = false;

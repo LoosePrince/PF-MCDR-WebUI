@@ -3,6 +3,12 @@
  * 实现前端交互和页面动态效果
  */
 
+// 防止重复加载
+if (window.__MCDR_WEBUI_MAIN_LOADED__) {
+    console.warn('[main.js] 脚本已加载，跳过重复加载');
+} else {
+    window.__MCDR_WEBUI_MAIN_LOADED__ = true;
+
 // i18n 支持
 let mainLang = 'zh-CN';
 let mainDict = {};
@@ -668,4 +674,6 @@ document.addEventListener('visibilitychange', function() {
             checkServerStatus();
         }
     }
-}); 
+});
+
+} // 结束防止重复加载的 if 块 
