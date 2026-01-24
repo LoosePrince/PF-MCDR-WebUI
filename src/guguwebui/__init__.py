@@ -14,6 +14,21 @@ def on_load(server: PluginServerInterface, old):
 
     server.logger.info("启动 WebUI 中...")
     
+    # 检测并提示插件运行模式
+    try:
+        from .utils.utils import detect_plugin_format
+        plugin_format = detect_plugin_format(server)
+        format_map = {
+            "mcdr_file": ".mcdr 文件",
+            "folder": "文件夹",
+            "single_file": "单文件 .py",
+            "unknown": "未知"
+        }
+        format_name = format_map.get(plugin_format, "未知")
+        server.logger.info(f"插件运行模式: {format_name}")
+    except Exception as e:
+        server.logger.debug(f"检测插件运行模式时出错: {e}")
+    
     # 首先检查并安装依赖包
     try:
         from .utils.dependency_checker import check_and_install_dependencies

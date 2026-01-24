@@ -1996,3 +1996,110 @@ def check_repository_cache(server):
             server.logger.debug("插件仓库缓存已存在")
     except Exception as e:
         server.logger.error(f"检查仓库缓存时出错: {e}")
+
+#============================================================#
+
+def detect_plugin_format(server: PluginServerInterface) -> str:
+    """
+    检测插件是以.mcdr文件形式还是文件夹形式运行
+    
+    Args:
+        server: PluginServerInterface实例
+        
+    Returns:
+        str: 返回以下值之一：
+            - "mcdr_file": 以.mcdr文件形式运行
+            - "folder": 以文件夹形式运行
+            - "single_file": 单文件.py插件
+            - "unknown": 无法确定（可能出错）
+    """
+    try:
+        # 方法1: 通过插件对象的类型判断
+        plugin = server._PluginServerInterface__plugin
+        
+        # 检查是否为单文件插件
+        try:
+            from mcdreforged.plugin.type.solo_plugin import SoloPlugin
+            if isinstance(plugin, SoloPlugin):
+                return "single_file"
+        except ImportError:
+            pass
+        
+        # 检查是否为多文件插件（.mcdr或文件夹）
+        try:
+            from mcdreforged.plugin.type.multi_file_plugin import MultiFilePlugin
+            if isinstance(plugin, MultiFilePlugin):
+                # 进一步检查是压缩文件还是文件夹
+                try:
+                    from mcdreforged.plugin.type.zipped_plugin import ZippedPlugin
+                    from mcdreforged.plugin.type.directory_plugin import DirectoryPlugin
+                    
+                    if isinstance(plugin, ZippedPlugin):
+                        return "mcdr_file"
+                    elif isinstance(plugin, DirectoryPlugin):
+                        return "folder"
+                except ImportError:
+                    # 如果无法导入具体类型，尝试通过插件路径判断
+                    pass
+        except ImportError:
+            pass
+        
+        # 方法2: 通过插件路径判断（备用方法）
+        try:
+            # 获取插件文件路径
+            plugin_path = getattr(plugin, 'file_path', None)
+            if plugin_path:
+                if os.path.isdir(plugin_path):
+                    return "folder"
+                elif zipfile.is_zipfile(plugin_path) or plugin_path.endswith('.mcdr') or plugin_path.endswith('.pyz'):
+                    return "mcdr_file"
+                elif plugin_path.endswith('.py'):
+                    return "single_file"
+        except Exception:
+            pass
+        
+        # 方法3: 通过检查插件对象属性（最可靠的方法）
+        try:
+            # ZippedPlugin通常有file_path属性指向.mcdr文件
+            # DirectoryPlugin通常有file_path属性指向文件夹
+            if hasattr(plugin, 'file_path'):
+                plugin_path = plugin.file_path
+                if os.path.isdir(plugin_path):
+                    return "folder"
+                elif os.path.isfile(plugin_path) and (zipfile.is_zipfile(plugin_path) or plugin_path.endswith(('.mcdr', '.pyz'))):
+                    return "mcdr_file"
+        except Exception:
+            pass
+        
+        return "unknown"
+        
+    except Exception as e:
+        if server:
+            server.logger.debug(f"检测插件运行形式时出错: {e}")
+        return "unknown"
+
+
+def is_plugin_mcdr_file(server: PluginServerInterface) -> bool:
+    """
+    检查插件是否以.mcdr文件形式运行（便捷函数）
+    
+    Args:
+        server: PluginServerInterface实例
+        
+    Returns:
+        bool: 如果是.mcdr文件形式返回True，否则返回False
+    """
+    return detect_plugin_format(server) == "mcdr_file"
+
+
+def is_plugin_folder(server: PluginServerInterface) -> bool:
+    """
+    检查插件是否以文件夹形式运行（便捷函数）
+    
+    Args:
+        server: PluginServerInterface实例
+        
+    Returns:
+        bool: 如果是文件夹形式返回True，否则返回False
+    """
+    return detect_plugin_format(server) == "folder"
