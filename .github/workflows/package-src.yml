@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - src/**
+      - 'src/guguwebui/frontend/**'
   workflow_dispatch:
 
 jobs:
@@ -13,6 +14,33 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: src/guguwebui/frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      working-directory: src/guguwebui/frontend
+      run: npm ci
+
+    - name: Build frontend
+      working-directory: src/guguwebui/frontend
+      run: npm run build
+
+    - name: Verify frontend build
+      run: |
+        if [ ! -d "src/guguwebui/static" ]; then
+          echo "Error: Frontend build output not found at src/guguwebui/static"
+          exit 1
+        fi
+        if [ ! -f "src/guguwebui/static/index.html" ]; then
+          echo "Error: Frontend index.html not found"
+          exit 1
+        fi
+        echo "✓ Frontend build verified"
 
     - name: Package src directory
       run: |

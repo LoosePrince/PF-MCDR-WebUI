@@ -26,6 +26,7 @@ from fastapi.responses import (
     RedirectResponse,
     JSONResponse,
     PlainTextResponse,
+    FileResponse,
 )
 from fastapi.templating import Jinja2Templates
 from ruamel.yaml.comments import CommentedSeq
@@ -87,6 +88,20 @@ app = FastAPI(
 
 # template engine -> jinja2
 templates = Jinja2Templates(directory=f"{STATIC_PATH}/templates")
+
+# SPA 入口文件路径
+static_index_path = Path(STATIC_PATH) / "static" / "index.html"
+
+def serve_spa_index(request: Request) -> FileResponse:
+    """返回 SPA 的 index.html 文件，用于客户端路由"""
+    if static_index_path.exists():
+        return FileResponse(str(static_index_path))
+    else:
+        # 如果 index.html 不存在，返回简单的错误页面
+        return HTMLResponse(
+            content="<h1>前端文件未找到</h1><p>请确保已构建前端项目（运行 npm run build）</p>",
+            status_code=404
+        )
 
 # 全局LogWatcher实例
 log_watcher = LogWatcher()
@@ -235,7 +250,7 @@ def read_root(request: Request):
     return RedirectResponse(url=get_redirect_url(request, "/login"))
 
 
-# login page
+# login page - 使用 React SPA
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     # token is valid
@@ -264,8 +279,8 @@ async def login_page(request: Request):
         
         return RedirectResponse(url=get_redirect_url(request, "/index"), status_code=status.HTTP_302_FOUND)
 
-    # no token / expired token
-    response = templates.TemplateResponse("login.html", {"request": request})
+    # no token / expired token - 返回 SPA index.html
+    response = serve_spa_index(request)
     if token:
         if token in user_db["token"]:
             del user_db["token"][token]
@@ -424,107 +439,77 @@ def logout(request: Request):
 
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 # ============================================================#
-# Pages
+# Pages - 使用 React SPA
 @app.get("/index", response_class=HTMLResponse)
 async def read_index(request: Request, token_valid: bool = Depends(verify_token)):
     if not request.session.get("logged_in"):
         return RedirectResponse(url=get_redirect_url(request, "/login"))
-    return templates.TemplateResponse(
-        "index.html", {
-            "request": request, 
-            "index_path": get_index_path(request),
-            "nav_path": lambda path: get_nav_path(request, path)
-        }
-    )
+    return serve_spa_index(request)
 
 
 @app.get("/home", response_class=HTMLResponse)
 async def read_home(request: Request, token_valid: bool = Depends(verify_token)):
     if not request.session.get("logged_in"):
         return RedirectResponse(url=get_redirect_url(request, "/login"))
-    return templates.TemplateResponse(
-        "home.html", {
-            "request": request, 
-            "message": "欢迎进入后台主页！", 
-            "index_path": get_index_path(request),
-            "nav_path": lambda path: get_nav_path(request, path)
-        }
-    )
+    return serve_spa_index(request)
 
-
-async def render_template_if_logged_in(request: Request, template_name: str):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
-    return templates.TemplateResponse(template_name, {
-        "request": request, 
-        "index_path": get_index_path(request),
-        "nav_path": lambda path: get_nav_path(request, path)
-    })
 
 @app.get("/gugubot", response_class=HTMLResponse)
 async def gugubot(request: Request, token_valid: bool = Depends(verify_token)):
-    try:
-        return await render_template_if_logged_in(request, "gugubot.html")
-    except Exception:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url=get_redirect_url(request, "/login"))
+    return serve_spa_index(request)
 
 
 @app.get("/cq", response_class=HTMLResponse)
 async def cq(request: Request, token_valid: bool = Depends(verify_token)):
-    try:
-        return await render_template_if_logged_in(request, "cq.html")
-    except Exception:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url=get_redirect_url(request, "/login"))
+    return serve_spa_index(request)
 
 
 @app.get("/mc", response_class=HTMLResponse)
 async def mc(request: Request, token_valid: bool = Depends(verify_token)):
-    try:
-        return await render_template_if_logged_in(request, "mc.html")
-    except Exception:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url=get_redirect_url(request, "/login"))
+    return serve_spa_index(request)
 
 
 @app.get("/mcdr", response_class=HTMLResponse)
 async def mcdr(request: Request, token_valid: bool = Depends(verify_token)):
-    try:
-        return await render_template_if_logged_in(request, "mcdr.html")
-    except Exception:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url=get_redirect_url(request, "/login"))
+    return serve_spa_index(request)
 
 
 @app.get("/plugins", response_class=HTMLResponse)
 async def plugins(request: Request, token_valid: bool = Depends(verify_token)):
-    try:
-        return await render_template_if_logged_in(request, "plugins.html")
-    except Exception:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url=get_redirect_url(request, "/login"))
+    return serve_spa_index(request)
 
 
 @app.get("/online-plugins", response_class=HTMLResponse)
 async def online_plugins(request: Request, token_valid: bool = Depends(verify_token)):
-    try:
-        return await render_template_if_logged_in(request, "online-plugins.html")
-    except Exception:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url=get_redirect_url(request, "/login"))
+    return serve_spa_index(request)
 
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings(request: Request, token_valid: bool = Depends(verify_token)):
-    try:
-        return await render_template_if_logged_in(request, "settings.html")
-    except Exception:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url=get_redirect_url(request, "/login"))
+    return serve_spa_index(request)
 
 
 @app.get("/about", response_class=HTMLResponse)
 async def about(request: Request, token_valid: bool = Depends(verify_token)):
-    try:
-        return await render_template_if_logged_in(request, "about.html")
-    except Exception:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url=get_redirect_url(request, "/login"))
+    return serve_spa_index(request)
 
-# 公开聊天页
+# 公开聊天页 - 使用 React SPA
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request):
     try:
@@ -533,19 +518,26 @@ async def chat_page(request: Request):
         server_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
         
         if not server_config.get("public_chat_enabled", False):
-            return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+            return serve_spa_index(request)  # 返回 SPA，由前端处理 404
         
-        return templates.TemplateResponse("chat.html", {"request": request})
+        return serve_spa_index(request)
     except Exception as e:
         server:PluginServerInterface = app.state.server_interface
         if server:
             server.logger.error(f"聊天页加载失败: {e}")
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+        return serve_spa_index(request)
 
-# 404 page
+# 404 page - 返回 SPA index.html，由前端处理 404
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc: StarletteHTTPException):
-    return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    # 如果是 API 请求，返回 JSON 错误
+    if request.url.path.startswith("/api/"):
+        return JSONResponse({"status": "error", "message": "API endpoint not found"}, status_code=404)
+    # 如果是静态资源请求，返回 404（不应该被拦截，但如果被拦截了，也要返回正确的 404）
+    if request.url.path.startswith("/static/"):
+        return JSONResponse({"status": "error", "message": "Static file not found"}, status_code=404)
+    # 否则返回 SPA index.html（用于客户端路由）
+    return serve_spa_index(request)
 
 @app.exception_handler(ConnectionResetError)
 async def connection_reset_handler(request: Request, exc: ConnectionResetError):
@@ -823,20 +815,20 @@ async def api_get_new_logs(request: Request, last_counter: int = 0, max_lines: i
 
 @app.get("/terminal")
 async def terminal_page(request: Request):
-    """提供终端日志页面
+    """提供终端日志页面 - 使用 React SPA
     
     Args:
         request: FastAPI请求对象
     
     Returns:
-        TemplateResponse: 终端日志页面
+        FileResponse: SPA index.html
     """
     # 检查是否已登录
     username = request.session.get("username")
     if not username:
         return RedirectResponse(url="login?redirect=/terminal")
     
-    return templates.TemplateResponse("terminal.html", {"request": request})
+    return serve_spa_index(request)
 
 # 获取命令补全建议
 @app.get("/api/command_suggestions")

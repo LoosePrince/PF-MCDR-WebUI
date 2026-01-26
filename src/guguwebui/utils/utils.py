@@ -1150,8 +1150,8 @@ def amount_static_files(server):
     
     # 使用新的文件夹复制函数来复制各个目录
     success = True
-    # 复制各个子目录（新增 lang 用于前端多语言）
-    for folder in ['src', 'css', 'js', 'templates', 'custom', 'lang']:
+    # 复制各个子目录（新增 static 用于前端构建产物，新增 lang 用于前端多语言）
+    for folder in ['static']:
         if not __copyFolder(server, f'guguwebui/{folder}', f'./guguwebui_static/{folder}'):
             success = False
             server.logger.warning(f"复制 'guguwebui/{folder}' 目录失败")

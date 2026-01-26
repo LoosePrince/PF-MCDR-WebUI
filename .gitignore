@@ -82,6 +82,14 @@ docs/_build/
 src/guguwebui/static/
 demo/
 
+# Frontend
+src/guguwebui/frontend/node_modules/
+src/guguwebui/frontend/dist/
+src/guguwebui/frontend/.vite/
+src/guguwebui/frontend/build/
+src/guguwebui/frontend/*.log
+src/guguwebui/frontend/.DS_Store
+
 # PyBuilder
 .pybuilder/
 target/

@@ -159,12 +159,16 @@ def on_load(server: PluginServerInterface, old):
     register_command(server, host, port) # register MCDR command
 
     amount_static_files(server) # move static resource
-    app.mount("/src", StaticFiles(directory=f"{STATIC_PATH}/src"), name="src")
-    app.mount("/js", StaticFiles(directory=f"{STATIC_PATH}/js"), name="js")
-    app.mount("/css", StaticFiles(directory=f"{STATIC_PATH}/css"), name="css")
-    app.mount("/custom", StaticFiles(directory=f"{STATIC_PATH}/custom"), name="custom")
-    # 多语言静态文件
-    app.mount("/lang", StaticFiles(directory=f"{STATIC_PATH}/lang"), name="lang")
+    # app.mount("/src", StaticFiles(directory=f"{STATIC_PATH}/src"), name="src")
+    # app.mount("/js", StaticFiles(directory=f"{STATIC_PATH}/js"), name="js")
+    # app.mount("/css", StaticFiles(directory=f"{STATIC_PATH}/css"), name="css")
+    # app.mount("/custom", StaticFiles(directory=f"{STATIC_PATH}/custom"), name="custom")
+    # # 多语言静态文件
+    # app.mount("/lang", StaticFiles(directory=f"{STATIC_PATH}/lang"), name="lang")
+    # 前端构建产物（React SPA）
+    app.mount("/static", StaticFiles(directory=f"{STATIC_PATH}/static"), name="static")
+    # 映射 /assets/ 到 /static/assets/，以支持 Vite 构建的资源路径
+    app.mount("/assets", StaticFiles(directory=f"{STATIC_PATH}/static/assets"), name="assets")
     
     # 初始化应用程序和日志捕获器
     init_app(server)
