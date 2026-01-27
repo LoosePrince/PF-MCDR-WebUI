@@ -294,7 +294,7 @@
 - 端点: `/api/plugins`
 - 方法: GET
 - 参数: 
-  - `detail`: 是否获取详细信息（可选，布尔值）
+  - `plugin_id`: 指定插件ID（可选，字符串，提供时只返回该插件）
 - 功能: 获取已安装的插件列表
 - 响应:
 
@@ -320,10 +320,10 @@
 - 调用示例:
 
   ```javascript
-  async function getPlugins(detail = false) {
+  // 获取所有插件
+  async function getAllPlugins() {
     try {
-      const url = detail ? '/api/plugins?detail=true' : '/api/plugins';
-      const response = await fetch(url);
+      const response = await fetch('/api/plugins');
       const data = await response.json();
       
       if (data.status === 'success') {
@@ -339,10 +339,30 @@
       console.error('获取插件列表出错:', error);
     }
   }
+
+  // 获取指定插件
+  async function getPluginById(pluginId) {
+    try {
+      const response = await fetch(`/api/plugins?plugin_id=${encodeURIComponent(pluginId)}`);
+      const data = await response.json();
+      
+      if (data.status === 'success' && data.plugins.length > 0) {
+        const plugin = data.plugins[0];
+        console.log(`插件信息: ${plugin.name} (${plugin.id}) - ${plugin.status}`);
+        return plugin;
+      } else {
+        console.error('未找到指定插件或获取失败');
+        return null;
+      }
+    } catch (error) {
+      console.error('获取插件信息出错:', error);
+      return null;
+    }
+  }
   ```
 
 - 使用位置: 插件管理页面
-- 备注: 当`detail`参数为true时，返回的插件信息会更加详细，包括作者、链接等
+- 备注: 接口始终返回详细信息，包括作者、链接等
 
 ### 获取咕咕机器人插件
 - 端点: `/api/gugubot_plugins`

@@ -59,8 +59,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/plugins', key: 'nav.local_plugins', icon: Puzzle },
     { path: '/online-plugins', key: 'nav.online_plugins', icon: Puzzle },
     { path: '/terminal', key: 'nav.terminal', icon: Terminal },
-    { path: '/gugubot', key: 'nav.gugubot', icon: Gamepad2 },
-    { path: '/cq', key: 'nav.cq', icon: MessageSquare },
     { path: '/chat', key: 'page.chat.header_title', icon: MessageSquare },
     { path: '/settings', key: 'nav.web_settings', icon: Sliders },
     { path: '/about', key: 'nav.about', icon: Info },

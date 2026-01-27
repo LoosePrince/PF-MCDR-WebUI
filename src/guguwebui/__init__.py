@@ -268,7 +268,7 @@ def on_load(server: PluginServerInterface, old):
             server.logger.debug(f"无法获取 fastapi_mcdr 配置: {e}")
             server.logger.info("WebUI 已挂载到 fastapi_mcdr 插件，访问地址请查看 fastapi_mcdr 插件配置")
     
-    get_plugins_info(app.state.server_interface, 'true')
+    get_plugins_info(app.state.server_interface)
 
 
 def mount_to_fastapi_mcdr(server: PluginServerInterface, fastapi_mcdr):
@@ -378,7 +378,7 @@ def start_standalone_server(server: PluginServerInterface):
         web_server_interface.start()
         
         # 获取插件信息
-        get_plugins_info(app.state.server_interface, 'true')
+        get_plugins_info(app.state.server_interface)
         
     except Exception as e:
         server.logger.error(f"启动独立服务器失败: {e}")

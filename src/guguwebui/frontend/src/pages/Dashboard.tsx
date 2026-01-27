@@ -261,13 +261,13 @@ const Dashboard: React.FC = () => {
 
   const fetchWebVersion = useCallback(async () => {
     try {
-      const { data } = await axios.get('/api/gugubot_plugins')
-      if (Array.isArray(data.gugubot_plugins)) {
-        const webui = data.gugubot_plugins.find((p: any) => p.id === 'guguwebui')
-        if (webui && webui.version) {
-          setWebVersion(webui.version)
-          return
-        }
+      // 使用 plugin_id 精确获取指定插件信息，替代 detail=false 的用法
+      const { data } = await axios.get('/api/plugins', { params: { plugin_id: 'guguwebui' } })
+      const plugins = Array.isArray(data.plugins) ? data.plugins : []
+      const webui = plugins[0]
+      if (webui && webui.version) {
+        setWebVersion(webui.version)
+        return
       }
       setWebVersion(t('page.index.unknown'))
     } catch (error) {

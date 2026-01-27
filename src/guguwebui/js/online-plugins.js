@@ -160,7 +160,7 @@ document.addEventListener('alpine:init', () => {
         // 加载本地插件信息
         async loadLocalPlugins() {
             try {
-                const response = await fetch('api/plugins?detail=true');
+                const response = await fetch('api/plugins');
                 const data = await response.json();
                 if (data && data.plugins) {
                     this.localPlugins = data.plugins;

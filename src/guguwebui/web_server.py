@@ -454,20 +454,6 @@ async def read_home(request: Request, token_valid: bool = Depends(verify_token))
     return serve_spa_index(request)
 
 
-@app.get("/gugubot", response_class=HTMLResponse)
-async def gugubot(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
-    return serve_spa_index(request)
-
-
-@app.get("/cq", response_class=HTMLResponse)
-async def cq(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
-    return serve_spa_index(request)
-
-
 @app.get("/mc", response_class=HTMLResponse)
 async def mc(request: Request, token_valid: bool = Depends(verify_token)):
     if not request.session.get("logged_in"):
@@ -578,27 +564,18 @@ async def check_login_status(request: Request):
     return JSONResponse({"status": "error", "message": "User not logged in"})
 
 
-# Return gugu plugins' metadata
-@app.get("/api/gugubot_plugins")
-async def get_gugubot_plugins(request: Request):
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    return JSONResponse(
-        content={
-            "gugubot_plugins": get_gugubot_plugins_info(app.state.server_interface)
-        }
-    )
-
-
 # Return plugins' metadata
 @app.get("/api/plugins")
-async def get_plugins(request: Request, detail: bool = False):
-    plugins = get_plugins_info(app.state.server_interface, detail)
+async def get_plugins(request: Request, plugin_id: str = None):
+    plugins = get_plugins_info(app.state.server_interface)
+
+    # 如果指定了 plugin_id，则只返回对应插件（如果存在）
+    if plugin_id:
+        plugins = [p for p in plugins if p.get("id") == plugin_id]
+
     if not request.session.get("logged_in"):
-        # 未登录时仅返回guguwebui插件信息
-        guguwebui_plugin = next((p for p in plugins if p["id"] == "guguwebui"), None)
+        # 未登录时仅返回 guguwebui 插件信息
+        guguwebui_plugin = next((p for p in plugins if p.get("id") == "guguwebui"), None)
         if guguwebui_plugin:
             return JSONResponse(
                 content={"plugins": [guguwebui_plugin]}
@@ -606,6 +583,7 @@ async def get_plugins(request: Request, detail: bool = False):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
+
     return JSONResponse(
         content={"plugins": plugins}
     )

@@ -9,8 +9,6 @@ import MCConfig from './pages/MCConfig'
 import LocalPlugins from './pages/LocalPlugins'
 import OnlinePlugins from './pages/OnlinePlugins'
 import Terminal from './pages/Terminal'
-import GUGUBot from './pages/GUGUBot'
-import CQ from './pages/CQ'
 import Settings from './pages/Settings'
 import About from './pages/About'
 import Chat from './pages/Chat'
@@ -65,8 +63,6 @@ function App() {
                   <Route path="/plugins" element={<LocalPlugins />} />
                   <Route path="/online-plugins" element={<OnlinePlugins />} />
                   <Route path="/terminal" element={<Terminal />} />
-                  <Route path="/gugubot" element={<GUGUBot />} />
-                  <Route path="/cq" element={<CQ />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/about" element={<About />} />
                   <Route path="*" element={<NotFound />} />

@@ -195,7 +195,7 @@ document.addEventListener('alpine:init', () => {
         async loadPlugins() {
             try {
                 this.loading = true;
-                const response = await fetch('api/plugins?detail=true');
+                const response = await fetch('api/plugins');
                 const data = await response.json();
                 this.plugins = data.plugins || [];
                 this.loading = false;

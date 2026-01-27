@@ -6,8 +6,6 @@
     "local_plugins": "本地插件",
     "online_plugins": "在线插件",
     "terminal": "终端日志",
-    "gugubot": "GUGUBot 管理",
-    "cq": "CQ-QQ-API",
     "web_settings": "Web设置",
     "about": "关于",
     "logout": "退出登录",
