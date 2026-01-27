@@ -36,11 +36,13 @@ function App() {
     return ''
   }
 
+  const { t } = useTranslation()
+
   // 如果鉴权状态还在加载中，先渲染一个简单的加载界面，避免误跳转到登录页
   if (loading || isAuthenticated === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-gray-600 dark:text-gray-300 text-sm">正在检测登录状态...</div>
+        <div className="text-gray-600 dark:text-gray-300 text-sm">{t('common.checking_login')}</div>
       </div>
     )
   }

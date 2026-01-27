@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -21,6 +22,7 @@ function applyThemeClass(isDark: boolean) {
 }
 
 export function useTheme() {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<ThemeMode>(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as ThemeMode | null
     return saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system'
@@ -55,9 +57,9 @@ export function useTheme() {
   }, [mode])
 
   const label = useMemo(() => {
-    if (mode === 'system') return '跟随系统'
-    return mode === 'dark' ? '深色' : '浅色'
-  }, [mode])
+    if (mode === 'system') return t('theme.system')
+    return mode === 'dark' ? t('theme.dark') : t('theme.light')
+  }, [mode, t])
 
   const cycle = () => {
     setMode((prev) => (prev === 'system' ? 'light' : prev === 'light' ? 'dark' : 'system'))
