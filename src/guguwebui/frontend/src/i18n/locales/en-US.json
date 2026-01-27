@@ -23,7 +23,6 @@
   },
   "common": {
     "notice_loading": "Loading...",
-    "copyright": "MCDR WebUI © 2025",
     "checking_login": "Checking login status...",
     "unknown": "Unknown"
   },
@@ -93,6 +92,53 @@
       "header_title": "Server Chat Page",
       "room": {
         "desc": "Welcome to the web portal of the server chat section (we recommend chatting in-game)"
+      }
+    },
+    "about": {
+      "subtitle": "Learn about the background, origins and open source information of GUGU WebUI.",
+      "source_title": "Origins of the WebUI plugin",
+      "source_desc": "GUGU WebUI was originally inspired by the idea that the GUGUbot plugin should have its own WebUI. At that time GUGUbot was still relatively simple, so a dedicated WebUI was not added, but this sparked the idea of building a more general‑purpose WebUI plugin, which eventually became GUGU WebUI, originating from GUGUbot.",
+      "projects": {
+        "gugubot_desc": "The original automation bot and chat features that created the need for web management.",
+        "cq_desc": "Provides QQ‑side message forwarding and integration, extending how the server connects to the outside world.",
+        "web_desc": "An evolution based on the previous two, focusing on a more modern WebUI management experience."
+      },
+      "opensource_title": "Open Source & Contributions",
+      "opensource_desc": "As an open source project, GUGU WebUI welcomes bug reports, pull requests, documentation updates and localization contributions.",
+      "github_repo": "GitHub Repository",
+      "issue_tracker": "Issue Tracker / Feedback",
+      "thanks_title": "Acknowledgements",
+      "thanks_desc": "Thanks to all developers and server admins who contributed code, suggestions and testing to GUGU WebUI. Your support keeps this project evolving.",
+      "contribute": {
+        "title": "Projects & Dependencies",
+        "project": "Project / Component",
+        "desc": "Description",
+        "items": {
+          "mcdr_repo": "MCDR Plugin Repository",
+          "mcdr_repo_desc": "Provides a rich MCDR plugin ecosystem, forming the foundation of this project’s features.",
+          "mc_server_info": "Base implementation for querying Minecraft server status and player information.",
+          "codemirror": "Provides code highlighting and editing experience for configuration editors.",
+          "deepseek": "Powers some of the intelligent assistant features.",
+          "tailwind": "Utility‑first CSS framework that underpins the current UI design.",
+          "alpine": "Lightweight interaction framework used in the legacy frontend.",
+          "fontawesome": "Icon library used in the legacy interface.",
+          "vditor": "WYSIWYG Markdown editor used in some editing scenarios."
+        }
+      },
+      "thanks": {
+        "contributors_title": "Core Contributors",
+        "community_title": "Community & Tools",
+        "contributor": "Contributor",
+        "desc": "Contribution",
+        "items": {
+          "looseprince_desc": "Feature design, documentation, web design and frontend implementation.",
+          "xuek66_desc": "Code development, maintenance and feature design.",
+          "feedbackers": "All users who provided feedback and testing",
+          "feedbackers_desc": "Filed issues and suggestions during real‑world usage and helped the project improve continuously.",
+          "cursor": "Significantly improved development efficiency during refactors and iterations.",
+          "contributors_link": "More contributors",
+          "contributors_link_desc": "See the full contributor list on GitHub."
+        }
       }
     }
   },

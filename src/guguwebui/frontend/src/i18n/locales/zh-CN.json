@@ -18,12 +18,12 @@
     "server_online": "服务器在线"
   },
   "app": {
-    "name": "MCDR WebUI",
+    "name": "GUGUWebUI",
     "desc": "服务器管理平台"
   },
   "common": {
     "notice_loading": "加载中...",
-    "copyright": "MCDR WebUI © 2025",
+    "copyright": "",
     "checking_login": "正在检测登录状态...",
     "unknown": "未知"
   },
@@ -93,6 +93,53 @@
       "header_title": "服务器聊天页",
       "room": {
         "desc": "欢迎来到服务器聊天板块的网页端（建议进游戏聊天哦~）"
+      }
+    },
+    "about": {
+      "subtitle": "了解 GUGU WebUI 的项目背景、来源与开源信息。",
+      "source_title": "WebUI 插件的起源",
+      "source_desc": "GUGU WebUI 最初源自有人提议GUGUbot插件应该有个自己的WebUI，但是当时GUGUbot的功能还算不上很复杂就没考虑专门添加一个WebUI，但是于此诞生干脆做一个更通用的WebUI插件的想法，于是就有了 GUGUWebUI插件，源自GUGUbot。",
+      "projects": {
+        "gugubot_desc": "最初的自动化机器人与聊天功能，为 Web 管理需求打下基础。",
+        "cq_desc": "提供 QQ 侧的消息转发与联动能力，拓展了服务器与外部世界的连接方式。",
+        "web_desc": "在前两者的基础上演进，专注于提供更现代的 WebUI 管理体验。"
+      },
+      "opensource_title": "开源与参与",
+      "opensource_desc": "GUGU WebUI 作为开源项目，欢迎反馈问题、提交 PR 或参与文档与本地化改进。",
+      "github_repo": "GitHub 仓库",
+      "issue_tracker": "问题反馈 / Issue",
+      "thanks_title": "致谢",
+      "thanks_desc": "感谢所有为 GUGU WebUI 贡献代码、提出建议、参与测试的开发者与服务器管理员。你们的支持让这个项目持续演进。",
+      "contribute": {
+        "title": "项目与依赖致谢",
+        "project": "项目 / 组件",
+        "desc": "说明",
+        "items": {
+          "mcdr_repo": "MCDR 插件仓库",
+          "mcdr_repo_desc": "提供了丰富的 MCDR 插件生态，是本项目功能的基础。",
+          "mc_server_info": "用于获取 Minecraft 服务器状态与玩家信息的基础实现。",
+          "codemirror": "提供配置编辑器的代码高亮与编辑体验。",
+          "deepseek": "为部分智能辅助功能提供模型支持。",
+          "tailwind": "提供实用的原子化样式，支撑当前的 UI 设计。",
+          "alpine": "旧版前端中使用的轻量级交互框架。",
+          "fontawesome": "旧版界面中使用的图标库。",
+          "vditor": "为部分 Markdown 编辑场景提供所见即所得编辑体验。"
+        }
+      },
+      "thanks": {
+        "contributors_title": "主要贡献者",
+        "community_title": "社区与工具",
+        "contributor": "贡献者",
+        "desc": "贡献说明",
+        "items": {
+          "looseprince_desc": "功能设计、文档编写、Web设计、前端编写。",
+          "xuek66_desc": "代码开发、维护、功能设计。",
+          "feedbackers": "所有反馈与测试的用户",
+          "feedbackers_desc": "在使用过程中提出了宝贵的建议与问题，帮助项目不断改进。",
+          "cursor": "提升了本项目在重构与迭代时的开发效率。",
+          "contributors_link": "更多贡献者",
+          "contributors_link_desc": "详见 GitHub 贡献者列表。"
+        }
       }
     }
   },

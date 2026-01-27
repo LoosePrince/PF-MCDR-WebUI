@@ -1,25 +1,34 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { Zap, User, Lock, Check, ArrowRight, Loader2 } from 'lucide-react'
+import { Zap, User, Lock, Check, ArrowRight, Loader2, Sun, Moon, Languages } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { useTheme } from '../hooks/useTheme'
+import VersionFooter from '../components/VersionFooter'
 
 const Login: React.FC = () => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { login, isAuthenticated } = useAuth()
+  const { mode, setMode, label: themeLabel } = useTheme()
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isAuthenticated) {
       navigate('/index')
     }
   }, [isAuthenticated, navigate])
+
+  const changeLanguage = (code: string) => {
+    if (i18n.language === code) return
+    i18n.changeLanguage(code)
+    localStorage.setItem('language', code)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,6 +46,84 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 transition-colors duration-300 relative overflow-hidden">
+      {/* Theme & language toggles (top-right) */}
+      <div className="absolute top-4 right-4 z-20 flex gap-2">
+        {/* Theme */}
+        <div className="relative group">
+          <button
+            className="flex items-center justify-center p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+            title={themeLabel}
+          >
+            {mode === 'dark' ? (
+              <Moon className="w-4 h-4" />
+            ) : mode === 'light' ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <div className="relative w-4 h-4">
+                <Sun className="w-4 h-4 absolute inset-0 opacity-70" />
+                <Moon className="w-3 h-3 absolute -bottom-0.5 -right-0.5 opacity-80" />
+              </div>
+            )}
+          </button>
+          <div className="absolute z-30 mt-2 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+            {(['light', 'system', 'dark'] as const).map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setMode(opt)}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                  mode === opt
+                    ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                    : 'text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                {opt === 'light' && <Sun className="w-3.5 h-3.5" />}
+                {opt === 'dark' && <Moon className="w-3.5 h-3.5" />}
+                {opt === 'system' && (
+                  <div className="relative w-3.5 h-3.5">
+                    <Sun className="w-3.5 h-3.5 absolute inset-0 opacity-70" />
+                    <Moon className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 opacity-80" />
+                  </div>
+                )}
+                <span>
+                  {opt === 'light'
+                    ? t('theme.light')
+                    : opt === 'dark'
+                    ? t('theme.dark')
+                    : t('theme.system')}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Language */}
+        <div className="relative group">
+          <button className="flex items-center justify-center gap-1.5 p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors">
+            <Languages className="w-4 h-4" />
+            <span className="text-xs font-bold">
+              {i18n.language === 'zh-CN' ? '中' : 'EN'}
+            </span>
+          </button>
+          <div className="absolute z-30 mt-2 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+            {[
+              { code: 'zh-CN', label: '简体中文' },
+              { code: 'en-US', label: 'English' },
+            ].map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => changeLanguage(lang.code)}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                  i18n.language === lang.code
+                    ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                    : 'text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                <span>{lang.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
       {/* Decorative background elements */}
       <motion.div 
         animate={{ 
@@ -180,9 +267,7 @@ const Login: React.FC = () => {
           </div>
         </div>
         
-        <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-600 font-medium">
-          {t('common.copyright')}
-        </p>
+        <VersionFooter className="mt-8 text-center" />
       </motion.div>
     </div>
   )

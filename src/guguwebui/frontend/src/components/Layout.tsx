@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
+import VersionFooter from './VersionFooter'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -31,7 +32,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { t, i18n } = useTranslation()
   const { username, logout } = useAuth()
-  const { label: themeLabel, cycle: cycleTheme, isDark } = useTheme()
+  const { mode, setMode, label: themeLabel } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024)
@@ -46,10 +47,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const toggleLanguage = () => {
-    const newLang = i18n.language === 'zh-CN' ? 'en-US' : 'zh-CN'
-    i18n.changeLanguage(newLang)
-    localStorage.setItem('language', newLang)
+  const changeLanguage = (code: string) => {
+    if (i18n.language === code) return
+    i18n.changeLanguage(code)
+    localStorage.setItem('language', code)
   }
 
   const navItems = [
@@ -143,29 +144,94 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
           
           <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={cycleTheme}
-              className="flex items-center justify-center p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors border border-slate-200 dark:border-slate-800"
-              title={themeLabel}
-            >
-              {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-            </button>
-            <button
-              onClick={toggleLanguage}
-              className="flex items-center justify-center gap-1.5 p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors border border-slate-200 dark:border-slate-800"
-            >
-              <Languages className="w-4 h-4" />
-              <span className="text-xs font-bold">{i18n.language === 'zh-CN' ? 'EN' : 'ZH'}</span>
-            </button>
+            {/* Theme switcher with hover options */}
+            <div className="relative group">
+              <button
+                className="flex items-center justify-center p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors border border-slate-200 dark:border-slate-800 w-full"
+                title={themeLabel}
+              >
+                {mode === 'dark' ? (
+                  <Moon className="w-5 h-5" />
+                ) : mode === 'light' ? (
+                  <Sun className="w-5 h-5" />
+                ) : (
+                  <div className="relative w-5 h-5">
+                    <Sun className="w-5 h-5 absolute inset-0 opacity-70" />
+                    <Moon className="w-3 h-3 absolute -bottom-0.5 -right-0.5 opacity-80" />
+                  </div>
+                )}
+              </button>
+              <div className="absolute z-20 bottom-11 left-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+                {(['light', 'system', 'dark'] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => setMode(opt)}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                      mode === opt
+                        ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    {opt === 'light' && <Sun className="w-3.5 h-3.5" />}
+                    {opt === 'dark' && <Moon className="w-3.5 h-3.5" />}
+                    {opt === 'system' && (
+                      <div className="relative w-3.5 h-3.5">
+                        <Sun className="w-3.5 h-3.5 absolute inset-0 opacity-70" />
+                        <Moon className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 opacity-80" />
+                      </div>
+                    )}
+                    <span>
+                      {opt === 'light'
+                        ? t('theme.light')
+                        : opt === 'dark'
+                        ? t('theme.dark')
+                        : t('theme.system')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Language switcher with hover list */}
+            <div className="relative group">
+              <button
+                className="flex items-center justify-center gap-1.5 p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors border border-slate-200 dark:border-slate-800 w-full"
+              >
+                <Languages className="w-4 h-4" />
+                <span className="text-xs font-bold">
+                  {i18n.language === 'zh-CN' ? '中' : 'EN'}
+                </span>
+              </button>
+              <div className="absolute z-20 bottom-11 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+                {[
+                  { code: 'zh-CN', label: '简体中文' },
+                  { code: 'en-US', label: 'English' },
+                ].map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => changeLanguage(lang.code)}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                      i18n.language === lang.code
+                        ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    <span>{lang.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           
           <button
             onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/10 dark:text-rose-400 dark:hover:bg-rose-900/20 rounded-xl transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rose-500 hover:bg-rose-600 dark:bg-rose-500 dark:hover:bg-rose-600 rounded-xl shadow-sm shadow-rose-500/30 transition-colors"
           >
             <LogOut className="w-4 h-4" />
             {t('nav.logout')}
           </button>
+
+          <VersionFooter className="mt-1 text-center" />
         </div>
       </motion.aside>
 

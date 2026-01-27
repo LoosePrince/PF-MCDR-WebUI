@@ -54,9 +54,20 @@ async def get_server_status(
 
     server_version = server_message.get("server_version", "")
     version_string = f"Version: {server_version}" if server_version else ""
+
+    # 玩家在线数与最大在线数
     player_count = server_message.get("server_player_count")
     max_player = server_message.get("server_maxinum_player_count")
-    player_string = f"{player_count}/{max_player}" if player_count and max_player else ""
+
+    # 注意：原本用 `if player_count and max_player` 会把 0 在线玩家视为 False，
+    # 导致前端收到空字符串又回退成 "0/0"。这里改为：
+    # - 只要拿到了最大在线数，就显示 "当前在线数/最大在线数"
+    # - 当前在线数拿不到时按 0 处理
+    if max_player is not None:
+        safe_player_count = player_count if isinstance(player_count, int) else 0
+        player_string = f"{safe_player_count}/{max_player}"
+    else:
+        player_string = ""
 
     result = {
         "status": server_status,

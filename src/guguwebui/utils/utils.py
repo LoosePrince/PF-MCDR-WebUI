@@ -1831,8 +1831,8 @@ async def pip_task(task_id, action, package):
     """
     try:
         import asyncio
-        import subprocess
         import sys
+        from asyncio.subprocess import PIPE
 
         # 需要导入全局变量，这里会通过web_server.py导入
         from guguwebui.web_server import pip_tasks
@@ -1853,38 +1853,39 @@ async def pip_task(task_id, action, package):
             }
             return
 
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1
+        # 使用 asyncio 子进程，避免阻塞事件循环
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=PIPE,
+            stderr=PIPE,
         )
 
-        # 更新初始状态
+        # 初始化任务状态
         pip_tasks[task_id] = {
             "completed": False,
             "success": False,
             "output": output.copy(),
         }
 
-        # 读取输出
-        while True:
-            stdout_line = process.stdout.readline()
-            if stdout_line:
-                output.append(stdout_line.strip())
-                pip_tasks[task_id]["output"] = output.copy()
+        async def read_stream(stream):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                text = line.strip()
+                if text:
+                    output.append(text)
+                    pip_tasks[task_id]["output"] = output.copy()
 
-            stderr_line = process.stderr.readline()
-            if stderr_line:
-                output.append(stderr_line.strip())
-                pip_tasks[task_id]["output"] = output.copy()
+        # 并发读取 stdout / stderr
+        stdout_task = asyncio.create_task(read_stream(process.stdout))
+        stderr_task = asyncio.create_task(read_stream(process.stderr))
 
-            if not stdout_line and not stderr_line and process.poll() is not None:
-                break
+        # 等待子进程结束以及输出读取完成
+        exit_code = await process.wait()
+        await stdout_task
+        await stderr_task
 
-        # 获取最终退出码
-        exit_code = process.wait()
         success = exit_code == 0
 
         if success:
@@ -1899,11 +1900,14 @@ async def pip_task(task_id, action, package):
             "output": output,
         }
     except Exception as e:
-        import asyncio
         from guguwebui.web_server import pip_tasks
 
         error_msg = f"执行pip操作时出错: {str(e)}"
-        output.append(error_msg)
+        # 确保 output 至少是一个列表
+        try:
+            output.append(error_msg)
+        except Exception:
+            output = [error_msg]
         pip_tasks[task_id] = {
             "completed": True,
             "success": False,

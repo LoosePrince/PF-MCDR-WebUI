@@ -694,7 +694,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {pipOutputVisible && pipOutput.length > 0 && (
-            <div className="bg-slate-900 rounded-2xl p-3 text-slate-100 font-mono space-y-2">
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-3 text-slate-100 font-mono space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-300">
                   {t('page.index.pip_output', 'pip 日志输出')}
