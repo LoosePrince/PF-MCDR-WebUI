@@ -847,6 +847,7 @@ const PluginCard: React.FC<{
 }> = ({ plugin, t, onToggle, onReload, onUninstall, onUpdate, onConfig, onVersions, getLocalizedDescription }) => {
   const isLoaded = plugin.status === 'loaded';
   const hasUpdate = plugin.version_latest && plugin.version && plugin.version !== plugin.version_latest;
+  const isSelfWebUI = plugin.id === 'guguwebui';
 
   const statusInfo = {
     loaded: { color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20', icon: CheckCircle2 },
@@ -933,62 +934,71 @@ const PluginCard: React.FC<{
 
       {/* Action Bar */}
       <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-        <div className="flex gap-2">
-          <button
-            onClick={() => onToggle(plugin)}
-            className={`p-2 rounded-xl transition-all ${isLoaded
-              ? 'bg-rose-100 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 hover:bg-rose-200 text-sm font-semibold flex items-center gap-2 px-3'
-              : 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 text-sm font-semibold flex items-center gap-2 px-3'
-              }`}
-            title={isLoaded ? t('plugins.disable') : t('plugins.enable')}
-          >
-            {isLoaded ? <Square size={16} /> : <Play size={16} />}
-            {isLoaded ? t('plugins.disable') : t('plugins.enable')}
-          </button>
-          <button
-            onClick={() => onReload(plugin)}
-            disabled={!isLoaded}
-            className="p-2 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-xl hover:text-blue-500 hover:border-blue-200 dark:hover:border-blue-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            title={t('plugins.reload')}
-          >
-            <RotateCw size={18} />
-          </button>
-          {plugin.config_file && (
-            <button
-              onClick={() => onConfig(plugin)}
-              className="p-2 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-xl hover:text-blue-500 hover:border-blue-200 dark:hover:border-blue-900/40 transition-all"
-              title={t('plugins.config')}
-            >
-              <Settings size={18} />
-            </button>
-          )}
-          <button
-            onClick={() => onVersions(plugin)}
-            className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all"
-            title={t('plugins.versions')}
-          >
-            <Tag size={14} />
-          </button>
-        </div>
+        {isSelfWebUI ? (
+          <div className="text-xs text-slate-400 dark:text-slate-500 italic">
+            {/* 保留占位，避免高度跳变 */}
+            {t('plugins.msg.webui_operation_disabled')}
+          </div>
+        ) : (
+          <>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onToggle(plugin)}
+                className={`p-2 rounded-xl transition-all ${isLoaded
+                  ? 'bg-rose-100 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 hover:bg-rose-200 text-sm font-semibold flex items-center gap-2 px-3'
+                  : 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 text-sm font-semibold flex items-center gap-2 px-3'
+                  }`}
+                title={isLoaded ? t('plugins.disable') : t('plugins.enable')}
+              >
+                {isLoaded ? <Square size={16} /> : <Play size={16} />}
+                {isLoaded ? t('plugins.disable') : t('plugins.enable')}
+              </button>
+              <button
+                onClick={() => onReload(plugin)}
+                disabled={!isLoaded}
+                className="p-2 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-xl hover:text-blue-500 hover:border-blue-200 dark:hover:border-blue-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                title={t('plugins.reload')}
+              >
+                <RotateCw size={18} />
+              </button>
+              {plugin.config_file && (
+                <button
+                  onClick={() => onConfig(plugin)}
+                  className="p-2 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-xl hover:text-blue-500 hover:border-blue-200 dark:hover:border-blue-900/40 transition-all"
+                  title={t('plugins.config')}
+                >
+                  <Settings size={18} />
+                </button>
+              )}
+              <button
+                onClick={() => onVersions(plugin)}
+                className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all"
+                title={t('plugins.versions')}
+              >
+                <Tag size={14} />
+              </button>
+            </div>
 
-        <div className="flex gap-2">
-          {hasUpdate && (
-            <button
-              onClick={() => onUpdate(plugin)}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
-            >
-              <ArrowUpCircle size={14} />
-              {t('plugins.update')}
-            </button>
-          )}
-          <button
-            onClick={() => onUninstall(plugin)}
-            className="p-2 bg-white dark:bg-slate-800 text-rose-500 dark:text-rose-400 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:border-rose-200 dark:hover:border-rose-900/40 transition-all"
-            title={t('plugins.uninstall')}
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
+            <div className="flex gap-2">
+              {hasUpdate && (
+                <button
+                  onClick={() => onUpdate(plugin)}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                >
+                  <ArrowUpCircle size={14} />
+                  {t('plugins.update')}
+                </button>
+              )}
+              <button
+                onClick={() => onUninstall(plugin)}
+                className="p-2 bg-white dark:bg-slate-800 text-rose-500 dark:text-rose-400 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:border-rose-200 dark:hover:border-rose-900/40 transition-all"
+                title={t('plugins.uninstall')}
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </motion.div>
   );

@@ -65,6 +65,7 @@
     "msg": {
       "load_plugins_failed": "加载插件列表失败",
       "cannot_toggle_webui": "不能切换 WebUI 插件的状态",
+      "webui_operation_disabled": "不允许通过本地插件管理对WebUI进行操作",
       "enable_success": "启用插件成功",
       "disable_success": "禁用插件成功",
       "enable_failed_prefix": "启用插件失败: {{message}}",

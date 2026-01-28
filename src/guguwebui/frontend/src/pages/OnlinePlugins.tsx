@@ -601,6 +601,7 @@ const OnlinePluginCard: React.FC<{
   onViewDetails: (p: OnlinePlugin) => void;
   getLocalizedDescription: (desc: string | Record<string, string>) => string;
 }> = ({ plugin, t, onInstall, onViewDetails, getLocalizedDescription }) => {
+  const isSelfWebUI = plugin.id === 'guguwebui';
   return (
     <motion.div
       layout
@@ -649,13 +650,15 @@ const OnlinePluginCard: React.FC<{
           {t('page.online_plugins.details')}
           <ArrowRight size={16} />
         </button>
-        <button
-          onClick={() => onInstall(plugin)}
-          className="p-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-lg shadow-purple-500/20 transition-all hover:scale-110 active:scale-95"
-          title={t('common.install')}
-        >
-          <Download size={18} />
-        </button>
+        {!isSelfWebUI && (
+          <button
+            onClick={() => onInstall(plugin)}
+            className="p-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-lg shadow-purple-500/20 transition-all hover:scale-110 active:scale-95"
+            title={t('common.install')}
+          >
+            <Download size={18} />
+          </button>
+        )}
       </div>
     </motion.div>
   );

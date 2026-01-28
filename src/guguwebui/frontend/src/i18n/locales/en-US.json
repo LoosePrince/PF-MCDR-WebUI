@@ -64,6 +64,7 @@
     "msg": {
       "load_plugins_failed": "Failed to load plugins list",
       "cannot_toggle_webui": "Cannot toggle WebUI plugin state",
+      "webui_operation_disabled": "Operations on WebUI are disabled in local plugin manager",
       "enable_success": "Plugin enabled successfully",
       "disable_success": "Plugin disabled successfully",
       "enable_failed_prefix": "Failed to enable plugin: {{message}}",
