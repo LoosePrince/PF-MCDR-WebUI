@@ -17,9 +17,31 @@ export default defineConfig({
     base: '/static/',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'i18n-vendor': ['i18next', 'react-i18next'],
+        manualChunks(id) {
+          // React 核心库
+          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+            return 'react-vendor';
+          }
+          // i18n 相关
+          if (id.includes('i18next') || id.includes('react-i18next')) {
+            return 'i18n-vendor';
+          }
+          // CodeMirror 相关（较大的库）
+          if (id.includes('@uiw/react-codemirror') || id.includes('@codemirror')) {
+            return 'codemirror-vendor';
+          }
+          // framer-motion 动画库
+          if (id.includes('framer-motion')) {
+            return 'framer-motion-vendor';
+          }
+          // axios
+          if (id.includes('axios')) {
+            return 'axios-vendor';
+          }
+          // lucide-react 图标库
+          if (id.includes('lucide-react')) {
+            return 'lucide-vendor';
+          }
         },
         // 固定输出文件名，去掉随机哈希
         entryFileNames: 'assets/[name].js',
