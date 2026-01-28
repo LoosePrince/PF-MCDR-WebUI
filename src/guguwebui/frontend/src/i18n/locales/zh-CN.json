@@ -25,7 +25,10 @@
     "notice_loading": "加载中...",
     "copyright": "",
     "checking_login": "正在检测登录状态...",
-    "unknown": "未知"
+    "unknown": "未知",
+    "save_success": "保存成功",
+    "install": "安装",
+    "installed": "已安装"
   },
   "page": {
     "index": {
@@ -140,6 +143,143 @@
           "contributors_link": "更多贡献者",
           "contributors_link_desc": "详见 GitHub 贡献者列表。"
         }
+      }
+    },
+    "settings": {
+      "title": "Web设置",
+      "header": "WebUI 设置",
+      "msg": {
+        "get_config_failed": "获取配置失败",
+        "host_required": "主机地址不能为空",
+        "port_invalid": "端口必须是1-65535之间的有效数字",
+        "network_save_success": "网络设置保存成功",
+        "save_failed_prefix": "保存失败: ",
+        "save_error_prefix": "保存出错: ",
+        "account_required": "超级管理员账号不能为空",
+        "account_save_success": "账户设置保存成功",
+        "toggle_enabled": "设置已启用",
+        "toggle_disabled": "设置已禁用",
+        "toggle_failed_prefix": "设置切换失败: ",
+        "toggle_error_prefix": "设置出错: ",
+        "api_key_required": "请输入API密钥",
+        "api_key_validating": "正在验证API密钥...",
+        "api_key_validate_success": "API密钥验证成功",
+        "api_key_validate_failed_prefix": "API密钥验证失败: ",
+        "api_key_validate_error_prefix": "验证出错: ",
+        "repo_name_url_required": "仓库名称和URL不能为空",
+        "url_invalid": "请输入有效的URL",
+        "repo_url_official_forbidden": "不能添加与官方仓库相同的URL",
+        "repo_duplicate": "仓库名称或URL已存在",
+        "repo_added_tip": "仓库已添加，请点击保存按钮保存配置",
+        "repo_deleted_tip": "仓库已删除，请点击保存按钮保存配置",
+        "repos_save_success": "仓库配置保存成功",
+        "mcdr_url_save_success": "MCDR插件目录URL保存成功",
+        "plugin_repo_save_success": "插件目录配置保存成功",
+        "https_need_both_files": "启用HTTPS需要同时提供证书文件和密钥文件路径",
+        "https_confirm_text": "请确认您已经准备好了SSL证书和密钥文件，并且指定的路径是正确的。\n\n如果文件不存在，WebUI将回退到HTTP模式。\n\n是否继续?",
+        "https_save_success": "HTTPS设置保存成功，重启插件后生效。如果SSL文件不存在，系统将自动回退到HTTP模式。",
+        "pim_install_success": "PIM插件安装成功",
+        "pim_install_failed_prefix": "安装失败: ",
+        "pim_install_error_prefix": "安装出错: ",
+        "ai_save_success": "AI配置保存成功",
+        "public_chat_save_success": "聊天页设置保存成功"
+      },
+      "network": {
+        "title": "网络设置",
+        "tip": "配置 WebUI 的网络绑定。更改这些设置后，您需要重启插件使修改生效。",
+        "host": "主机地址",
+        "host_hint": "使用 127.0.0.1 仅本机访问，使用 0.0.0.0 允许所有网络访问",
+        "port": "端口",
+        "port_hint": "端口范围：1-65535，请避免使用已被占用的端口",
+        "save": "保存网络设置"
+      },
+      "https": {
+        "title": "HTTPS 设置",
+        "tip": "配置 WebUI 的 HTTPS 支持。您需要提供有效的 SSL 证书和密钥文件。修改后需要重启插件使配置生效。",
+        "enable": "启用 HTTPS",
+        "enable_desc": "使用 HTTPS 加密通信，保护您的管理界面",
+        "ssl_tip_title": "SSL 文件配置说明",
+        "ssl_tip_1": "请确保指定的证书和密钥文件真实存在，否则系统将自动回退到 HTTP 模式",
+        "ssl_tip_2": "文件路径可以是绝对路径(如 C:/ssl/cert.pem)或相对路径(如 ./ssl/cert.pem)",
+        "ssl_tip_3": "相对路径以 MCDR 根目录为基准",
+        "ssl_tip_4": "更改配置后需重启插件才能生效",
+        "cert": "SSL 证书文件路径",
+        "cert_hint": "SSL 证书文件的完整路径，例如 ./ssl/cert.pem",
+        "key": "SSL 密钥文件路径",
+        "key_hint": "SSL 密钥文件的完整路径，例如 ./ssl/key.pem",
+        "key_pass": "SSL 密钥文件密码（可选）",
+        "key_pass_hint": "如果您的 SSL 密钥文件受密码保护，请在此处输入密码",
+        "save": "保存 HTTPS 设置",
+        "placeholder_key_pass": "如果您的密钥文件有密码保护，请在此输入"
+      },
+      "account": {
+        "title": "账户设置",
+        "super_admin": "超级管理员账号",
+        "super_admin_hint": "具有超级管理员权限的QQ账号",
+        "save": "保存账户设置"
+      },
+      "security": {
+        "title": "安全设置",
+        "disable_admin_web": "禁用管理员网页登录",
+        "enable_temp_code": "启用临时登录密码"
+      },
+      "ai": {
+        "title": "AI 模型配置",
+        "api_key": "API 密钥",
+        "validate": "验证密钥",
+        "api_url": "API 链接",
+        "api_url_hint": "API链接地址，DeepSeek默认为: https://api.deepseek.com/chat/completions",
+        "model": "模型名称",
+        "model_hint": "AI模型名称，DeepSeek默认为: deepseek-chat",
+        "save": "保存AI配置",
+        "placeholder_api_key": "输入新的API密钥",
+        "placeholder_api_url": "https://api.deepseek.com/chat/completions",
+        "placeholder_model": "deepseek-chat"
+      },
+      "public_chat": {
+        "title": "公开聊天页设置",
+        "tip": "配置公开聊天页的功能选项。这些设置会影响聊天页的访问权限和消息转发功能。",
+        "enable": "启用公开聊天页",
+        "enable_desc": "允许用户访问公开聊天页面",
+        "enable_to_game": "发送消息到游戏",
+        "enable_to_game_desc": "允许公开聊天页的用户发送消息到Minecraft游戏内",
+        "save": "保存聊天页设置",
+        "verification_expire": {
+          "title": "验证码过期时间",
+          "desc": "设置聊天页验证码的有效期（分钟）",
+          "unit_min": "分钟"
+        },
+        "session_expire": {
+          "title": "会话过期时间",
+          "desc": "设置聊天页用户会话的有效期（小时）",
+          "unit_hour": "小时"
+        },
+        "history": {
+          "title": "聊天记录管理",
+          "desc": "管理聊天页的历史消息记录",
+          "clear": "清空聊天记录",
+          "count_prefix": "当前记录: ",
+          "count_suffix": " 条消息"
+        }
+      },
+      "repo": {
+        "title": "MCDR插件仓库配置",
+        "tip": "支持多仓库链接，可添加第三方仓库。官方仓库不可删除，作为默认数据源。",
+        "name": "名称",
+        "url": "URL",
+        "actions": "操作",
+        "official": "官方仓库",
+        "loose_repo": "树梢的仓库",
+        "default": "默认仓库",
+        "placeholder_name": "仓库名称",
+        "placeholder_url": "仓库URL地址",
+        "save": "保存仓库配置"
+      },
+      "pim": {
+        "title": "PIM独立插件配置",
+        "install_title": "将PIM安装到独立插件",
+        "installed_tip": "PIM已作为独立插件安装。您可以在插件管理页面中查看和管理它。",
+        "desc": "将WebUI的插件安装管理器（PIM）作为独立插件运行，以为其它插件提供安装支持，如果您不知道它是干什么的，请不要安装。"
       }
     }
   },

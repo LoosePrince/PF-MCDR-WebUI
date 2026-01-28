@@ -24,7 +24,10 @@
   "common": {
     "notice_loading": "Loading...",
     "checking_login": "Checking login status...",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "save_success": "Saved successfully",
+    "install": "Install",
+    "installed": "Installed"
   },
   "page": {
     "index": {
@@ -139,6 +142,143 @@
           "contributors_link": "More contributors",
           "contributors_link_desc": "See the full contributor list on GitHub."
         }
+      }
+    },
+    "settings": {
+      "title": "Web Settings",
+      "header": "WebUI Settings",
+      "msg": {
+        "get_config_failed": "Failed to fetch configuration",
+        "host_required": "Host cannot be empty",
+        "port_invalid": "Port must be a valid number between 1 and 65535",
+        "network_save_success": "Network settings saved successfully",
+        "save_failed_prefix": "Save failed: ",
+        "save_error_prefix": "Save error: ",
+        "account_required": "Super admin account cannot be empty",
+        "account_save_success": "Account settings saved successfully",
+        "toggle_enabled": "Setting enabled",
+        "toggle_disabled": "Setting disabled",
+        "toggle_failed_prefix": "Toggle failed: ",
+        "toggle_error_prefix": "Toggle error: ",
+        "api_key_required": "Please enter API key",
+        "api_key_validating": "Validating API key...",
+        "api_key_validate_success": "API key verified successfully",
+        "api_key_validate_failed_prefix": "API key validation failed: ",
+        "api_key_validate_error_prefix": "Validation error: ",
+        "repo_name_url_required": "Repository name and URL cannot be empty",
+        "url_invalid": "Please enter a valid URL",
+        "repo_url_official_forbidden": "Cannot add the same URL as the official repository",
+        "repo_duplicate": "Repository name or URL already exists",
+        "repo_added_tip": "Repository added. Click the save button to persist the configuration.",
+        "repo_deleted_tip": "Repository deleted. Click the save button to persist the configuration.",
+        "repos_save_success": "Repository configuration saved successfully",
+        "mcdr_url_save_success": "MCDR plugin repository URL saved successfully",
+        "plugin_repo_save_success": "Plugin repository configuration saved successfully",
+        "https_need_both_files": "To enable HTTPS, you need to provide both certificate and key file paths",
+        "https_confirm_text": "Please confirm that you have prepared the SSL certificate and key files, and that the specified paths are correct.\n\nIf the files do not exist, the WebUI will fall back to HTTP mode.\n\nContinue?",
+        "https_save_success": "HTTPS settings saved successfully. They will take effect after restarting the plugin. If the SSL files do not exist, the system will automatically fall back to HTTP mode.",
+        "pim_install_success": "PIM plugin installed successfully",
+        "pim_install_failed_prefix": "Installation failed: ",
+        "pim_install_error_prefix": "Installation error: ",
+        "ai_save_success": "AI configuration saved successfully",
+        "public_chat_save_success": "Chat page settings saved successfully"
+      },
+      "network": {
+        "title": "Network Settings",
+        "tip": "Configure the WebUI network binding. After changing these settings, you need to restart the plugin to apply them.",
+        "host": "Host",
+        "host_hint": "Use 127.0.0.1 for local access only, use 0.0.0.0 to allow access from other devices",
+        "port": "Port",
+        "port_hint": "Port range: 1-65535. Avoid using ports that are already in use.",
+        "save": "Save Network Settings"
+      },
+      "https": {
+        "title": "HTTPS Settings",
+        "tip": "Configure HTTPS support for WebUI. You need to provide a valid SSL certificate and key files. Changes take effect after restarting the plugin.",
+        "enable": "Enable HTTPS",
+        "enable_desc": "Encrypt WebUI traffic with HTTPS to protect your admin interface",
+        "ssl_tip_title": "SSL File Configuration Notes",
+        "ssl_tip_1": "Make sure the specified certificate and key files actually exist, otherwise the system will automatically fall back to HTTP mode",
+        "ssl_tip_2": "File paths can be absolute (e.g. C:/ssl/cert.pem) or relative (e.g. ./ssl/cert.pem)",
+        "ssl_tip_3": "Relative paths are based on the MCDR root directory",
+        "ssl_tip_4": "Configuration changes take effect only after restarting the plugin",
+        "cert": "SSL certificate file path",
+        "cert_hint": "Full path to the SSL certificate file, e.g. ./ssl/cert.pem",
+        "key": "SSL key file path",
+        "key_hint": "Full path to the SSL key file, e.g. ./ssl/key.pem",
+        "key_pass": "SSL key file password (optional)",
+        "key_pass_hint": "If your SSL key file is password protected, enter the password here",
+        "save": "Save HTTPS Settings",
+        "placeholder_key_pass": "If your key file is password protected, enter the password here"
+      },
+      "account": {
+        "title": "Account Settings",
+        "super_admin": "Super admin account",
+        "super_admin_hint": "QQ account with super admin permission",
+        "save": "Save Account Settings"
+      },
+      "security": {
+        "title": "Security Settings",
+        "disable_admin_web": "Disable admin login via web",
+        "enable_temp_code": "Enable temporary login password"
+      },
+      "ai": {
+        "title": "AI Model Configuration",
+        "api_key": "API Key",
+        "validate": "Validate Key",
+        "api_url": "API URL",
+        "api_url_hint": "API endpoint, DeepSeek default: https://api.deepseek.com/chat/completions",
+        "model": "Model Name",
+        "model_hint": "AI model name, DeepSeek default: deepseek-chat",
+        "save": "Save AI Configuration",
+        "placeholder_api_key": "Enter a new API key",
+        "placeholder_api_url": "https://api.deepseek.com/chat/completions",
+        "placeholder_model": "deepseek-chat"
+      },
+      "public_chat": {
+        "title": "Public Chat Page Settings",
+        "tip": "Configure options for the public chat page. These settings affect access and message forwarding behavior.",
+        "enable": "Enable Public Chat Page",
+        "enable_desc": "Allow users to access the public chat page",
+        "enable_to_game": "Send messages to game",
+        "enable_to_game_desc": "Allow users on the public chat page to send messages into the Minecraft game",
+        "save": "Save Chat Page Settings",
+        "verification_expire": {
+          "title": "Verification code expiry",
+          "desc": "Set validity period of verification code (minutes)",
+          "unit_min": "minutes"
+        },
+        "session_expire": {
+          "title": "Session expiry",
+          "desc": "Set validity period of user sessions (hours)",
+          "unit_hour": "hours"
+        },
+        "history": {
+          "title": "Chat History Management",
+          "desc": "Manage historical messages of the chat page",
+          "clear": "Clear chat history",
+          "count_prefix": "Current records: ",
+          "count_suffix": " messages"
+        }
+      },
+      "repo": {
+        "title": "MCDR Plugin Repository Configuration",
+        "tip": "Supports multiple repository links. You can add third-party repositories. The official repository cannot be removed and is used as the default data source.",
+        "name": "Name",
+        "url": "URL",
+        "actions": "Actions",
+        "official": "Official repository",
+        "loose_repo": "LoosePrince's repository",
+        "default": "Default",
+        "placeholder_name": "Repository name",
+        "placeholder_url": "Repository URL",
+        "save": "Save Repository Configuration"
+      },
+      "pim": {
+        "title": "PIM Standalone Plugin",
+        "install_title": "Install PIM as standalone plugin",
+        "installed_tip": "PIM is installed as a standalone plugin. You can manage it in the plugin management page.",
+        "desc": "Run the WebUI Plugin Installation Manager (PIM) as a standalone plugin to provide installation support for other plugins. If you are not sure what this is, please do not install it."
       }
     }
   },
