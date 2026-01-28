@@ -264,7 +264,7 @@ const Settings: React.FC = () => {
                   value={config.host}
                   onChange={(e) => setConfig({ ...config, host: e.target.value })}
                   placeholder="127.0.0.1"
-                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/60 transition-all outline-none"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/60 transition-all outline-none"
                 />
                 <p className="text-xs text-slate-500">{t('page.settings.network.host_hint')}</p>
               </div>
@@ -277,7 +277,7 @@ const Settings: React.FC = () => {
                   value={config.port}
                   onChange={(e) => setConfig({ ...config, port: parseInt(e.target.value) || 0 })}
                   placeholder="8000"
-                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/60 transition-all outline-none"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/60 transition-all outline-none"
                 />
                 <p className="text-xs text-slate-500">{t('page.settings.network.port_hint')}</p>
               </div>
@@ -317,7 +317,7 @@ const Settings: React.FC = () => {
                 type="text"
                 value={config.super_admin_account}
                 onChange={(e) => setConfig({ ...config, super_admin_account: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/60 transition-all outline-none"
+                className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/60 transition-all outline-none"
               />
               <p className="text-xs text-slate-500">{t('page.settings.account.super_admin_hint')}</p>
             </div>
@@ -431,7 +431,7 @@ const Settings: React.FC = () => {
                       value={config.ssl_certfile}
                       onChange={(e) => setConfig({ ...config, ssl_certfile: e.target.value })}
                       placeholder="./ssl/cert.pem"
-                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/60 transition-all outline-none"
+                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/60 transition-all outline-none"
                     />
                   </div>
                   <div className="space-y-2">
@@ -441,7 +441,7 @@ const Settings: React.FC = () => {
                       value={config.ssl_keyfile}
                       onChange={(e) => setConfig({ ...config, ssl_keyfile: e.target.value })}
                       placeholder="./ssl/key.pem"
-                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/60 transition-all outline-none"
+                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/60 transition-all outline-none"
                     />
                   </div>
                   <form
@@ -465,7 +465,7 @@ const Settings: React.FC = () => {
                       onChange={(e) => setConfig({ ...config, ssl_keyfile_password: e.target.value })}
                       placeholder={t('page.settings.https.placeholder_key_pass')}
                       autoComplete="new-password"
-                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/60 transition-all outline-none"
+                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/60 transition-all outline-none"
                     />
                   </form>
                 </motion.div>
@@ -506,7 +506,7 @@ const Settings: React.FC = () => {
                   value={config.ai_api_url}
                   onChange={(e) => setConfig({ ...config, ai_api_url: e.target.value })}
                   placeholder="https://api.deepseek.com/chat/completions"
-                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/60 transition-all outline-none"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/60 transition-all outline-none"
                 />
               </div>
               <div className="space-y-2">
@@ -516,7 +516,7 @@ const Settings: React.FC = () => {
                   value={config.ai_model}
                   onChange={(e) => setConfig({ ...config, ai_model: e.target.value })}
                   placeholder="deepseek-chat"
-                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/60 transition-all outline-none"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/60 transition-all outline-none"
                 />
               </div>
               <form
@@ -541,7 +541,7 @@ const Settings: React.FC = () => {
                     onChange={(e) => setAiApiKey(e.target.value)}
                     placeholder={config.ai_api_key_configured ? '••••••••••••••••' : t('page.settings.ai.placeholder_api_key')}
                     autoComplete="new-password"
-                    className="w-full px-4 py-2.5 pr-12 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/60 transition-all outline-none"
+                    className="w-full px-4 py-2.5 pr-12 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/60 transition-all outline-none"
                   />
                   <button
                     type="button"
@@ -647,7 +647,7 @@ const Settings: React.FC = () => {
                       value={newRepo.name}
                       onChange={(e) => setNewRepo({ ...newRepo, name: e.target.value })}
                       placeholder={t('page.settings.repo.placeholder_name')}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
                     />
                   </td>
                   <td className="px-6 py-3">
@@ -655,7 +655,7 @@ const Settings: React.FC = () => {
                       value={newRepo.url}
                       onChange={(e) => setNewRepo({ ...newRepo, url: e.target.value })}
                       placeholder={t('page.settings.repo.placeholder_url')}
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
                     />
                   </td>
                   <td className="px-6 py-3 text-right">
@@ -739,7 +739,7 @@ const Settings: React.FC = () => {
                     type="number"
                     value={config.chat_verification_expire_minutes}
                     onChange={(e) => setConfig({ ...config, chat_verification_expire_minutes: parseInt(e.target.value) || 0 })}
-                    className="w-20 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm outline-none"
+                    className="w-20 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none"
                   />
                   <span className="text-xs text-slate-500">{t('page.settings.public_chat.verification_expire.unit_min')}</span>
                 </div>
@@ -751,7 +751,7 @@ const Settings: React.FC = () => {
                     type="number"
                     value={config.chat_session_expire_hours}
                     onChange={(e) => setConfig({ ...config, chat_session_expire_hours: parseInt(e.target.value) || 0 })}
-                    className="w-20 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm outline-none"
+                    className="w-20 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none"
                   />
                   <span className="text-xs text-slate-500">{t('page.settings.public_chat.session_expire.unit_hour')}</span>
                 </div>

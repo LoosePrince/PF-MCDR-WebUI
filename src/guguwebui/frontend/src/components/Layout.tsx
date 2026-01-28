@@ -283,7 +283,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+        <main className="flex-1 overflow-y-scroll p-4 lg:p-8">
           <motion.div 
             key={location.pathname}
             initial={{ opacity: 0, y: 10 }}
