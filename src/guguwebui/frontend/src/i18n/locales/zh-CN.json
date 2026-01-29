@@ -36,7 +36,8 @@
     "delete": "删除",
     "add": "添加",
     "close": "关闭",
-    "save": "保存"
+    "save": "保存",
+    "back": "返回"
   },
   "plugins": {
     "title": "本地插件",
@@ -141,6 +142,9 @@
       "prerelease": "预发布",
       "downloads": "下载次数",
       "source_repository": "来源仓库: "
+    },
+    "status": {
+      "updatable": "可更新"
     }
   },
   "page": {
@@ -605,13 +609,36 @@
       "empty": "未找到符合条件的插件",
       "description": "描述",
       "readme": "说明文档",
+      "readme_doc": "项目文档",
+      "catalogue_doc": "仓库文档",
       "github_repo": "GitHub 仓库",
       "details": "详情",
+      "authors": "作者",
+      "dependencies": "依赖",
+      "view_doc": "查看文档",
+      "view_full_doc": "查看完整说明文档",
+      "install_confirm_title": "安装插件确认",
+      "installing_plugin": "您即将安装插件 ",
+      "select_install_method": "请选择安装方式：",
+      "choose_version": "选择版本",
+      "install_latest": "安装最新版",
+      "loading_readme": "正在加载项目文档...",
+      "loading_catalogue": "正在加载仓库文档...",
       "third_repo_warning_title": "第三方仓库安全警告",
-      "third_repo_warning_lead": "您正在访问第三方插件仓库，请确保来源可信。",
+      "third_repo_warning_lead": "您正在访问第三方插件仓库。",
+      "note": "请注意：",
+      "third_repo_warning_p1": "这些插件可能没有经过审查，可能存在潜在安全风险。",
+      "third_repo_warning_p2": "安装这些插件可能会影响您的服务器的稳定性和安全性。",
+      "third_repo_warning_p3": "在安装前，请仔细审查插件代码或确认您信任该仓库的维护者。",
+      "third_repo_warning_p4": "第三方插件版本切换功能于 1.4.3 起支持，本弹窗在你确认后当天将不再显示。",
+      "third_repo_warning_conclusion": "继续访问即表示您了解并接受这些风险。",
+      "repo_continue": "继续",
       "msg": {
         "load_online_plugins_failed": "加载在线插件列表失败",
-        "load_doc_failed": "加载说明文档失败"
+        "load_doc_failed": "加载说明文档失败",
+        "versions_failed": "获取版本列表失败",
+        "no_readme": "该插件没有说明文档",
+        "no_readme_plain": "该插件没有 Markdown 文档，可能只有纯文本说明或无文档。"
       }
     }
   },

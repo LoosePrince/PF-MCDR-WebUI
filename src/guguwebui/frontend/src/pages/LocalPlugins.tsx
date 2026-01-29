@@ -5,7 +5,6 @@ import {
   Puzzle,
   Search,
   RotateCw,
-  Clock,
   Trash2,
   Settings,
   AlertTriangle,
@@ -28,6 +27,7 @@ import {
   Download
 } from 'lucide-react';
 import axios from 'axios';
+import { VersionSelectModal } from '../components/VersionSelectModal';
 
 interface PluginDescription {
   [key: string]: string;
@@ -52,10 +52,9 @@ interface PluginMetadata {
 }
 
 interface TaskStatus {
-  completed: boolean;
-  success: boolean;
+  status: string; // 后端返回的状态: pending|running|completed|failed
   message: string;
-  output: string[];
+  all_messages: string[]; // 后端返回的所有消息
   plugin_id?: string;
 }
 
@@ -178,13 +177,19 @@ const LocalPlugins: React.FC = () => {
   const pollTaskStatus = useCallback(async (taskId: string) => {
     try {
       const resp = await axios.get(`/api/pim/task_status?task_id=${taskId}`);
-      if (resp.data.success) {
-        const status: TaskStatus = resp.data.task_info;
+      if (resp.data.success && resp.data.task_info) {
+        const taskInfo = resp.data.task_info;
+        const status: TaskStatus = {
+          status: taskInfo.status,
+          message: taskInfo.message || '',
+          all_messages: taskInfo.all_messages || [],
+          plugin_id: taskInfo.plugin_id
+        };
         setTaskProgress(status);
-        if (status.completed) {
+        if (status.status === 'completed' || status.status === 'failed') {
           setInstallingTaskId(null);
           fetchPlugins();
-          if (status.success) {
+          if (status.status === 'completed') {
             notify(t('plugins.msg.operation_success', { pluginId: operatingPluginId }), 'success');
           } else {
             notify(t('plugins.msg.operation_failed_prefix', { pluginId: operatingPluginId, message: status.message }), 'error');
@@ -192,11 +197,14 @@ const LocalPlugins: React.FC = () => {
         } else {
           setTimeout(() => pollTaskStatus(taskId), 1000);
         }
+      } else {
+        // 如果请求失败，继续轮询
+        setTimeout(() => pollTaskStatus(taskId), 1000);
       }
     } catch (error) {
       console.error('Failed to poll task status:', error);
-      setInstallingTaskId(null);
-      notify(t('plugins.msg.task_query_error_continue'), 'error');
+      // 发生错误时继续轮询，不要立即停止
+      setTimeout(() => pollTaskStatus(taskId), 1000);
     }
   }, [fetchPlugins, operatingPluginId, t]);
 
@@ -584,19 +592,23 @@ const LocalPlugins: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-              {taskProgress?.completed ? t('plugins.install_modal.completed') : t('plugins.install_modal.processing')}
+              {taskProgress && (taskProgress.status === 'completed' || taskProgress.status === 'failed') ? t('plugins.install_modal.completed') : t('plugins.install_modal.processing')}
             </span>
-            {taskProgress?.completed && (
-              <span className={`text-sm font-bold ${taskProgress.success ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {taskProgress.success ? t('common.success') : t('common.failed')}
+            {taskProgress && (taskProgress.status === 'completed' || taskProgress.status === 'failed') && (
+              <span className={`text-sm font-bold ${taskProgress.status === 'completed' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {taskProgress.status === 'completed' ? t('common.success') : t('common.failed')}
               </span>
             )}
           </div>
 
           <div className="bg-slate-950 rounded-2xl p-4 font-mono text-xs text-slate-300 h-64 overflow-y-auto space-y-1 custom-scrollbar">
-            {taskProgress?.output?.map((line, i) => (
-              <div key={i} className="break-all whitespace-pre-wrap">{line}</div>
-            )) || <div className="text-slate-500 animate-pulse">{t('plugins.install_modal.waiting_logs')}</div>}
+            {taskProgress && taskProgress.all_messages.length > 0 ? (
+              taskProgress.all_messages.map((line, i) => (
+                <div key={i} className="break-all whitespace-pre-wrap">{line}</div>
+              ))
+            ) : (
+              <div className="text-slate-500 animate-pulse">{t('plugins.install_modal.waiting_logs')}</div>
+            )}
           </div>
 
           <div className="flex justify-end pt-2">
@@ -734,84 +746,19 @@ const LocalPlugins: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Version Switching Modal */}
-      <Modal
+      <VersionSelectModal
         isOpen={showVersionModal}
         onClose={() => setShowVersionModal(false)}
-        title={t('plugins.version_modal.title') + selectedPlugin?.name}
-      >
-        <div className="space-y-4">
-          {loadingVersions ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="animate-spin text-blue-500 w-10 h-10" />
-            </div>
-          ) : availableVersions.length > 0 ? (
-            <div className="space-y-3">
-              <p className="text-sm text-slate-500 mb-2 font-medium">
-                {t('plugins.version_modal.current_version')} <span className="text-blue-600 dark:text-blue-400 font-bold">v{selectedPlugin?.version}</span>
-              </p>
-              <div className="grid gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                {availableVersions.map((v) => (
-                  <div
-                    key={v.version}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${v.version === selectedPlugin?.version
-                      ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50'
-                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800'
-                      }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 dark:text-white">v{v.version}</span>
-                        {v.prerelease && (
-                          <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full uppercase">
-                            {t('plugins.version_modal.prerelease')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1 flex items-center gap-3">
-                        {v.date && (
-                          <span className="flex items-center gap-1"><Clock size={12} /> {v.date}</span>
-                        )}
-                        {v.downloads > 0 && (
-                          <span className="flex items-center gap-1"><Download size={12} /> {v.downloads}</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      disabled={v.version === selectedPlugin?.version}
-                      onClick={() => {
-                        setShowVersionModal(false);
-                        confirmUpdate({ ...selectedPlugin!, version_latest: v.version });
-                      }}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${v.version === selectedPlugin?.version
-                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
-                        }`}
-                    >
-                      {v.version === selectedPlugin?.version ? t('plugins.version_modal.installed') : t('common.install')}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-              <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full mb-4">
-                <Info size={32} className="opacity-20" />
-              </div>
-              <p className="font-medium">{t('plugins.version_modal.no_versions')}</p>
-            </div>
-          )}
-          <div className="flex justify-end pt-4">
-            <button
-              onClick={() => setShowVersionModal(false)}
-              className="px-6 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition-colors font-semibold"
-            >
-              {t('common.cancel')}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        title={t('plugins.version_modal.title') + (selectedPlugin?.name || '')}
+        loading={loadingVersions}
+        versions={availableVersions}
+        currentVersion={selectedPlugin?.version}
+        t={t}
+        onSelectVersion={(version) => {
+          setShowVersionModal(false);
+          confirmUpdate({ ...selectedPlugin!, version_latest: version });
+        }}
+      />
 
       {/* Notification Toast */}
       <AnimatePresence>
@@ -907,7 +854,18 @@ const PluginCard: React.FC<{
         <div className="flex flex-wrap gap-2">
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-lg text-xs">
             <Shield size={14} />
-            {plugin.author || t('common.unknown')}
+            {plugin.github && plugin.github !== 'None' && plugin.github.trim() !== '' && plugin.author ? (
+              <a
+                href={plugin.github}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline underline-offset-2"
+              >
+                {plugin.author}
+              </a>
+            ) : (
+              plugin.author || t('common.unknown')
+            )}
           </div>
           {plugin.github && plugin.github !== 'None' && plugin.github.trim() !== '' && (
             <a

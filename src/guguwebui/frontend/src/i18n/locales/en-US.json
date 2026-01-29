@@ -35,7 +35,8 @@
     "delete": "Delete",
     "add": "Add",
     "close": "Close",
-    "save": "Save"
+    "save": "Save",
+    "back": "Back"
   },
   "plugins": {
     "title": "Local Plugins",
@@ -140,6 +141,9 @@
       "prerelease": "Pre-release",
       "downloads": "Downloads",
       "source_repository": "Source Repository: "
+    },
+    "status": {
+      "updatable": "Update"
     }
   },
   "page": {
@@ -530,13 +534,36 @@
       "empty": "No matching plugins found",
       "description": "Description",
       "readme": "README",
+      "readme_doc": "Project Documentation",
+      "catalogue_doc": "Repository Documentation",
       "github_repo": "GitHub Repository",
       "details": "Details",
+      "authors": "Authors",
+      "dependencies": "Dependencies",
+      "view_doc": "View Docs",
+      "view_full_doc": "View Full Documentation",
+      "install_confirm_title": "Confirm Installation",
+      "installing_plugin": "You are about to install plugin ",
+      "select_install_method": "Please choose an installation method:",
+      "choose_version": "Choose Version",
+      "install_latest": "Install Latest",
+      "loading_readme": "Loading project documentation...",
+      "loading_catalogue": "Loading repository documentation...",
       "third_repo_warning_title": "Third-party Repository Warning",
-      "third_repo_warning_lead": "You are accessing a third-party plugin repository. Please ensure it is from a trusted source.",
+      "third_repo_warning_lead": "You are accessing a third-party plugin repository.",
+      "note": "Note:",
+      "third_repo_warning_p1": "These plugins may not be reviewed and may have potential security risks.",
+      "third_repo_warning_p2": "Installing these plugins may affect your server's stability and security.",
+      "third_repo_warning_p3": "Before installing, review the code or ensure you trust the repository maintainers.",
+      "third_repo_warning_p4": "Version switching for third-party plugins is supported since 1.4.3. This popup will not show again today after confirmation.",
+      "third_repo_warning_conclusion": "Continuing means you understand and accept these risks.",
+      "repo_continue": "Continue",
       "msg": {
         "load_online_plugins_failed": "Failed to load online plugins list",
-        "load_doc_failed": "Failed to load documentation"
+        "load_doc_failed": "Failed to load documentation",
+        "versions_failed": "Failed to fetch versions list",
+        "no_readme": "This plugin has no documentation",
+        "no_readme_plain": "This plugin does not provide a Markdown README; only plain text notes or no documentation may be available."
       }
     }
   },

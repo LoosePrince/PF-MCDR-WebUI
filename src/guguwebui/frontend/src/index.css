@@ -55,3 +55,70 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-slate-400 dark:bg-slate-600;
 }
+
+/* GitHub markdown (github-markdown-css) dark mode overrides */
+.markdown-body {
+  background: transparent !important;
+}
+
+.dark .markdown-body {
+  color: rgb(226, 232, 240); /* slate-200 */
+}
+
+.dark .markdown-body a {
+  color: rgb(96, 165, 250); /* blue-400 */
+}
+
+.dark .markdown-body hr {
+  border-color: rgb(51, 65, 85); /* slate-700 */
+}
+
+.dark .markdown-body blockquote {
+  color: rgb(148, 163, 184); /* slate-400 */
+  border-left-color: rgb(51, 65, 85); /* slate-700 */
+}
+
+.dark .markdown-body code,
+.dark .markdown-body tt {
+  background-color: rgba(148, 163, 184, 0.12); /* slate-400/12 */
+}
+
+.dark .markdown-body pre {
+  /* keep dark even if github css loads later */
+  background-color: #0d1117 !important; /* GitHub dark */
+  color: #c9d1d9 !important;
+}
+
+.dark .markdown-body pre code {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+.dark .markdown-body code,
+.dark .markdown-body tt {
+  color: #c9d1d9 !important;
+}
+
+/* images: avoid inline forced layout, allow wrapping */
+.markdown-body img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body p > img {
+  display: inline-block;
+}
+
+.dark .markdown-body table th,
+.dark .markdown-body table td {
+  border-color: rgb(51, 65, 85); /* slate-700 */
+}
+
+.dark .markdown-body table tr {
+  background-color: transparent;
+}
+
+.dark .markdown-body table tr:nth-child(2n) {
+  background-color: rgba(51, 65, 85, 0.18); /* slate-700/18 */
+}
