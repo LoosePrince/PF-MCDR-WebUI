@@ -45,9 +45,17 @@ jobs:
     - name: Package src directory
       run: |
         cd src
-        zip -r ../guguweb_beta.mcdr .
+        # 排除旧版前端资源与代码，仅打包构建产物与后端
+        zip -r ../guguweb_beta.mcdr . \
+          -x "guguwebui/css*" \
+          -x "guguwebui/custom*" \
+          -x "guguwebui/frontend*" \
+          -x "guguwebui/js*" \
+          -x "guguwebui/lang*" \
+          -x "guguwebui/src*" \
+          -x "guguwebui/templates*"
         cd ..
-        echo "Packaged src contents into guguweb_beta.mcdr"
+        echo "Packaged src contents into guguweb_beta.mcdr (old frontend dirs excluded)"
         mkdir -p build
         cp guguweb_beta.mcdr build/
         echo "Copied guguweb_beta.mcdr to build directory"
