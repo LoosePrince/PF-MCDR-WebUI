@@ -104,7 +104,7 @@ const Dashboard: React.FC = () => {
         setPipPackages(data.packages || [])
       } else {
         showNotificationMessage(
-          `${t('page.index.pip_list_failed_prefix', '获取 pip 包列表失败: ')}${data.message || t('common.unknown')}`,
+          `${t('page.index.pip_list_failed_prefix')}${data.message || t('common.unknown')}`,
           'error'
         )
         setPipPackages([])
@@ -112,7 +112,7 @@ const Dashboard: React.FC = () => {
     } catch (error: any) {
       console.error('Error fetching pip packages:', error)
       showNotificationMessage(
-        t('page.index.pip_list_failed', '获取 pip 包列表失败'),
+        t('page.index.pip_list_failed'),
         'error'
       )
       setPipPackages([])
@@ -135,12 +135,12 @@ const Dashboard: React.FC = () => {
         if (data.completed) {
           if (data.success) {
             showNotificationMessage(
-              t('page.index.pip_op_succeeded', 'pip 操作成功完成'),
+              t('page.index.pip_op_succeeded'),
               'success'
             )
           } else {
             showNotificationMessage(
-              t('page.index.pip_op_failed', 'pip 操作失败'),
+              t('page.index.pip_op_failed'),
               'error'
             )
           }
@@ -157,7 +157,7 @@ const Dashboard: React.FC = () => {
       } else {
         setPipOutput(prev => [
           ...prev,
-          `${t('page.index.get_task_status_failed_prefix', '获取任务状态失败: ')}${data.message || t('common.unknown')}`,
+          `${t('page.index.get_task_status_failed_prefix')}${data.message || t('common.unknown')}`,
         ])
         setInstallingPip(false)
         setUninstallingPip(false)
@@ -166,7 +166,7 @@ const Dashboard: React.FC = () => {
       console.error('Error checking pip task status:', error)
       setPipOutput(prev => [
         ...prev,
-        `${t('page.index.get_task_status_failed_prefix', '获取任务状态失败: ')}${error.message}`,
+        `${t('page.index.get_task_status_failed_prefix')}${error.message}`,
       ])
       setInstallingPip(false)
       setUninstallingPip(false)
@@ -191,10 +191,10 @@ const Dashboard: React.FC = () => {
       if (data.status !== 'success' || !data.task_id) {
         setPipOutput(prev => [
           ...prev,
-          `${t('page.index.operation_failed_prefix', '操作失败: ')}${data.message || t('common.unknown')}`,
+          `${t('page.index.operation_failed_prefix')}${data.message || t('common.unknown')}`,
         ])
         showNotificationMessage(
-          t('page.index.pip_op_failed', 'pip 操作失败'),
+          t('page.index.pip_op_failed'),
           'error'
         )
         setInstallingPip(false)
@@ -208,10 +208,10 @@ const Dashboard: React.FC = () => {
       console.error('Error starting pip operation:', error)
       setPipOutput(prev => [
         ...prev,
-        `${t('page.index.operation_failed_prefix', '操作失败: ')}${error.message}`,
+        `${t('page.index.operation_failed_prefix')}${error.message}`,
       ])
       showNotificationMessage(
-        t('page.index.pip_op_failed', 'pip 操作失败'),
+        t('page.index.pip_op_failed'),
         'error'
       )
       setInstallingPip(false)
@@ -239,19 +239,19 @@ const Dashboard: React.FC = () => {
         setShowRconSetupModal(false)
         await fetchStatus()
         showNotificationMessage(
-          t('page.mcdr.rcon.setup_success_msg', 'RCON 配置已成功启用'),
+          t('page.mcdr.rcon.setup_success_msg'),
           'success'
         )
       } else {
         showNotificationMessage(
-          `${t('page.mcdr.rcon.setup_failed_prefix', 'RCON 设置失败: ')}${data.message || ''}`,
+          `${t('page.mcdr.rcon.setup_failed_prefix')}${data.message || ''}`,
           'error'
         )
       }
     } catch (error) {
       console.error('Setup RCON error:', error)
       showNotificationMessage(
-        t('page.mcdr.rcon.setup_error', '设置 RCON 时出错'),
+        t('page.mcdr.rcon.setup_error'),
         'error'
       )
     } finally {
@@ -304,20 +304,19 @@ const Dashboard: React.FC = () => {
       if (data.status === 'success') {
         const actionText =
           action === 'start'
-            ? t('page.index.action_start', '启动')
+            ? t('page.index.action_start')
             : action === 'stop'
-            ? t('page.index.action_stop', '停止')
-            : t('page.index.action_restart', '重启')
+            ? t('page.index.action_stop')
+            : t('page.index.action_restart')
         const msg =
           data.message ||
-          `${t('page.index.control_sent_prefix', '服务器')}${actionText}${t(
-            'page.index.control_sent_suffix',
-            '命令已发送'
+          `${t('page.index.control_sent_prefix')}${actionText}${t(
+            'page.index.control_sent_suffix'
           )}`
         showNotificationMessage(msg, 'success')
       } else {
         showNotificationMessage(
-          `${t('page.index.control_failed_prefix', '操作失败: ')}${data.message || t('common.unknown')}`,
+          `${t('page.index.control_failed_prefix')}${data.message || t('common.unknown')}`,
           'error'
         )
       }
@@ -325,7 +324,7 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error(`Failed to ${action} server:`, error)
       showNotificationMessage(
-        t('page.index.control_error', '服务器控制操作失败'),
+        t('page.index.control_error'),
         'error'
       )
     } finally {
@@ -483,7 +482,7 @@ const Dashboard: React.FC = () => {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-              {t('page.index.server_version', '服务器版本')}
+              {t('page.index.server_version')}
             </p>
             <p className="text-xl font-bold text-slate-900 dark:text-white mt-1 truncate">
               {serverStatus.version.replace('Version: ', '') || t('page.index.unknown')}
@@ -523,12 +522,12 @@ const Dashboard: React.FC = () => {
                 {settingUpRcon ? (
                   <>
                     <RotateCw className="w-3 h-3 animate-spin" />
-                    {t('page.mcdr.rcon.setting_up', '正在配置')}
+                    {t('page.mcdr.rcon.setting_up')}
                   </>
                 ) : (
                   <>
                     <Puzzle className="w-3 h-3" />
-                    {t('page.mcdr.rcon.setup_button', '一键启用 RCON')}
+                    {t('page.mcdr.rcon.setup_button')}
                   </>
                 )}
               </button>
@@ -577,7 +576,7 @@ const Dashboard: React.FC = () => {
           className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4"
         >
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            {t('page.index.system_info', '系统信息')}
+            {t('page.index.system_info')}
           </h2>
           <div className="space-y-3">
             <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
@@ -600,7 +599,7 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {t('page.index.system_time', '系统时间')}
+                  {t('page.index.system_time')}
                 </p>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">
                   {systemTime}
@@ -614,10 +613,10 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {t('page.index.security_status', '安全状态')}
+                  {t('page.index.security_status')}
                 </p>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">
-                  {t('page.index.logged_in', '已登录')}
+                  {t('page.index.logged_in')}
                 </p>
               </div>
             </div>
@@ -631,7 +630,7 @@ const Dashboard: React.FC = () => {
         >
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              {t('page.index.pip_mgmt', 'pip 管理')}
+              {t('page.index.pip_mgmt')}
             </h2>
             <div className="flex gap-2">
               <button
@@ -639,14 +638,14 @@ const Dashboard: React.FC = () => {
                 className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold flex items-center gap-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
               >
                 <RotateCw className="w-3 h-3" />
-                {t('page.index.refresh', '刷新')}
+                {t('page.index.refresh')}
               </button>
               <button
                 onClick={() => setShowInstallPipModal(true)}
                 className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-full text-xs font-semibold flex items-center gap-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
               >
                 <Play className="w-3 h-3" />
-                {t('page.index.install', '安装')}
+                {t('page.index.install')}
               </button>
             </div>
           </div>
@@ -658,15 +657,15 @@ const Dashboard: React.FC = () => {
               </div>
             ) : pipPackages.length === 0 ? (
               <p className="text-sm text-center text-slate-500 dark:text-slate-400">
-                {t('page.index.no_packages', '暂无已安装的 pip 包')}
+                {t('page.index.no_packages')}
               </p>
             ) : (
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
-                    <th className="text-left py-1.5">{t('page.index.pkg_name', '包名')}</th>
-                    <th className="text-left py-1.5">{t('page.index.version', '版本')}</th>
-                    <th className="text-right py-1.5">{t('page.index.actions', '操作')}</th>
+                    <th className="text-left py-1.5">{t('page.index.pkg_name')}</th>
+                    <th className="text-left py-1.5">{t('page.index.version')}</th>
+                    <th className="text-right py-1.5">{t('page.index.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -683,7 +682,7 @@ const Dashboard: React.FC = () => {
                           disabled={uninstallingPip}
                           className="px-2.5 py-1 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-full text-xs font-semibold hover:bg-rose-100 dark:hover:bg-rose-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                          {t('page.index.uninstall', '卸载')}
+                          {t('page.index.uninstall')}
                         </button>
                       </td>
                     </tr>
@@ -697,12 +696,12 @@ const Dashboard: React.FC = () => {
             <div className="bg-slate-950 rounded-2xl border border-slate-800 p-3 text-slate-100 font-mono space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-300">
-                  {t('page.index.pip_output', 'pip 日志输出')}
+                  {t('page.index.pip_output')}
                 </span>
                 <button
                   onClick={() => setPipOutputVisible(false)}
                   className="p-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-colors"
-                  title={t('common.close', '关闭')}
+                  title={t('common.close')}
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -736,16 +735,16 @@ const Dashboard: React.FC = () => {
               className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 max-w-md w-full mx-4 p-6 space-y-4"
             >
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                {t('page.index.install_pip_title', '安装 pip 包')}
+                {t('page.index.install_pip_title')}
               </h3>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {t('page.index.pkg_name', '包名')}
+                  {t('page.index.pkg_name')}
                 </label>
                 <input
                   value={newPipPackage}
                   onChange={(e) => setNewPipPackage(e.target.value)}
-                  placeholder={t('page.index.install_placeholder', '例如: requests 或 requests==2.31.0')}
+                  placeholder={t('page.index.install_placeholder')}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/60"
                 />
               </div>
@@ -754,14 +753,14 @@ const Dashboard: React.FC = () => {
                   onClick={() => setShowInstallPipModal(false)}
                   className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
-                  {t('common.cancel', '取消')}
+                  {t('common.cancel')}
                 </button>
                 <button
                   onClick={handleInstallPip}
                   disabled={installingPip || !newPipPackage.trim()}
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {t('page.index.install', '安装')}
+                  {t('page.index.install')}
                 </button>
               </div>
             </motion.div>
@@ -787,7 +786,7 @@ const Dashboard: React.FC = () => {
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {t('page.mcdr.rcon.setup_modal_title', '一键配置 RCON')}
+                  {t('page.mcdr.rcon.setup_modal_title')}
                 </h3>
                 <button
                   onClick={() => setShowRconSetupModal(false)}
@@ -797,10 +796,10 @@ const Dashboard: React.FC = () => {
                 </button>
               </div>
               <p className="text-sm text-slate-600 dark:text-slate-300">
-                {t('page.mcdr.rcon.setup_description', '将自动为当前服务器启用并配置 RCON。')}
+                {t('page.mcdr.rcon.setup_description')}
               </p>
               <div className="rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-300">
-                {t('page.mcdr.rcon.setup_warning', '请确保服务器配置文件可写，并注意不要泄露 RCON 密码。')}
+                {t('page.mcdr.rcon.setup_warning')}
               </div>
               <div className="flex gap-2">
                 <button
@@ -808,7 +807,7 @@ const Dashboard: React.FC = () => {
                   disabled={settingUpRcon}
                   className="flex-1 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
-                  {t('common.cancel', '取消')}
+                  {t('common.cancel')}
                 </button>
                 <button
                   onClick={setupRcon}
@@ -817,8 +816,8 @@ const Dashboard: React.FC = () => {
                 >
                   {settingUpRcon && <RotateCw className="w-4 h-4 animate-spin" />}
                   {settingUpRcon
-                    ? t('page.mcdr.rcon.setting_up', '正在配置...')
-                    : t('page.mcdr.rcon.setup_confirm', '确认一键配置')}
+                    ? t('page.mcdr.rcon.setting_up')
+                    : t('page.mcdr.rcon.setup_confirm')}
                 </button>
               </div>
             </motion.div>

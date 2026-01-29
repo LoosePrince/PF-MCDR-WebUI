@@ -144,8 +144,8 @@ const Settings: React.FC = () => {
     setValidatingAiKey(true)
     try {
       const { data } = await axios.post('/api/deepseek', {
-        query: '测试密钥是否有效，请回复"有效"',
-        system_prompt: '你是一个简单的验证程序，只需回复"有效"',
+        query: t('page.settings.ai.validate_query'),
+        system_prompt: t('page.settings.ai.validate_system_prompt'),
         api_key: aiApiKey,
         api_url: config?.ai_api_url,
         model: config?.ai_model

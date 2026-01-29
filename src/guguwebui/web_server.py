@@ -916,22 +916,51 @@ async def query_deepseek(request: Request, query_data: DeepseekQuery):
         # 发送请求到AI API
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                api_url, 
-                headers=headers, 
+                api_url,
+                headers=headers,
                 json=json_data
             ) as response:
-                # 解析响应
-                result = await response.json()
+                # 解析响应（有些服务可能返回字符串或非标准结构）
+                try:
+                    result = await response.json(content_type=None)
+                except Exception:
+                    # 回退到纯文本
+                    text_body = await response.text()
+                    result = {"raw": text_body}
+                
+                # 统一判断类型，避免对 str / list 调用 .get
+                is_dict = isinstance(result, dict)
                 
                 if response.status != 200:
-                    error_msg = result.get("error", {}).get("message", "未知错误")
+                    if is_dict:
+                        error_msg = (
+                            result.get("error", {}).get("message")
+                            or result.get("message")
+                            or str(result)
+                        )
+                    else:
+                        error_msg = str(result)
                     return JSONResponse(
-                        {"status": "error", "message": f"API错误: {error_msg}"}, 
+                        {"status": "error", "message": f"API错误: {error_msg}"},
                         status_code=response.status
                     )
                 
                 # 从响应中提取AI回答
-                answer = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                answer = ""
+                if is_dict:
+                    choices = result.get("choices")
+                    if isinstance(choices, list) and choices:
+                        first_choice = choices[0] or {}
+                        if isinstance(first_choice, dict):
+                            msg_obj = first_choice.get("message") or {}
+                            if isinstance(msg_obj, dict):
+                                answer = msg_obj.get("content", "") or ""
+                    # 如果上述解析不到内容，兜底使用整个 result 的字符串
+                    if not answer:
+                        answer = str(result)
+                else:
+                    # 如果直接返回的是字符串 / 其他类型
+                    answer = str(result)
                 
                 return JSONResponse({
                     "status": "success",

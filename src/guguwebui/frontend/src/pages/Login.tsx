@@ -101,13 +101,13 @@ const Login: React.FC = () => {
           <button className="flex items-center justify-center gap-1.5 p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors">
             <Languages className="w-4 h-4" />
             <span className="text-xs font-bold">
-              {i18n.language === 'zh-CN' ? '中' : 'EN'}
+              {i18n.language === 'zh-CN' ? t('nav.lang_short') : 'EN'}
             </span>
           </button>
           <div className="absolute z-30 mt-2 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
             {[
-              { code: 'zh-CN', label: '简体中文' },
-              { code: 'en-US', label: 'English' },
+              { code: 'zh-CN', label: t('lang.zh-CN') },
+              { code: 'en-US', label: t('lang.en-US') },
             ].map((lang) => (
               <button
                 key={lang.code}

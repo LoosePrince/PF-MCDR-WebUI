@@ -15,7 +15,12 @@
     "status_error": "Error",
     "user": "User",
     "lang": "Language",
+    "lang_short": "中",
     "server_online": "Server Online"
+  },
+  "lang": {
+    "zh-CN": "简体中文",
+    "en-US": "English"
   },
   "app": {
     "name": "MCDR WebUI",
@@ -36,7 +41,8 @@
     "add": "Add",
     "close": "Close",
     "save": "Save",
-    "back": "Back"
+    "back": "Back",
+    "send": "Send"
   },
   "plugins": {
     "title": "Local Plugins",
@@ -343,6 +349,8 @@
         "title": "AI Model Configuration",
         "api_key": "API Key",
         "validate": "Validate Key",
+        "validate_query": "Test if the key is valid, please reply \"valid\"",
+        "validate_system_prompt": "You are a simple validation program, just reply \"valid\"",
         "api_url": "API URL",
         "api_url_hint": "API endpoint, DeepSeek default: https://api.deepseek.com/chat/completions",
         "model": "Model Name",
@@ -563,7 +571,54 @@
         "load_doc_failed": "Failed to load documentation",
         "versions_failed": "Failed to fetch versions list",
         "no_readme": "This plugin has no documentation",
-        "no_readme_plain": "This plugin does not provide a Markdown README; only plain text notes or no documentation may be available."
+        "no_readme_plain": "This plugin does not provide a Markdown README; only plain text notes or no documentation may be available.",
+        "doc_not_found": "{{docType}} link not found"
+      }
+    },
+    "terminal": {
+      "title": "Terminal Logs",
+      "empty": "No logs available",
+      "placeholder": "Type command...",
+      "suggestions": {
+        "title": "SUGGESTIONS",
+        "hint": "TAB to select"
+      },
+      "selection": {
+        "ask_ai": "Ask AI"
+      },
+      "tooltip": {
+        "auto_scroll": "Auto Scroll",
+        "auto_refresh": "Auto Refresh",
+        "copy_logs": "Copy Logs",
+        "clear_terminal": "Clear Terminal",
+        "ai_settings": "AI Settings"
+      },
+      "msg": {
+        "load_logs_failed": "Failed to load logs",
+        "forbidden_command": "This command is forbidden",
+        "command_sent_prefix": "Command Sent: ",
+        "command_sent": "Command sent successfully",
+        "send_failed": "Failed to send command",
+        "copy_success": "Copied to clipboard",
+        "default_ai_query": "Analyze these logs and provide possible causes and solutions.",
+        "system_prompt": "You are a Minecraft server and MCDR log expert. Please answer in English."
+      },
+      "ai_modal": {
+        "title": "AI Analysis",
+        "settings": "AI Settings",
+        "mode_api": "Deepseek (API)",
+        "mode_free": "Free AI",
+        "api_unconfigured_warning": "API Key not configured. Using it might fail.",
+        "api_configure_now": "Configure Now",
+        "input_placeholder": "Ask a question about the logs, e.g. “What does this error mean?”",
+        "thinking": "Thinking...",
+        "settings_desc": "Configure your DeepSeek API key to enable more powerful log analysis.",
+        "api_key_label": "API Key",
+        "api_key_placeholder": "sk-...",
+        "save_success": "API Key Saved",
+        "save_failed": "Failed to save",
+        "save_error": "Error saving key",
+        "context_title": "Log context preview"
       }
     }
   },

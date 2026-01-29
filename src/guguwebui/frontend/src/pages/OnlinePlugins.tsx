@@ -454,7 +454,10 @@ const OnlinePlugins: React.FC = () => {
     try {
       const url = type === 'readme' ? readmeUrl : catalogueUrl;
       if (!url) {
-        throw new Error(`未找到${type === 'readme' ? '自述文件' : '介绍'}文档链接`);
+        const docType = type === 'readme' 
+          ? t('page.online_plugins.readme_doc')
+          : t('page.online_plugins.catalogue_doc');
+        throw new Error(t('page.online_plugins.msg.doc_not_found', { docType }));
       }
       const resp = await axios.get(url);
       setReadmeContent(typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data, null, 2));

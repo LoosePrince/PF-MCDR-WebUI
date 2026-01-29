@@ -15,7 +15,12 @@
     "status_error": "错误",
     "user": "用户",
     "lang": "切换语言",
+    "lang_short": "中",
     "server_online": "服务器在线"
+  },
+  "lang": {
+    "zh-CN": "简体中文",
+    "en-US": "English"
   },
   "app": {
     "name": "GUGUWebUI",
@@ -37,7 +42,8 @@
     "add": "添加",
     "close": "关闭",
     "save": "保存",
-    "back": "返回"
+    "back": "返回",
+    "send": "发送"
   },
   "plugins": {
     "title": "本地插件",
@@ -344,6 +350,8 @@
         "title": "AI 模型配置",
         "api_key": "API 密钥",
         "validate": "验证密钥",
+        "validate_query": "测试密钥是否有效，请回复\"有效\"",
+        "validate_system_prompt": "你是一个简单的验证程序，只需回复\"有效\"",
         "api_url": "API 链接",
         "api_url_hint": "API链接地址，DeepSeek默认为: https://api.deepseek.com/chat/completions",
         "model": "模型名称",
@@ -638,7 +646,54 @@
         "load_doc_failed": "加载说明文档失败",
         "versions_failed": "获取版本列表失败",
         "no_readme": "该插件没有说明文档",
-        "no_readme_plain": "该插件没有 Markdown 文档，可能只有纯文本说明或无文档。"
+        "no_readme_plain": "该插件没有 Markdown 文档，可能只有纯文本说明或无文档。",
+        "doc_not_found": "未找到{{docType}}链接"
+      }
+    },
+    "terminal": {
+      "title": "终端日志",
+      "empty": "暂无日志",
+      "placeholder": "输入指令...",
+      "suggestions": {
+        "title": "指令建议",
+        "hint": "按 TAB 选择"
+      },
+      "selection": {
+        "ask_ai": "询问 AI"
+      },
+      "tooltip": {
+        "auto_scroll": "自动滚动",
+        "auto_refresh": "自动刷新",
+        "copy_logs": "复制日志",
+        "clear_terminal": "清空终端",
+        "ai_settings": "AI 设置"
+      },
+      "msg": {
+        "load_logs_failed": "加载日志失败",
+        "forbidden_command": "该指令已被禁止执行",
+        "command_sent_prefix": "指令已发送: ",
+        "command_sent": "指令已发送",
+        "send_failed": "发送指令失败",
+        "copy_success": "日志已复制到剪贴板",
+        "default_ai_query": "请分析这些日志并给出可能的原因和解决方案。",
+        "system_prompt": "你是一名精通 Minecraft 服务器与 MCDR 的日志分析专家，请用简体中文回答。"
+      },
+      "ai_modal": {
+        "title": "日志 AI 分析",
+        "settings": "AI 设置",
+        "mode_api": "DeepSeek（API）",
+        "mode_free": "免费 AI",
+        "api_unconfigured_warning": "尚未配置 API Key，使用时可能失败。",
+        "api_configure_now": "前往配置",
+        "input_placeholder": "就这些日志向 AI 提问，例如：这段报错是什么意思？",
+        "thinking": "思考中...",
+        "settings_desc": "配置 DeepSeek API Key 以启用更强大的日志分析能力。",
+        "api_key_label": "API Key",
+        "api_key_placeholder": "sk-...",
+        "save_success": "API Key 保存成功",
+        "save_failed": "保存失败",
+        "save_error": "保存出错",
+        "context_title": "日志上下文预览"
       }
     }
   },
