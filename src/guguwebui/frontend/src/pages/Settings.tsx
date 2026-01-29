@@ -68,11 +68,15 @@ const Settings: React.FC = () => {
     setTimeout(() => setNotification(null), 5000)
   }, [])
 
-  const fetchConfig = useCallback(async () => {
+  const fetchConfig = useCallback(async (signal?: AbortSignal) => {
     try {
-      const { data } = await axios.get('/api/get_web_config')
+      const { data } = await axios.get('/api/get_web_config', { signal })
       setConfig(data)
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return
+      }
       console.error('Failed to fetch config:', error)
       showNotification(t('page.settings.msg.get_config_failed'), 'error')
     } finally {
@@ -80,24 +84,37 @@ const Settings: React.FC = () => {
     }
   }, [t, showNotification])
 
-  const fetchPimStatus = useCallback(async () => {
+  const fetchPimStatus = useCallback(async (signal?: AbortSignal) => {
     try {
-      const { data } = await axios.get('/api/check_pim_status')
+      const { data } = await axios.get('/api/check_pim_status', { signal })
       if (data.status === 'success') {
         setPimStatus(data.pim_status)
       } else {
         setPimStatus('not_installed')
         console.error('Failed to fetch PIM status:', data.message)
       }
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return
+      }
       console.error('Failed to fetch PIM status:', error)
       setPimStatus('not_installed')
     }
   }, [])
 
   useEffect(() => {
-    fetchConfig()
-    fetchPimStatus()
+    // 创建 AbortController 用于取消请求
+    const abortController = new AbortController()
+    const signal = abortController.signal
+
+    fetchConfig(signal)
+    fetchPimStatus(signal)
+
+    return () => {
+      // 取消所有进行中的请求
+      abortController.abort()
+    }
   }, [fetchConfig, fetchPimStatus])
 
   const handleSave = async (action: string, data: any) => {

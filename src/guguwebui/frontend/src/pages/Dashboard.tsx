@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useCache } from '../context/CacheContext'
 import { 
   Play, 
   RotateCw, 
@@ -40,6 +41,7 @@ type NotificationType = 'success' | 'error'
 
 const Dashboard: React.FC = () => {
   const { t } = useTranslation()
+  const cache = useCache()
   const [serverStatus, setServerStatus] = useState<ServerStatus>({
     status: 'loading',
     version: '',
@@ -69,23 +71,44 @@ const Dashboard: React.FC = () => {
   const [showRconSetupModal, setShowRconSetupModal] = useState<boolean>(false)
   const [settingUpRcon, setSettingUpRcon] = useState<boolean>(false)
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (signal?: AbortSignal) => {
     try {
-      const statusResp = await axios.get('/api/get_server_status')
-      setServerStatus(statusResp.data)
-      
-      const rconResp = await axios.get('/api/get_rcon_status')
-      if (rconResp.data.status === 'success') {
-        setRconStatus({
-          rcon_enabled: rconResp.data.rcon_enabled,
-          rcon_connected: rconResp.data.rcon_connected,
-        })
+      // 尝试从缓存获取服务器状态（5秒缓存）
+      const cachedStatus = cache.get<ServerStatus>('server_status')
+      if (cachedStatus) {
+        setServerStatus(cachedStatus)
+      } else {
+        const statusResp = await axios.get('/api/get_server_status', { signal })
+        setServerStatus(statusResp.data)
+        // 缓存5秒
+        cache.set('server_status', statusResp.data, 5000)
       }
-    } catch (error) {
+      
+      // RCON状态使用永久缓存（直到页面刷新）
+      const cachedRcon = cache.get<RconStatus>('rcon_status')
+      if (cachedRcon) {
+        setRconStatus(cachedRcon)
+      } else {
+        const rconResp = await axios.get('/api/get_rcon_status', { signal })
+        if (rconResp.data.status === 'success') {
+          const rconData = {
+            rcon_enabled: rconResp.data.rcon_enabled,
+            rcon_connected: rconResp.data.rcon_connected,
+          }
+          setRconStatus(rconData)
+          // 永久缓存（直到页面刷新）
+          cache.set('rcon_status', rconData)
+        }
+      }
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return
+      }
       console.error('Failed to fetch dashboard data:', error)
       setServerStatus(prev => ({ ...prev, status: 'error' }))
     }
-  }, [])
+  }, [cache])
 
   const showNotificationMessage = useCallback((message: string, type: NotificationType) => {
     setNotificationMessage(message)
@@ -96,10 +119,10 @@ const Dashboard: React.FC = () => {
     }, 5000)
   }, [])
 
-  const refreshPipPackages = useCallback(async () => {
+  const refreshPipPackages = useCallback(async (signal?: AbortSignal) => {
     setLoadingPipPackages(true)
     try {
-      const { data } = await axios.get('/api/pip/list')
+      const { data } = await axios.get('/api/pip/list', { signal })
       if (data.status === 'success') {
         setPipPackages(data.packages || [])
       } else {
@@ -110,6 +133,10 @@ const Dashboard: React.FC = () => {
         setPipPackages([])
       }
     } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return
+      }
       console.error('Error fetching pip packages:', error)
       showNotificationMessage(
         t('page.index.pip_list_failed'),
@@ -237,6 +264,8 @@ const Dashboard: React.FC = () => {
 
       if (data.status === 'success') {
         setShowRconSetupModal(false)
+        // 清除RCON缓存，强制重新获取
+        cache.invalidate('rcon_status')
         await fetchStatus()
         showNotificationMessage(
           t('page.mcdr.rcon.setup_success_msg'),
@@ -257,12 +286,12 @@ const Dashboard: React.FC = () => {
     } finally {
       setSettingUpRcon(false)
     }
-  }, [fetchStatus, showNotificationMessage, t])
+  }, [cache, fetchStatus, showNotificationMessage, t])
 
-  const fetchWebVersion = useCallback(async () => {
+  const fetchWebVersion = useCallback(async (signal?: AbortSignal) => {
     try {
       // 使用 plugin_id 精确获取指定插件信息，替代 detail=false 的用法
-      const { data } = await axios.get('/api/plugins', { params: { plugin_id: 'guguwebui' } })
+      const { data } = await axios.get('/api/plugins', { params: { plugin_id: 'guguwebui' }, signal })
       const plugins = Array.isArray(data.plugins) ? data.plugins : []
       const webui = plugins[0]
       if (webui && webui.version) {
@@ -270,22 +299,33 @@ const Dashboard: React.FC = () => {
         return
       }
       setWebVersion(t('page.index.unknown'))
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return
+      }
       console.error('Failed to fetch WebUI version:', error)
       setWebVersion(t('common.unknown'))
     }
   }, [t])
 
   useEffect(() => {
-    fetchStatus()
-    const timer = setInterval(fetchStatus, 10000)
-    fetchWebVersion()
+    // 创建 AbortController 用于取消请求
+    const abortController = new AbortController()
+    const signal = abortController.signal
+
+    fetchStatus(signal)
+    const timer = setInterval(() => fetchStatus(signal), 10000)
+    fetchWebVersion(signal)
     setSystemTime(new Date().toLocaleString())
     const clockTimer = setInterval(() => {
       setSystemTime(new Date().toLocaleString())
     }, 1000)
-    refreshPipPackages()
+    refreshPipPackages(signal)
+    
     return () => {
+      // 取消所有进行中的请求
+      abortController.abort()
       clearInterval(timer)
       clearInterval(clockTimer)
     }
@@ -634,7 +674,7 @@ const Dashboard: React.FC = () => {
             </h2>
             <div className="flex gap-2">
               <button
-                onClick={refreshPipPackages}
+                onClick={() => refreshPipPackages()}
                 className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold flex items-center gap-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
               >
                 <RotateCw className="w-3 h-3" />

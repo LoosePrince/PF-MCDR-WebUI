@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -135,27 +136,35 @@ const LocalPlugins: React.FC = () => {
   const [availableVersions, setAvailableVersions] = useState<any[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
 
-  const fetchPlugins = useCallback(async () => {
+  const fetchPlugins = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const resp = await axios.get('/api/plugins');
+      const resp = await axios.get('/api/plugins', { signal });
       const pluginList = resp.data.plugins || [];
 
       // Fetch repository info for each plugin concurrently
       const pluginsWithRepo = await Promise.all(pluginList.map(async (p: PluginMetadata) => {
         try {
-          const repoResp = await axios.get(`/api/pim/plugin_repository?plugin_id=${p.id}`);
+          const repoResp = await axios.get(`/api/pim/plugin_repository?plugin_id=${p.id}`, { signal });
           if (repoResp.data.success) {
             return { ...p, repository: repoResp.data.repository };
           }
-        } catch (e) {
+        } catch (e: any) {
+          // 忽略取消的请求错误和repo获取错误
+          if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+            throw e; // 重新抛出取消错误，让外层处理
+          }
           // Ignore repo fetch errors
         }
         return p;
       }));
 
       setPlugins(pluginsWithRepo);
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error('Failed to fetch plugins:', error);
       notify(t('plugins.msg.load_plugins_failed'), 'error');
     } finally {
@@ -164,7 +173,16 @@ const LocalPlugins: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
-    fetchPlugins();
+    // 创建 AbortController 用于取消请求
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
+    fetchPlugins(signal);
+
+    return () => {
+      // 取消所有进行中的请求
+      abortController.abort();
+    };
   }, [fetchPlugins]);
 
   const notify = (msg: string, type: 'success' | 'error') => {
@@ -515,7 +533,7 @@ const LocalPlugins: React.FC = () => {
         </div>
       ) : filteredPlugins.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AnimatePresence mode="popLayout">
+          <AnimatePresence>
             {filteredPlugins.map((plugin) => (
               <PluginCard
                 key={plugin.id}
@@ -806,10 +824,9 @@ const PluginCard: React.FC<{
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       whileHover={{ y: -4 }}
       className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col"
     >
@@ -964,7 +981,8 @@ const PluginCard: React.FC<{
 
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; fullWidth?: boolean }> = ({ isOpen, onClose, title, children, fullWidth = false }) => {
   if (!isOpen) return null;
-  return (
+  
+  const modalContent = (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ margin: 0 }}>
       <motion.div
         initial={{ opacity: 0 }}
@@ -990,6 +1008,8 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
       </motion.div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 const ConfigForm: React.FC<{ data: any; onChange: (data: any) => void }> = ({ data, onChange }) => {

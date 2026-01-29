@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -155,20 +156,24 @@ const OnlinePlugins: React.FC = () => {
   };
 
   // 获取本地插件以比对安装状态
-  const fetchLocalPlugins = useCallback(async () => {
+  const fetchLocalPlugins = useCallback(async (signal?: AbortSignal) => {
     try {
-      const resp = await axios.get('/api/plugins');
+      const resp = await axios.get('/api/plugins', { signal });
       if (resp.data && resp.data.plugins) {
         setLocalPlugins(resp.data.plugins);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error('Failed to fetch local plugins:', error);
     }
   }, []);
 
-  const fetchRepositories = useCallback(async () => {
+  const fetchRepositories = useCallback(async (signal?: AbortSignal) => {
     try {
-      const resp = await axios.get('/api/get_web_config');
+      const resp = await axios.get('/api/get_web_config', { signal });
       const data = resp.data;
       const repos: Repository[] = [
         { name: t('page.settings.repo.official'), url: data.mcdr_plugins_url || '', repoId: 0 },
@@ -183,20 +188,29 @@ const OnlinePlugins: React.FC = () => {
       }
       setRepositories(repos);
       if (!selectedRepo && repos.length > 0) setSelectedRepo(repos[0].url);
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error('Failed to fetch repositories:', error);
     }
   }, [t, selectedRepo]);
 
-  const fetchPlugins = useCallback(async () => {
+  const fetchPlugins = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
-    await fetchLocalPlugins();
+    await fetchLocalPlugins(signal);
     try {
       const resp = await axios.get('/api/online-plugins', {
-        params: { repo_url: selectedRepo || undefined }
+        params: { repo_url: selectedRepo || undefined },
+        signal
       });
       setPlugins(resp.data || []);
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error('Failed to fetch online plugins:', error);
       notify(t('page.online_plugins.msg.load_online_plugins_failed'), 'error');
     } finally {
@@ -205,12 +219,30 @@ const OnlinePlugins: React.FC = () => {
   }, [selectedRepo, t, fetchLocalPlugins]);
 
   useEffect(() => {
-    fetchRepositories();
+    // 创建 AbortController 用于取消请求
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
+    fetchRepositories(signal);
+
+    return () => {
+      // 取消所有进行中的请求
+      abortController.abort();
+    };
   }, [fetchRepositories]);
 
   useEffect(() => {
     if (repositories.length > 0) {
-      fetchPlugins();
+      // 创建 AbortController 用于取消请求
+      const abortController = new AbortController();
+      const signal = abortController.signal;
+
+      fetchPlugins(signal);
+
+      return () => {
+        // 取消所有进行中的请求
+        abortController.abort();
+      };
     }
   }, [selectedRepo, fetchPlugins, repositories.length]);
 
@@ -562,7 +594,7 @@ const OnlinePlugins: React.FC = () => {
             />
           </div>
           <button
-            onClick={fetchPlugins}
+            onClick={() => fetchPlugins()}
             disabled={loading}
             className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors shadow-sm"
           >
@@ -618,7 +650,7 @@ const OnlinePlugins: React.FC = () => {
       ) : paginatedPlugins.length > 0 ? (
         <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence>
               {paginatedPlugins.map((plugin) => (
                 <OnlinePluginCard
                   key={plugin.id}
@@ -1074,7 +1106,7 @@ const OnlinePlugins: React.FC = () => {
           )}
 
           {/* 文档内容（渲染区域滚动） */}
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-6 min-h-[400px] max-h-[65vh] overflow-y-auto custom-scrollbar border border-slate-100 dark:border-slate-800">
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-6 min-h-[400px] max-h-[60vh] overflow-y-auto custom-scrollbar border border-slate-100 dark:border-slate-800">
             {loadingReadmeContent ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <Loader2 className="animate-spin text-purple-500 mb-4" size={32} />
@@ -1131,10 +1163,9 @@ const OnlinePluginCard: React.FC<{
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       whileHover={{ y: -3 }}
       className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group relative"
     >
@@ -1323,7 +1354,8 @@ const Modal: React.FC<{
   maxWidthClassName?: string;
 }> = ({ isOpen, onClose, title, children, maxWidthClassName }) => {
   if (!isOpen) return null;
-  return (
+  
+  const modalContent = (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0 }}
@@ -1336,6 +1368,7 @@ const Modal: React.FC<{
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
         className={`relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full ${maxWidthClassName || 'max-w-xl'} p-6 md:p-8 max-h-[85vh] overflow-y-auto custom-scrollbar`}
       >
         <div className="flex items-center justify-between mb-4 sticky top-0 bg-white dark:bg-slate-900 z-10 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1348,6 +1381,8 @@ const Modal: React.FC<{
       </motion.div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default OnlinePlugins;

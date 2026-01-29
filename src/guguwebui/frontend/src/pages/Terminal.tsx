@@ -112,9 +112,13 @@ const Terminal: React.FC = () => {
 
   // Initial Load
   useEffect(() => {
-    checkServerStatus()
-    loadLogs()
-    checkApiKeyStatus()
+    // 创建 AbortController 用于取消请求
+    const abortController = new AbortController()
+    const signal = abortController.signal
+
+    checkServerStatus(signal)
+    loadLogs(signal)
+    checkApiKeyStatus(signal)
 
     // Load history from local storage
     const savedHistory = localStorage.getItem('commandHistory')
@@ -126,9 +130,11 @@ const Terminal: React.FC = () => {
       }
     }
 
-    const statusTimer = setInterval(checkServerStatus, STATUS_INTERVAL)
+    const statusTimer = setInterval(() => checkServerStatus(signal), STATUS_INTERVAL)
 
     return () => {
+      // 取消所有进行中的请求
+      abortController.abort()
       clearInterval(statusTimer)
     }
   }, [])
@@ -138,15 +144,21 @@ const Terminal: React.FC = () => {
     if (!autoRefresh) return
     if (!initialLoadComplete) return // Wait for initial load to complete
 
+    // 创建 AbortController 用于取消请求
+    const abortController = new AbortController()
+    const signal = abortController.signal
+
     // Immediately fetch once when autoRefresh is enabled and initial load is complete
-    fetchNewLogs()
+    fetchNewLogs(signal)
 
     // Then set up interval for auto refresh
     const refreshTimer = setInterval(() => {
-      fetchNewLogs()
+      fetchNewLogs(signal)
     }, REFRESH_INTERVAL)
 
     return () => {
+      // 取消所有进行中的请求
+      abortController.abort()
       clearInterval(refreshTimer)
     }
   }, [autoRefresh, initialLoadComplete])
@@ -217,30 +229,38 @@ const Terminal: React.FC = () => {
 
   // --- API Calls ---
 
-  const checkServerStatus = async () => {
+  const checkServerStatus = async (signal?: AbortSignal) => {
     try {
-      const res = await axios.get('/api/get_server_status')
+      const res = await axios.get('/api/get_server_status', { signal })
       setServerStatus(res.data.status || 'offline')
       setServerVersion(res.data.version || '')
-    } catch (e) {
+    } catch (e: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+        return
+      }
       setServerStatus('error')
     }
   }
 
-  const checkApiKeyStatus = async () => {
+  const checkApiKeyStatus = async (signal?: AbortSignal) => {
     try {
-      const res = await axios.get('/api/get_web_config')
+      const res = await axios.get('/api/get_web_config', { signal })
       const config: AIConfig = res.data
       setHasApiKey(!!config.ai_api_key_configured)
-    } catch (e) {
+    } catch (e: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+        return
+      }
       console.error('Failed to check API key status', e)
     }
   }
 
-  const loadLogs = async () => {
+  const loadLogs = async (signal?: AbortSignal) => {
     setIsLoading(true)
     try {
-      const res = await axios.get('/api/server_logs', { params: { max_lines: 500 } })
+      const res = await axios.get('/api/server_logs', { params: { max_lines: 500 }, signal })
       if (res.data.status === 'success') {
         const newLogs: LogItem[] = res.data.logs || []
         setLogs(newLogs)
@@ -248,7 +268,11 @@ const Terminal: React.FC = () => {
           lastLogCounter.current = newLogs[newLogs.length - 1].counter || 0
         }
       }
-    } catch (e) {
+    } catch (e: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+        return
+      }
       showNote(t('page.terminal.msg.load_logs_failed'), 'error')
     } finally {
       setIsLoading(false)
@@ -256,7 +280,7 @@ const Terminal: React.FC = () => {
     }
   }
 
-  const fetchNewLogs = async () => {
+  const fetchNewLogs = async (signal?: AbortSignal) => {
     // Prevent fetching if we are already loading initial logs
     if (isLoading) return
 
@@ -265,7 +289,8 @@ const Terminal: React.FC = () => {
         params: {
           last_counter: lastLogCounter.current,
           max_lines: 100
-        }
+        },
+        signal
       })
 
       if (res.data.status === 'success' && res.data.new_logs_count > 0) {
@@ -285,7 +310,11 @@ const Terminal: React.FC = () => {
           return prev
         })
       }
-    } catch (e) {
+    } catch (e: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+        return
+      }
       console.error('Error fetching new logs', e)
     }
   }

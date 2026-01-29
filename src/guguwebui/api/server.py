@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi import status
 from ..utils.constant import server_control, user_db
 from ..utils.utils import get_java_server_info
+from ..utils.api_cache import api_cache
 from ..web_server import verify_token
 
 
@@ -17,7 +18,7 @@ async def get_server_status(
     request: Request,
     server=None
 ) -> JSONResponse:
-    """获取服务器状态"""
+    """获取服务器状态（使用短期缓存，5秒）"""
     if not server:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -49,6 +50,13 @@ async def get_server_status(
     if not permitted:
         return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=401)
 
+    # 尝试从缓存获取（5秒缓存）
+    cache_key = "server_status"
+    cached_result = api_cache.get(cache_key, ttl=5.0)
+    if cached_result is not None:
+        return JSONResponse(cached_result)
+
+    # 缓存未命中，执行实际查询
     server_status = "online" if server.is_server_running() or server.is_server_startup() else "offline"
     server_message = get_java_server_info()
 
@@ -74,6 +82,9 @@ async def get_server_status(
         "version": version_string,
         "players": player_string,
     }
+
+    # 存储到缓存（5秒）
+    api_cache.set(cache_key, result, ttl=5.0)
 
     return JSONResponse(result)
 
@@ -215,7 +226,7 @@ async def get_rcon_status(
     request: Request,
     server=None
 ) -> JSONResponse:
-    """获取RCON连接状态"""
+    """获取RCON连接状态（使用永久缓存，因为RCON状态在插件生命周期内不会改变）"""
     if not server:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -230,6 +241,13 @@ async def get_rcon_status(
                 status_code=401
             )
 
+        # 尝试从缓存获取（永久缓存，直到插件重启）
+        cache_key = "rcon_status"
+        cached_result = api_cache.get(cache_key, ttl=None)
+        if cached_result is not None:
+            return JSONResponse(cached_result)
+
+        # 缓存未命中，执行实际查询
         # 检查RCON是否启用和连接
         rcon_enabled = False
         rcon_connected = False
@@ -264,12 +282,17 @@ async def get_rcon_status(
             except Exception as e:
                 rcon_info["error"] = str(e)
 
-        return JSONResponse({
+        result = {
             "status": "success",
             "rcon_enabled": rcon_enabled,
             "rcon_connected": rcon_connected,
             "rcon_info": rcon_info
-        })
+        }
+
+        # 存储到永久缓存（直到插件重启）
+        api_cache.set(cache_key, result, ttl=None)
+
+        return JSONResponse(result)
 
     except Exception as e:
         error_msg = f"获取RCON状态失败: {str(e)}\n{traceback.format_exc()}"

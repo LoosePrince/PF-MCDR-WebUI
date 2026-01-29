@@ -49,7 +49,6 @@ function App() {
     <BrowserRouter basename={getBasePath()}>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/chat" element={<Chat />} />
         <Route
           path="/*"
           element={
@@ -63,6 +62,7 @@ function App() {
                   <Route path="/plugins" element={<LocalPlugins />} />
                   <Route path="/online-plugins" element={<OnlinePlugins />} />
                   <Route path="/terminal" element={<Terminal />} />
+                  <Route path="/chat" element={<Chat />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/about" element={<About />} />
                   <Route path="*" element={<NotFound />} />

@@ -20,6 +20,7 @@ from ..utils.utils import (
     get_server_port
 )
 from ..utils.chat_logger import ChatLogger
+from ..utils.api_cache import api_cache
 from ..web_server import verify_token
 
 
@@ -587,6 +588,9 @@ async def setup_rcon_config(
                 {"status": "error", "message": f"更新MCDR配置失败: {str(e)}"},
                 status_code=500
             )
+
+        # 清除RCON状态缓存，因为配置已更改
+        api_cache.invalidate("rcon_status")
 
         # 直接重载MCDR配置，MCDR会自动等待服务器重启完成
         try:

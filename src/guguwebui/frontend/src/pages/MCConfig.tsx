@@ -84,20 +84,29 @@ const MCConfig: React.FC = () => {
   };
 
   useEffect(() => {
-    init();
+    // 创建 AbortController 用于取消请求
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
+    init(signal);
+
+    return () => {
+      // 取消所有进行中的请求
+      abortController.abort();
+    };
   }, []);
 
-  const init = async () => {
+  const init = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
       // 1. Get server path from MCDR config
-      const mcdrResp = await axios.get('/api/load_config?path=config.yml');
+      const mcdrResp = await axios.get('/api/load_config?path=config.yml', { signal });
       const workingDir = mcdrResp.data.working_directory || 'server';
       const path = workingDir.endsWith('/') ? workingDir : workingDir + '/';
       setServerPath(path);
 
       // 2. Load minecraft config
-      const configResp = await axios.get(`/api/load_config?path=${path}server.properties`);
+      const configResp = await axios.get(`/api/load_config?path=${path}server.properties`, { signal });
       const rawData = configResp.data;
 
       // Convert string boolean to real boolean
@@ -130,7 +139,11 @@ const MCConfig: React.FC = () => {
       }
       setTranslations(picked || (langData as any).zh_CN || (langData as any).zh_cn || {});
 
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error('Failed to init MC config:', error);
       notify(t('page.mc.msg.load_config_failed'), 'error');
     } finally {

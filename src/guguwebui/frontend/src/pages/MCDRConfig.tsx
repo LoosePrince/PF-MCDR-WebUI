@@ -51,19 +51,32 @@ const MCDRConfig: React.FC = () => {
   const [showHandlerModal, setShowHandlerModal] = useState(false);
 
   useEffect(() => {
-    loadData();
+    // 创建 AbortController 用于取消请求
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
+    loadData(signal);
+
+    return () => {
+      // 取消所有进行中的请求
+      abortController.abort();
+    };
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
       const [configResp, permResp] = await Promise.all([
-        axios.get('/api/load_config?path=config.yml'),
-        axios.get('/api/load_config?path=permission.yml')
+        axios.get('/api/load_config?path=config.yml', { signal }),
+        axios.get('/api/load_config?path=permission.yml', { signal })
       ]);
       setConfigData(configResp.data);
       setPermissionData(permResp.data);
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略取消的请求错误
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
       console.error('Failed to load MCDR config:', error);
       notify(t('common.config_load_failed'), 'error');
     } finally {
