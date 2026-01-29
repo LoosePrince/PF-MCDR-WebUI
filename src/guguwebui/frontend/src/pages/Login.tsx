@@ -259,7 +259,7 @@ const Login: React.FC = () => {
           
           <div className="pt-4 text-center border-t border-slate-100 dark:border-slate-800">
             <button
-              onClick={() => navigate('/chat')}
+              onClick={() => navigate('/player-chat')}
               className="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-colors"
             >
               {t('login.go_chat')}

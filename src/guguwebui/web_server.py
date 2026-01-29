@@ -513,6 +513,24 @@ async def chat_page(request: Request):
             server.logger.error(f"聊天页加载失败: {e}")
         return serve_spa_index(request)
 
+# 玩家聊天页 - 独立页面，使用 React SPA
+@app.get("/player-chat", response_class=HTMLResponse)
+async def player_chat_page(request: Request):
+    try:
+        # 检查是否启用公开聊天页
+        server:PluginServerInterface = app.state.server_interface
+        server_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
+        
+        if not server_config.get("public_chat_enabled", False):
+            return serve_spa_index(request)  # 返回 SPA，由前端处理 404
+        
+        return serve_spa_index(request)
+    except Exception as e:
+        server:PluginServerInterface = app.state.server_interface
+        if server:
+            server.logger.error(f"玩家聊天页加载失败: {e}")
+        return serve_spa_index(request)
+
 # 404 page - 返回 SPA index.html，由前端处理 404
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc: StarletteHTTPException):
@@ -1242,7 +1260,8 @@ async def chat_check_session(request: Request):
     try:
         data = await request.json()
         session_id = data.get("session_id", "")
-        result = check_chat_session(session_id)
+        server: PluginServerInterface = app.state.server_interface
+        result = check_chat_session(session_id, server)
 
         status_code = 400 if result.get("status") == "error" else 200
         return JSONResponse(result, status_code=status_code)

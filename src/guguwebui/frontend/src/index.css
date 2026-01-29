@@ -122,3 +122,36 @@
 .dark .markdown-body table tr:nth-child(2n) {
   background-color: rgba(51, 65, 85, 0.18); /* slate-700/18 */
 }
+
+/* RText hover tooltip */
+.rtext-hoverable {
+  position: relative;
+  cursor: help;
+}
+
+.rtext-hoverable:hover::after {
+  content: attr(data-hover-content);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.4;
+  max-width: 300px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  z-index: 1000;
+  pointer-events: none;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.rtext-obfuscated {
+  font-family: monospace;
+  letter-spacing: 0.1em;
+}

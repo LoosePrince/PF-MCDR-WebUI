@@ -217,8 +217,101 @@
     },
     "chat": {
       "header_title": "服务器聊天页",
+      "header": {
+        "players_online": "在线"
+      },
       "room": {
-        "desc": "欢迎来到服务器聊天板块的网页端（建议进游戏聊天哦~）"
+        "desc": "欢迎来到服务器聊天板块的网页端（建议进游戏聊天哦~）",
+        "empty": {
+          "title": "暂无聊天消息",
+          "hint": "开始聊天吧！"
+        },
+        "load_more": "加载更多历史消息",
+        "input_placeholder_send": "发送消息到服务器...",
+        "input": {
+          "placeholder": "输入消息...",
+          "hint": "按Enter键或点击发送按钮发送消息到游戏"
+        },
+        "send": {
+          "submit": "发送"
+        }
+      },
+      "tabs": {
+        "verify_flow": "验证码流程",
+        "direct_login": "直接登录",
+        "avatar_source": {
+          "title": "头像来源"
+        },
+        "ui_style": {
+          "title": "界面风格",
+          "modern": "现代风格",
+          "minecraft": "游戏风格"
+        },
+        "settings_desc": "个性化您的聊天体验",
+        "cooling_down": "冷却中...",
+        "web_label": "网页"
+      },
+      "steps": {
+        "get_code": "获取验证码",
+        "verify_in_game": "游戏内验证",
+        "set_password": "设置密码"
+      },
+      "get_code": {
+        "generate": "生成验证码",
+        "desc_before": "点击下方按钮获取6位验证码，然后在游戏内使用 ",
+        "desc_after": " 命令进行验证。",
+        "your_code": "您的验证码：",
+        "expire_hint": "验证码将在10分钟后过期"
+      },
+      "verify": {
+        "title": "游戏内验证",
+        "desc": "请在游戏内使用以下命令验证您的身份：",
+        "check": "检查验证状态"
+      },
+      "set_password": {
+        "submit": "设置密码",
+        "password_label": "密码",
+        "password_placeholder": "请输入密码（至少6位）",
+        "confirm_label": "确认密码",
+        "confirm_placeholder": "请再次输入密码"
+      },
+      "login": {
+        "submit": "登录",
+        "player_id_label": "玩家ID",
+        "player_id_placeholder": "请输入您的玩家ID",
+        "password_label": "密码",
+        "password_placeholder": "请输入密码"
+      },
+      "panel": {
+        "online_members": "在线成员"
+      },
+      "settings": {
+        "modal_title": "设置",
+        "display_mode_label": "显示模式",
+        "display_modern": "现代气泡",
+        "display_mc": "MC 模拟",
+        "avatar_source_label": "头像来源",
+        "avatar_mccag": "MCCAG (Minimal)",
+        "avatar_mcheads": "MCHeads (Original)"
+      },
+      "offline": {
+        "just_offline": "刚刚离线",
+        "minutes_ago": "分钟前离线",
+        "minutes_ago_format": "{{count}}分钟前",
+        "hours_ago": "小时前离线",
+        "status_game": "游戏中",
+        "status_web": "网页"
+      },
+      "msg": {
+        "generate_failed": "生成验证码失败",
+        "network_retry": "网络错误，请重试",
+        "verify_failed": "验证失败，请确保已在游戏内执行验证命令",
+        "password_mismatch": "两次输入的密码不一致",
+        "password_too_short": "密码长度至少6位",
+        "set_password_failed": "设置密码失败",
+        "login_failed": "登录失败",
+        "send_failed": "发送失败",
+        "network_send_failed": "网络错误，发送失败"
       }
     },
     "about": {

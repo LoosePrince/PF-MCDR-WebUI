@@ -215,9 +215,102 @@
       "back_home": "Back to Home"
     },
     "chat": {
-      "header_title": "Server Chat Page",
+      "header_title": "Server Chat",
+      "header": {
+        "players_online": "Online"
+      },
       "room": {
-        "desc": "Welcome to the web portal of the server chat section (we recommend chatting in-game)"
+        "desc": "Welcome to the server chat portal (best experienced in-game!)",
+        "empty": {
+          "title": "No messages yet",
+          "hint": "Start the conversation!"
+        },
+        "load_more": "Load historical messages",
+        "input_placeholder_send": "Send message to server...",
+        "input": {
+          "placeholder": "Type your message...",
+          "hint": "Press Enter or click Send to relay to the game"
+        },
+        "send": {
+          "submit": "Send"
+        }
+      },
+      "tabs": {
+        "verify_flow": "Verify Code",
+        "direct_login": "Login",
+        "avatar_source": {
+          "title": "Avatar Source"
+        },
+        "ui_style": {
+          "title": "UI Style",
+          "modern": "Modern",
+          "minecraft": "Minecraft"
+        },
+        "settings_desc": "Personalize your chat experience",
+        "cooling_down": "COOLING DOWN...",
+        "web_label": "WEB"
+      },
+      "steps": {
+        "get_code": "Get Code",
+        "verify_in_game": "Verify In-Game",
+        "set_password": "Set Password"
+      },
+      "get_code": {
+        "generate": "Generate Code",
+        "desc_before": "Click below to get a 6-digit code, then use ",
+        "desc_after": " command in-game to verify.",
+        "your_code": "Your Code:",
+        "expire_hint": "Expires in 10 minutes"
+      },
+      "verify": {
+        "title": "In-Game Verification",
+        "desc": "Use the following command in-game to verify your identity:",
+        "check": "Check Verification Status"
+      },
+      "set_password": {
+        "submit": "Set Password",
+        "password_label": "Password",
+        "password_placeholder": "Min 6 characters",
+        "confirm_label": "Confirm Password",
+        "confirm_placeholder": "Re-enter password"
+      },
+      "login": {
+        "submit": "Login",
+        "player_id_label": "Player ID",
+        "player_id_placeholder": "Enter your player ID",
+        "password_label": "Password",
+        "password_placeholder": "Enter your password"
+      },
+      "panel": {
+        "online_members": "Online members"
+      },
+      "settings": {
+        "modal_title": "Settings",
+        "display_mode_label": "Display mode",
+        "display_modern": "Modern bubbles",
+        "display_mc": "MC style",
+        "avatar_source_label": "Avatar source",
+        "avatar_mccag": "MCCAG (Minimal)",
+        "avatar_mcheads": "MCHeads (Original)"
+      },
+      "offline": {
+        "just_offline": "Just left",
+        "minutes_ago": "m ago",
+        "minutes_ago_format": "{{count}} m ago",
+        "hours_ago": "h ago",
+        "status_game": "In game",
+        "status_web": "Web"
+      },
+      "msg": {
+        "generate_failed": "Failed to generate code",
+        "network_retry": "Network error, please try again",
+        "verify_failed": "Verification failed. Ensure you used the command in-game.",
+        "password_mismatch": "Passwords do not match",
+        "password_too_short": "Password must be at least 6 characters",
+        "set_password_failed": "Failed to set password",
+        "login_failed": "Login failed",
+        "send_failed": "Failed to send message",
+        "network_send_failed": "Network error, failed to send"
       }
     },
     "about": {

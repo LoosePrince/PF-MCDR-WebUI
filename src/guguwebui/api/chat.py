@@ -166,7 +166,15 @@ def set_chat_user_password(code: str, password: str, server: PluginServerInterfa
     if server:
         server.logger.debug(f"聊天页用户 {player_id} 设置密码成功")
 
-    return {"status": "success", "message": "密码设置成功", "player_id": player_id}
+    result = {"status": "success", "message": "密码设置成功", "player_id": player_id}
+    if server:
+        try:
+            uuid_val = get_player_uuid(player_id, server)
+            if uuid_val:
+                result["uuid"] = uuid_val
+        except Exception:
+            pass
+    return result
 
 #============================================================#
 # 用户认证功能
@@ -250,18 +258,28 @@ def chat_user_login(player_id: str, password: str, client_ip: str, server: Plugi
     if server:
         server.logger.debug(f"聊天页用户 {player_id} 登录成功")
 
-    return {
+    result = {
         "status": "success",
         "message": "登录成功",
-        "session_id": session_id
+        "session_id": session_id,
+        "player_id": player_id
     }
+    if server:
+        try:
+            uuid_val = get_player_uuid(player_id, server)
+            if uuid_val:
+                result["uuid"] = uuid_val
+        except Exception:
+            pass
+    return result
 
-def check_chat_session(session_id: str) -> Dict[str, Any]:
+def check_chat_session(session_id: str, server: PluginServerInterface = None) -> Dict[str, Any]:
     """
     检查聊天页会话状态
 
     Args:
         session_id: 会话ID
+        server: MCDR服务器接口（用于获取玩家UUID）
 
     Returns:
         Dict: 会话状态
@@ -283,11 +301,20 @@ def check_chat_session(session_id: str) -> Dict[str, Any]:
         user_db.save()
         return {"status": "error", "message": "会话已过期"}
 
-    return {
+    player_id = session["player_id"]
+    result = {
         "status": "success",
         "valid": True,
-        "player_id": session["player_id"]
+        "player_id": player_id
     }
+    if server:
+        try:
+            uuid_val = get_player_uuid(player_id, server)
+            if uuid_val:
+                result["uuid"] = uuid_val
+        except Exception:
+            pass
+    return result
 
 def chat_user_logout(session_id: str, server: PluginServerInterface) -> Dict[str, Any]:
     """
