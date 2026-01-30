@@ -1,21 +1,23 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from './components/Layout'
-import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import MCDRConfig from './pages/MCDRConfig'
-import MCConfig from './pages/MCConfig'
-import LocalPlugins from './pages/LocalPlugins'
-import OnlinePlugins from './pages/OnlinePlugins'
-import Terminal from './pages/Terminal'
-import Settings from './pages/Settings'
-import About from './pages/About'
-import Chat from './pages/Chat'
-import PlayerChat from './pages/PlayerChat'
-import PluginPage from './pages/PluginPage'
-import NotFound from './pages/NotFound'
 import { useAuth } from './hooks/useAuth'
+
+// 路由级懒加载，将各页面拆成独立 chunk，减小主包体积
+const Login = lazy(() => import('./pages/Login'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const MCDRConfig = lazy(() => import('./pages/MCDRConfig'))
+const MCConfig = lazy(() => import('./pages/MCConfig'))
+const LocalPlugins = lazy(() => import('./pages/LocalPlugins'))
+const OnlinePlugins = lazy(() => import('./pages/OnlinePlugins'))
+const Terminal = lazy(() => import('./pages/Terminal'))
+const Settings = lazy(() => import('./pages/Settings'))
+const About = lazy(() => import('./pages/About'))
+const Chat = lazy(() => import('./pages/Chat'))
+const PlayerChat = lazy(() => import('./pages/PlayerChat'))
+const PluginPage = lazy(() => import('./pages/PluginPage'))
+const NotFound = lazy(() => import('./pages/NotFound'))
 
 // 独立页面路径（不需要认证）
 const PUBLIC_PATHS = ['/login', '/player-chat']
@@ -37,36 +39,46 @@ function AppContent() {
     )
   }
 
+  const fallback = (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="text-gray-600 dark:text-gray-300 text-sm">{t('common.notice_loading')}</div>
+    </div>
+  )
+
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/player-chat" element={<PlayerChat />} />
-      <Route
-        path="/*"
-        element={
-          isAuthenticated ? (
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Navigate to="/index" replace />} />
-                <Route path="/index" element={<Dashboard />} />
-                <Route path="/mcdr" element={<MCDRConfig />} />
-                <Route path="/mc" element={<MCConfig />} />
-                <Route path="/plugins" element={<LocalPlugins />} />
-                <Route path="/online-plugins" element={<OnlinePlugins />} />
-                <Route path="/terminal" element={<Terminal />} />
-                <Route path="/chat" element={<Chat />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/plugin-page/:pluginId" element={<PluginPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Layout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-    </Routes>
+    <Suspense fallback={fallback}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/player-chat" element={<PlayerChat />} />
+        <Route
+          path="/*"
+          element={
+            isAuthenticated ? (
+              <Layout>
+                <Suspense fallback={fallback}>
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/index" replace />} />
+                    <Route path="/index" element={<Dashboard />} />
+                    <Route path="/mcdr" element={<MCDRConfig />} />
+                    <Route path="/mc" element={<MCConfig />} />
+                    <Route path="/plugins" element={<LocalPlugins />} />
+                    <Route path="/online-plugins" element={<OnlinePlugins />} />
+                    <Route path="/terminal" element={<Terminal />} />
+                    <Route path="/chat" element={<Chat />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/about" element={<About />} />
+                    <Route path="/plugin-page/:pluginId" element={<PluginPage />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+              </Layout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+      </Routes>
+    </Suspense>
   )
 }
 

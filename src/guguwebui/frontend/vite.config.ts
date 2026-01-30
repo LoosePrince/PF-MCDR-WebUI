@@ -15,9 +15,16 @@ export default defineConfig({
     emptyOutDir: true,
     // 设置资源基础路径，因为静态文件被挂载到 /static 路径
     base: '/static/',
+    // 路由已懒加载，主包已拆分；vendor 单库体积较大时放宽告警阈值
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // 懒加载页面：按路径命名，避免 [hash]
+          const pageMatch = id.match(/[/\\]pages[/\\]([^/\\]+)\.(tsx|jsx|ts|js)(\?|$)/);
+          if (pageMatch) {
+            return pageMatch[1];
+          }
           // React 核心库
           if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
             return 'react-vendor';
