@@ -142,7 +142,7 @@ Q: 可以加入开发吗？<br>
 A: 当然可以，您可以提交 [pr](https://github.com/LoosePrince/PF-MCDR-WebUI/pulls) 或者参与交流来参与开发。
 
 Q: 会支持我的语言吗？<br>
-A: 我只会中文，你要是愿意可以参与，目前已有中文（zh-CN）和英文（en-US），在 [lang文件夹](https://github.com/LoosePrince/PF-MCDR-WebUI/tree/v1.5.0/src/guguwebui/lang)。
+A: 我只会中文，你要是愿意可以参与，目前已有中文（zh-CN）和英文（en-US），在 [i18n/locales 文件夹](https://github.com/LoosePrince/PF-MCDR-WebUI/tree/main/src/guguwebui/frontend/src/i18n/locales)。
 
 Q: 为什么有私货（有未使用的插件，如gugubot等）？<br>
 A: 因为这就是为它所开发（虽然GUGUbot的配置一直不完善[doge]）。
@@ -212,13 +212,17 @@ AI分析![image](https://github.com/user-attachments/assets/91276765-ec5b-47eb-8
 
 | 贡献项目 | 功能 | 备注 |
 |---|---|---|
-| [Ace Editor](https://ace.c9.io/) | 在线编辑器 | 已不再使用 |
+| [MCDR 插件仓库](https://mcdreforged.com/zh-CN/plugins) | 插件生态 | 提供了丰富的 MCDR 插件生态，是本项目功能的基础 |
+| [MC-Server-Info](https://github.com/Spark-Code-China/MC-Server-Info) | Minecraft 服务器信息查询 | 用于获取服务器状态与玩家信息的基础实现（仓库被作者删除） |
+| [MCDReforged](https://mcdreforged.com/) | MCDR 本体 | 本插件所依赖的运行平台 |
+| [NiceGUI](https://github.com/zauberzeug/nicegui) | Web UI 框架 | 参考了其在 uvicorn 线程化运行方面的实现思路 |
+| [Minecraft Wiki（文本组件）](https://zh.minecraft.wiki/w/文本组件) | 文本组件格式规范 | RText 解析器所依据的格式规范 |
+| [mcstatus](https://github.com/py-mine/mcstatus) | Minecraft 服务器状态查询 | 用于查询 Minecraft Java 版服务器状态的 Python 库 |
 | [CodeMirror](https://codemirror.net/) | 在线编辑器 | 目前使用 |
-| [MC-Server-Info](https://github.com/Spark-Code-China/MC-Server-Info) | Python Minecraft 服务器信息查询 | 仓库被作者删除 |
-| [DeepSeek AI](https://deepseek.com/) | AI辅助功能接口支持 | |
-| [Vditor](https://vditor.b3log.org/) | Markdown编辑器 | |
-| [TailwindCSS](https://tailwindcss.com/) | CSS框架 | |
-| [Alpine.js](https://alpinejs.dev/) | JS框架 | |
+| [DeepSeek AI](https://deepseek.com/) | AI 辅助功能接口支持 | |
+| [Vditor](https://vditor.b3log.org/) | Markdown 编辑器 | |
+| [TailwindCSS](https://tailwindcss.com/) | CSS 框架 | |
+| [Alpine.js](https://alpinejs.dev/) | JS 框架 | |
 | [Font Awesome](https://fontawesome.com/) | 图标库 | |
 
 | 特别鸣谢 | 说明 |

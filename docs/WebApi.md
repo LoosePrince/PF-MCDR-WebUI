@@ -1,6 +1,6 @@
 # MCDR WebUI API 文档
 
-本文档记录了MCDR WebUI前端界面使用的API接口。
+本文档记录 MCDR WebUI 前端界面使用的 API 接口，并与当前代码实现对齐。若与实际接口有差异，以服务端实现为准。
 
 ## 认证相关API
 
@@ -38,21 +38,21 @@
 - 使用位置: 所有需要认证的页面
 
 ### 登录
-- 端点: `/login`
+- 端点: `/api/login`（提交登录请求）
 - 方法: POST
 - 参数: 
-  - `account`: 账号（表单提交）
-  - `password`: 密码（表单提交）
-  - `temp_code`: 临时登录码（可选，表单提交）
-  - `remember`: 是否记住登录状态（表单提交）
-- 功能: 用户登录
+  - `account`: 账号（表单字段）
+  - `password`: 密码（表单字段）
+  - `temp_code`: 临时登录码（可选，表单字段）
+  - `remember`: 是否记住登录状态（表单字段）
+- 功能: 用户登录。登录页面为 GET `/login`。
 - 响应:
-  - 成功时：重定向到首页或指定的redirect地址
-  - 失败时：重新渲染登录页面并显示错误信息
+  - 成功时：重定向到首页或指定的 redirect 地址
+  - 失败时：返回错误信息
 - 调用示例（表单提交）:
 
   ```html
-  <form action="/login" method="post">
+  <form action="/api/login" method="post">
     <input type="text" name="account" placeholder="账号" required>
     <input type="password" name="password" placeholder="密码" required>
     <input type="checkbox" name="remember" value="true"> 记住我
@@ -76,6 +76,21 @@
   ```
 
 - 使用位置: 所有页面的退出登录按钮
+
+### 获取语言列表
+- 端点: `/api/langs`
+- 方法: GET
+- 功能: 获取前端可用的语言列表（来自 `/lang` 目录下的 JSON 文件及显示名）。无需登录。
+- 响应: 数组，每项为 `{"code": "语言代码", "name": "显示名称"}`；异常时返回 `{"error": "错误信息"}`，状态码 500。
+
+  ```json
+  [
+    {"code": "zh-CN", "name": "中文"},
+    {"code": "en-US", "name": "English"}
+  ]
+  ```
+
+- 使用位置: 前端语言切换、设置页
 
 ## 服务器状态API
 
@@ -167,11 +182,9 @@
 - 端点: `/api/server_logs`
 - 方法: GET
 - 参数:
-  - `start_line`: 开始行号（默认0）
-  - `max_lines`: 最大返回行数（默认100，最大500）
-  - `log_type`: 日志类型（"mcdr"/"minecraft"，默认"mcdr"）
-  - `merged`: 是否获取合并日志（可选，布尔值，默认false）
-- 功能: 获取服务器日志内容
+  - `start_line`: 开始行号（默认 0）
+  - `max_lines`: 最大返回行数（默认 100，最大 500）
+- 功能: 获取合并后的服务器日志（MCDR + Minecraft）。需登录。
 - 响应:
 
   ```json
@@ -181,30 +194,25 @@
       {
         "line_number": 0,
         "content": "日志内容",
-        "source": "mcdr|minecraft" // 合并模式下才有此字段
+        "source": "mcdr|minecraft",
+        "counter": 计数器ID
       }
     ],
     "total_lines": 总行数,
     "current_start": 开始行号,
-    "current_end": 结束行号,
-    "log_type": "日志类型"
+    "current_end": 结束行号
   }
   ```
 
 - 调用示例:
 
   ```javascript
-  async function getServerLogs(logType = 'mcdr', startLine = 0, maxLines = 100, merged = false) {
+  async function getServerLogs(startLine = 0, maxLines = 100) {
     try {
       const params = new URLSearchParams({
         start_line: startLine,
-        max_lines: maxLines,
-        log_type: logType
+        max_lines: maxLines
       });
-      
-      if (merged) {
-        params.append('merged', 'true');
-      }
       
       const response = await fetch(`/api/server_logs?${params.toString()}`);
       const data = await response.json();
@@ -226,7 +234,7 @@
   ```
 
 - 使用位置: 日志查看页面
-- 备注: 当`merged`参数为true时，返回的日志会包含来源信息（mcdr或minecraft）
+- 备注: 返回的日志为 MCDR 与 Minecraft 合并结果，每条包含 `source` 字段标识来源
 
 ### 获取最新日志更新
 - 端点: `/api/new_logs`
@@ -295,12 +303,11 @@
 - 方法: GET
 - 参数: 
   - `plugin_id`: 指定插件ID（可选，字符串，提供时只返回该插件）
-- 功能: 获取已安装的插件列表
+- 功能: 获取已安装的插件列表。未登录时仅返回 guguwebui 插件信息；未登录且无插件时返回 401。
 - 响应:
 
   ```json
   {
-    "status": "success",
     "plugins": [
       {
         "id": "插件ID",
@@ -317,6 +324,8 @@
   }
   ```
 
+  - 未登录时: `401`，body 为 `{"status": "error", "message": "User not logged in"}`
+
 - 调用示例:
 
   ```javascript
@@ -326,14 +335,14 @@
       const response = await fetch('/api/plugins');
       const data = await response.json();
       
-      if (data.status === 'success') {
+      if (data.plugins) {
         console.log(`获取到 ${data.plugins.length} 个插件`);
         // 处理插件列表
         data.plugins.forEach(plugin => {
           console.log(`${plugin.name} (${plugin.id}) - ${plugin.status}`);
         });
       } else {
-        console.error('获取插件列表失败');
+        console.error('获取插件列表失败或未登录');
       }
     } catch (error) {
       console.error('获取插件列表出错:', error);
@@ -346,7 +355,7 @@
       const response = await fetch(`/api/plugins?plugin_id=${encodeURIComponent(pluginId)}`);
       const data = await response.json();
       
-      if (data.status === 'success' && data.plugins.length > 0) {
+      if (data.plugins && data.plugins.length > 0) {
         const plugin = data.plugins[0];
         console.log(`插件信息: ${plugin.name} (${plugin.id}) - ${plugin.status}`);
         return plugin;
@@ -364,54 +373,9 @@
 - 使用位置: 插件管理页面
 - 备注: 接口始终返回详细信息，包括作者、链接等
 
-### 获取咕咕机器人插件
+### 获取咕咕机器人插件（已移除）
 - 端点: `/api/gugubot_plugins`
-- 方法: GET
-- 功能: 获取咕咕机器人相关插件的元数据
-- 响应:
-
-  ```json
-  {
-    "status": "success",
-    "gugubot_plugins": [
-      {
-        "id": "插件ID",
-        "name": "插件名称",
-        "version": "插件版本",
-        "description": "插件描述",
-        "status": "loaded|unloaded|disabled",
-        "handlers": ["处理器列表"],
-        "commands": ["命令列表"]
-      }
-    ]
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function getGugubotPlugins() {
-    try {
-      const response = await fetch('/api/gugubot_plugins');
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        console.log(`获取到 ${data.gugubot_plugins.length} 个咕咕机器人插件`);
-        // 处理插件列表
-        data.gugubot_plugins.forEach(plugin => {
-          console.log(`${plugin.name} (${plugin.id}) - ${plugin.status}`);
-          console.log(`命令: ${plugin.commands.join(', ')}`);
-        });
-      } else {
-        console.error('获取咕咕机器人插件列表失败');
-      }
-    } catch (error) {
-      console.error('获取咕咕机器人插件列表出错:', error);
-    }
-  }
-  ```
-
-- 使用位置: 咕咕机器人配置页面
+- 状态: **已移除**。该接口已从当前版本中移除，请使用 `/api/plugins` 获取插件列表。
 
 ### 切换插件状态
 - 端点: `/api/toggle_plugin`
@@ -507,6 +471,26 @@
 
 - 使用位置: 插件管理页面
 
+### 获取已注册的插件网页列表（侧边栏）
+- 端点: `/api/plugins/web_pages`
+- 方法: GET
+- 功能: 获取所有通过 `register_plugin_page` 注册的插件网页列表，用于侧边栏「插件网页」展示。需登录。
+- 响应:
+
+  ```json
+  {
+    "pages": [
+      {
+        "id": "插件ID",
+        "path": "HTML 文件路径"
+      }
+    ]
+  }
+  ```
+
+  - 未登录时: `401`，body 为 `{"status": "error", "message": "User not logged in"}`
+- 使用位置: 布局侧边栏、插件网页入口
+
 ## 配置相关API
 
 ### 获取配置文件列表
@@ -566,10 +550,11 @@
 ### 保存配置文件
 - 端点: `/api/save_config`
 - 方法: POST
-- 参数: 
-  - `file_path`: 文件路径
-  - `config_data`: 配置数据
-- 功能: 保存配置文件
+- 参数（JSON body）: 
+  - `file_path`: 配置文件路径（字符串）
+  - `config_data`: 配置内容（对象）
+- 功能: 保存指定路径的配置文件。禁止通过此接口修改 `config\guguwebui\config.json`。
+- 响应: `{"status": "success"}` 或 `{"status": "error", "message": "..."}`
 - 使用位置: 配置编辑页面
 
 ### 加载配置文件内容
@@ -584,10 +569,11 @@
 ### 保存配置文件内容
 - 端点: `/api/save_config_file`
 - 方法: POST
-- 参数: 
-  - `action`: 文件路径
-  - `content`: 文件内容
-- 功能: 保存配置文件原始内容
+- 参数（JSON body）: 
+  - `action`: 文件路径（字符串）
+  - `content`: 文件内容（字符串）
+- 功能: 保存配置文件原始内容。禁止通过此接口修改 `config\guguwebui\config.json`。
+- 响应: `{"status": "success", "message": "..."}` 或 `{"status": "error", "message": "..."}`
 - 使用位置: 配置编辑页面
 
 ### 获取WebUI配置
@@ -690,7 +676,22 @@
   ```
 
 - 使用位置: WebUI设置页面
-- 备注: 保存AI API密钥时，如果不提供值，将保持原值不变
+- 备注: 保存AI API密钥时，如果不提供值，将保持原值不变。可选参数还包括：`public_chat_enabled`、`public_chat_to_game_enabled`、`chat_verification_expire_minutes`、`chat_session_expire_hours` 等。
+
+### 获取 ICP 备案信息
+- 端点: `/api/config/icp-records`
+- 方法: GET
+- 功能: 获取 WebUI 配置中的 ICP 备案信息（用于页脚展示等）。无需登录。
+- 响应:
+
+  ```json
+  {
+    "status": "success",
+    "icp_records": []
+  }
+  ```
+
+- 使用位置: 页脚、关于页
 
 ## 文件操作API
 
@@ -747,6 +748,29 @@
 - 使用位置: 用户头像显示
 
 ## AI 辅助 API
+
+### 获取命令补全建议
+- 端点: `/api/command_suggestions`
+- 方法: GET
+- 参数:
+  - `input`: 当前输入内容（可选，用于补全子命令）
+- 功能: 获取 MCDR 命令补全建议，用于终端输入框自动补全。需登录。
+- 响应:
+
+  ```json
+  {
+    "status": "success",
+    "suggestions": [
+      {
+        "command": "命令名或补全片段",
+        "description": "描述"
+      }
+    ]
+  }
+  ```
+
+- 未登录时: `401`，body 为 `{"status": "error", "message": "User not logged in"}`
+- 使用位置: 终端页面命令输入补全
 
 ### 发送命令到MCDR终端
 - 端点: `/api/send_command`

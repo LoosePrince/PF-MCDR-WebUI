@@ -2,7 +2,10 @@
 
 ## 概述
 
-WebUI 提供了事件系统，用于其他插件监听WebUI的消息发送活动。
+WebUI 提供事件系统与扩展接口，供其他 MCDR 插件：
+
+- **事件系统**：监听 WebUI 的聊天消息发送等活动
+- **侧边栏注册**：在 WebUI 侧边栏中注册自定义插件网页入口
 
 本功能尚处于测试开发阶段，可能会随时更新，请注意本文档的更新情况。
 
@@ -182,6 +185,46 @@ def on_load(server, old):
         on_webui_chat_message
     )
 ```
+
+## 侧边栏注册接口
+
+其他插件可以在 WebUI 侧边栏中注册自定义网页入口，用户登录后会在侧边栏「插件网页」下看到对应链接，点击后在 WebUI 内以 iframe 形式展示你的 HTML 页面。
+
+### 通过插件实例注册
+
+在插件加载时获取 WebUI 插件实例并调用 `register_plugin_page`：
+
+```python
+def on_load(server, old):
+    webui_plugin = server.get_plugin_instance("guguwebui")
+    if webui_plugin and hasattr(webui_plugin, 'register_plugin_page'):
+        # 注册一个自定义页面，显示在侧边栏「插件网页」中
+        # plugin_id: 用于侧边栏显示和路由，建议与插件 ID 一致
+        # html_path: HTML 文件路径，可为绝对路径或相对于 MCDR 工作目录的路径
+        webui_plugin.register_plugin_page(
+            plugin_id="your_plugin_id",
+            html_path="config/your_plugin/dashboard.html"
+        )
+```
+
+### 函数说明
+
+**`register_plugin_page(plugin_id: str, html_path: str)`**
+
+- **plugin_id**：插件标识，会出现在侧边栏文案和访问路径 `/plugin-page/<plugin_id>` 中，建议与你的 MCDR 插件 ID 一致。
+- **html_path**：网页 HTML 文件的路径，可为**绝对路径**或**相对于 MCDR 工作目录**的路径（如 `config/你的插件名/页面.html`）。前端通过 `/api/load_config?path=<html_path>&type=auto` 加载内容；当前后端在 `type=auto` 下会优先根据 HTML 所在目录的 `main.json` 映射返回 HTML（将 `path` 的文件名作为 key，值设为同目录下的 HTML 文件名即可，例如 `{"页面.html": "页面.html"}`）。
+
+### 前端行为
+
+- 登录后，前端会请求 `GET /api/plugins/web_pages` 获取已注册的 `(id, path)` 列表。
+- 侧边栏在「插件网页」折叠区中为每项生成链接，指向 `/plugin-page/<plugin_id>`。
+- 打开后，页面会请求对应 `path` 的 HTML 内容并放入 iframe 中展示。
+
+### 注意事项（侧边栏注册）
+
+1. 确保在 WebUI 插件加载完成后再调用 `register_plugin_page`（例如在 `on_load` 中调用即可，WebUI 通常先于多数插件加载）。
+2. 同一 `plugin_id` 重复注册会覆盖之前的 `html_path`。
+3. `/api/plugins/web_pages` 与 `/api/load_config` 均需要用户已登录 WebUI。
 
 ## 注意事项
 
