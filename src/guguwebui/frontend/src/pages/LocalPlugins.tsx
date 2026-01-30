@@ -118,7 +118,7 @@ const LocalPlugins: React.FC = () => {
   // Config modal state
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null);
-  const [configFiles, setConfigFiles] = useState<string[]>([]);
+  const [configFiles, setConfigFiles] = useState<{ path: string; name: string; has_web: boolean }[]>([]);
   const [loadingConfigs, setLoadingConfigs] = useState(false);
 
   // Confirm modal state
@@ -128,9 +128,10 @@ const LocalPlugins: React.FC = () => {
   // Config editor state
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [configContent, setConfigContent] = useState('');
-  const [editorMode, setEditorMode] = useState<'code' | 'form'>('code');
+  const [editorMode, setEditorMode] = useState<'code' | 'form' | 'web'>('code');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configData, setConfigData] = useState<any>(null);
+  const [configTranslations, setConfigTranslations] = useState<any>(null);
 
   // Version modal state
   const [showVersionModal, setShowVersionModal] = useState(false);
@@ -350,6 +351,8 @@ const LocalPlugins: React.FC = () => {
     setLoadingConfigs(true);
     setShowConfigModal(true);
     setEditingFile(null); // Reset editing file
+    setConfigData(null);
+    setConfigTranslations(null);
     try {
       const resp = await axios.get(`/api/list_config_files?plugin_id=${plugin.id}`);
       setConfigFiles(resp.data.files || []);
@@ -360,7 +363,7 @@ const LocalPlugins: React.FC = () => {
     }
   };
 
-  const handleEditFile = async (file: string, mode: 'code' | 'form' = 'code') => {
+  const handleEditFile = async (file: string, mode: 'code' | 'form' | 'web' = 'code') => {
     setEditingFile(file);
     setEditorMode(mode);
     setLoadingConfigs(true);
@@ -369,9 +372,36 @@ const LocalPlugins: React.FC = () => {
         const resp = await axios.get(`/api/load_config_file?path=${encodeURIComponent(file)}`);
         const data = resp.data;
         setConfigContent(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+      } else if (mode === 'web') {
+        // Force auto type to get HTML from backend
+        const resp = await axios.get(`/api/load_config?path=${encodeURIComponent(file)}&type=auto`);
+        if (resp.data && resp.data.type === 'html') {
+          setConfigContent(resp.data.content);
+        } else {
+          // Fallback to code if web fails or not available
+          setEditorMode('code');
+          notify(t('plugins.config_modal.cannot_edit_form'), 'error');
+        }
       } else {
-        const resp = await axios.get(`/api/load_config?path=${encodeURIComponent(file)}`);
+        // Force json type to avoid auto-switching to HTML
+        const resp = await axios.get(`/api/load_config?path=${encodeURIComponent(file)}&type=json`);
+        
+        // Validation: If backend still returns HTML structure when JSON is requested, ignore it
+        if (resp.data && resp.data.type === 'html') {
+           notify(t('plugins.config_modal.cannot_edit_form'), 'error');
+           setEditorMode('code');
+           return;
+        }
+        
         setConfigData(resp.data);
+        // Fetch translations - explicitly set type=json to avoid HTML return
+        try {
+          const transResp = await axios.get(`/api/load_config?path=${encodeURIComponent(file)}&translation=true&type=json`);
+          setConfigTranslations(transResp.data);
+        } catch (e) {
+          console.error('Failed to load translations:', e);
+          setConfigTranslations(null);
+        }
       }
     } catch (error) {
       notify(t('plugins.msg.load_file_failed'), 'error');
@@ -684,6 +714,14 @@ const LocalPlugins: React.FC = () => {
                   >
                     {t('plugins.config_modal.form_view')}
                   </button>
+                  {configFiles.find(f => f.path === editingFile)?.has_web && (
+                    <button
+                      onClick={() => handleEditFile(editingFile, 'web')}
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${editorMode === 'web' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                    >
+                      {t('plugins.config_modal.web_view')}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -694,10 +732,23 @@ const LocalPlugins: React.FC = () => {
                     onChange={(value) => setConfigContent(value)}
                     theme={i18n.language === 'zh-CN' ? 'dark' : 'light'}
                   />
+                ) : editorMode === 'web' ? (
+                  <div className="flex-1 min-h-[500px]">
+                    <iframe
+                      srcDoc={configContent}
+                      className="w-full h-full min-h-[500px] border-none"
+                      title="Plugin Web Config"
+                    />
+                  </div>
                 ) : (
                   <div className="flex-1 p-6 overflow-y-auto max-h-[500px] custom-scrollbar">
                     {configData ? (
-                      <ConfigForm data={configData} onChange={setConfigData} />
+                      <ConfigForm 
+                        data={configData} 
+                        onChange={setConfigData} 
+                        translations={configTranslations}
+                        lang={i18n.language}
+                      />
                     ) : (
                       <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                         <AlertTriangle size={32} className="mb-2 opacity-50" />
@@ -709,57 +760,76 @@ const LocalPlugins: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-end gap-3 pt-4 items-center">
+                {editorMode === 'web' && (
+                  <span className="text-xs text-slate-500 mr-auto flex items-center gap-1">
+                    <Info size={14} />
+                    {t('plugins.config_modal.html_no_save')}
+                  </span>
+                )}
                 <button
                   onClick={() => setEditingFile(null)}
                   className="px-6 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition-all font-bold"
                 >
                   {t('common.cancel')}
                 </button>
-                <button
-                  onClick={handleSaveFile}
-                  disabled={isSavingConfig}
-                  className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all shadow-lg shadow-blue-600/20 font-bold flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isSavingConfig ? <Loader2 size={18} className="animate-spin" /> : <SaveIcon size={18} />}
-                  {t('common.save')}
-                </button>
+                {editorMode !== 'web' && (
+                  <button
+                    onClick={handleSaveFile}
+                    disabled={isSavingConfig}
+                    className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all shadow-lg shadow-blue-600/20 font-bold flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isSavingConfig ? <Loader2 size={18} className="animate-spin" /> : <SaveIcon size={18} />}
+                    {t('common.save')}
+                  </button>
+                )}
               </div>
             </div>
           ) : configFiles.length > 0 ? (
-            <div className="grid gap-3">
+            <div className="space-y-3">
               <p className="text-sm text-slate-500 mb-2 font-medium">{t('plugins.config_modal.available_configs')}</p>
-              {configFiles.map((file) => (
-                <div
-                  key={file}
-                  className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl group transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white dark:bg-slate-700 rounded-xl shadow-sm">
-                      <Settings className="text-slate-400 group-hover:text-blue-500 transition-colors" size={18} />
+              <div className="grid gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {configFiles.map((file) => (
+                  <div
+                    key={file.path}
+                    className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl group transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white dark:bg-slate-700 rounded-xl shadow-sm">
+                        <Settings className="text-slate-400 group-hover:text-blue-500 transition-colors" size={18} />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[200px]">
+                        {file.name}
+                      </span>
                     </div>
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[200px]">
-                      {file.split(/[\\/]/).pop()}
-                    </span>
+                    <div className="flex gap-1">
+                      {file.has_web && (
+                        <button
+                          onClick={() => handleEditFile(file.path, 'web')}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                          title={t('plugins.config_modal.web_view')}
+                        >
+                          <Puzzle size={18} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleEditFile(file.path, 'form')}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                        title={t('plugins.config_modal.form_view')}
+                      >
+                        <FileText size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleEditFile(file.path, 'code')}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                        title={t('plugins.config_modal.code_view')}
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEditFile(file, 'form')}
-                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
-                      title={t('plugins.config_modal.form_view')}
-                    >
-                      <FileText size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleEditFile(file, 'code')}
-                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
-                      title={t('plugins.config_modal.code_view')}
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500">
@@ -1020,8 +1090,53 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
   return createPortal(modalContent, document.body);
 };
 
-const ConfigForm: React.FC<{ data: any; onChange: (data: any) => void }> = ({ data, onChange }) => {
-  if (!data || typeof data !== 'object') return null;
+const ConfigForm: React.FC<{ 
+  data: any; 
+  onChange: (data: any) => void; 
+  translations?: any;
+  parentPath?: string;
+  lang: string;
+}> = ({ data, onChange, translations, parentPath = '', lang }) => {
+  if (!data || typeof data !== 'object' || data.type === 'html') return null;
+
+  // Helper to get translated name and description
+  const getTranslation = (key: string) => {
+    if (!translations) return { name: key, desc: '' };
+
+    const currentLang = lang; // e.g. "zh-CN"
+    const currentLangAlt = lang.replace('-', '_').toLowerCase(); // e.g. "zh_cn"
+    
+    const transMap = translations.translations || {};
+    // Try multiple lang key variations
+    const langPick = transMap[currentLang] || 
+                    transMap[currentLangAlt] || 
+                    transMap['zh-CN'] || 
+                    transMap['zh_cn'] || 
+                    transMap['en-US'] || 
+                    transMap['en_us'] || 
+                    Object.values(transMap)[0] || {};
+    
+    // Split key path
+    const parts = (parentPath ? `${parentPath}.${key}` : key).split('.').filter(Boolean);
+    let cursor = langPick;
+    
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (cursor && cursor[part]) {
+        if (i === parts.length - 1) {
+          return {
+            name: cursor[part].name || key,
+            desc: cursor[part].desc || ''
+          };
+        }
+        cursor = cursor[part].children;
+      } else {
+        break;
+      }
+    }
+    
+    return { name: key, desc: '' };
+  };
 
   const handleChange = (key: string, value: any) => {
     onChange({ ...data, [key]: value });
@@ -1030,23 +1145,29 @@ const ConfigForm: React.FC<{ data: any; onChange: (data: any) => void }> = ({ da
   return (
     <div className="space-y-4">
       {Object.entries(data).map(([key, value]: [string, any]) => {
+        const { name, desc } = getTranslation(key);
+        
         if (typeof value === 'boolean') {
           return (
-            <div key={key} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{key}</span>
-              <button
-                onClick={() => handleChange(key, !value)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${value ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
+            <div key={key} className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{name}</span>
+                <button
+                  onClick={() => handleChange(key, !value)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${value ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              {desc && <p className="text-xs text-slate-500">{desc}</p>}
             </div>
           );
         }
         if (typeof value === 'string' || typeof value === 'number') {
           return (
             <div key={key} className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase ml-1">{key}</label>
+              <label className="text-xs font-bold text-slate-500 uppercase ml-1">{name}</label>
+              {desc && <p className="text-[10px] text-slate-400 ml-1 mb-1">{desc}</p>}
               <input
                 type={typeof value === 'number' ? 'number' : 'text'}
                 value={value}
@@ -1059,9 +1180,16 @@ const ConfigForm: React.FC<{ data: any; onChange: (data: any) => void }> = ({ da
         if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
           return (
             <div key={key} className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase ml-1">{key}</label>
+              <label className="text-xs font-bold text-slate-500 uppercase ml-1">{name}</label>
+              {desc && <p className="text-[10px] text-slate-400 ml-1">{desc}</p>}
               <div className="pl-4 border-l-2 border-slate-100 dark:border-slate-800 ml-1">
-                <ConfigForm data={value} onChange={(v) => handleChange(key, v)} />
+                <ConfigForm 
+                  data={value} 
+                  onChange={(v) => handleChange(key, v)} 
+                  translations={translations}
+                  parentPath={parentPath ? `${parentPath}.${key}` : key}
+                  lang={lang}
+                />
               </div>
             </div>
           );

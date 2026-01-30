@@ -29,11 +29,37 @@ async def list_config_files(
     plugin_id: str,
     server=None
 ) -> JSONResponse:
-    """列出插件的配置文件"""
+    """列出插件的配置文件及网页配置信息"""
     config_path_list: List[str] = find_plugin_config_paths(plugin_id)
-    # 过滤掉 main.json
-    config_path_list = [p for p in config_path_list if not Path(p).name.lower() == "main.json"]
-    return JSONResponse({"files": config_path_list})
+    
+    # 查找对应的 main.json 以检测网页配置
+    web_mapping = {}
+    if config_path_list:
+        try:
+            config_dir = Path(config_path_list[0]).parent
+            main_json_path = config_dir / "main.json"
+            if main_json_path.exists():
+                with open(main_json_path, "r", encoding="UTF-8") as f:
+                    main_json = json.load(f)
+                    # 记录哪些文件名有对应的 html
+                    for cfg_name, html_name in main_json.items():
+                        if isinstance(html_name, str) and html_name.endswith(".html"):
+                            web_mapping[cfg_name] = True
+        except Exception:
+            pass
+
+    files_info = []
+    for p in config_path_list:
+        path_obj = Path(p)
+        if path_obj.name.lower() == "main.json":
+            continue
+        files_info.append({
+            "path": p,
+            "name": path_obj.name,
+            "has_web": web_mapping.get(path_obj.name, False)
+        })
+
+    return JSONResponse({"files": files_info})
 
 
 async def get_web_config(
@@ -230,7 +256,7 @@ async def load_config(
     request: Request,
     path: str,
     translation: bool = False,
-    type_param: str = "auto",
+    type: str = "auto",
     server=None
 ) -> JSONResponse:
     """加载配置文件"""
@@ -247,7 +273,8 @@ async def load_config(
     config_dir = path_obj.parent
     main_json_path = config_dir / "main.json"
 
-    if type_param == "auto":
+    # 网页模式：仅当 type 为 auto 且 main.json 中有定义时返回 HTML
+    if type == "auto":
         # 读取 main.json
         main_config = {}
         if main_json_path.exists():
@@ -255,12 +282,11 @@ async def load_config(
                 with open(main_json_path, "r", encoding="UTF-8") as f:
                     main_config = json.load(f)
             except Exception:
-                pass  # 解析失败则保持 main_config 为空字典
+                pass
 
-        # 获取 config.json 的值（可能指向 HTML 文件）
-        config_value = main_config.get(path_obj.name)  # 这里 path.name 应该是 "config.json"
+        config_value = main_config.get(path_obj.name)
         if config_value:
-            html_path = config_dir / config_value  # 构造 HTML 文件路径
+            html_path = config_dir / config_value
             if html_path.exists() and html_path.suffix == ".html":
                 try:
                     with open(html_path, "r", encoding="UTF-8") as f:
@@ -271,6 +297,7 @@ async def load_config(
                         status_code=500,
                     )
 
+    # 如果 type 为 json 或其它，或者没有匹配的网页，则继续加载原始配置数据
     # Translation for xxx.json -> xxx_lang.json
     if translation:
         # 为前端提供兼容：将扁平的 translations[lang]["a.b"] 结构转换为嵌套结构

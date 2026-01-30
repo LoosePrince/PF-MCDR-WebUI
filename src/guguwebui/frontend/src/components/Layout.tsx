@@ -17,10 +17,12 @@ import {
   LogOut, 
   Menu, 
   ChevronRight, 
+  ChevronDown,
   Bell,
   X,
   Languages
 } from 'lucide-react'
+import axios from 'axios'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
 import VersionFooter from './VersionFooter'
@@ -36,6 +38,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024)
+  const [pluginPages, setPluginPages] = useState<{ id: string; path: string }[]>([])
+  const [isPluginPagesOpen, setIsPluginPagesOpen] = useState(false)
+
+  useEffect(() => {
+    const fetchPluginPages = async () => {
+      try {
+        const resp = await axios.get('/api/plugins/web_pages')
+        setPluginPages(resp.data.pages || [])
+      } catch (err) {
+        console.error('Failed to fetch registered plugin pages:', err)
+      }
+    }
+    fetchPluginPages()
+  }, [])
 
   useEffect(() => {
     const handleResize = () => {
@@ -126,6 +142,56 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </Link>
             )
           })}
+
+          {/* Plugin Web Pages Collapsible */}
+          {pluginPages.length > 0 && (
+            <div className="pt-2">
+              <button
+                onClick={() => setIsPluginPagesOpen(!isPluginPagesOpen)}
+                className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-200 transition-colors group"
+              >
+                <span className="flex items-center gap-2">
+                  <Puzzle size={14} className="group-hover:rotate-12 transition-transform" />
+                  {t('plugins.plugin_web_pages', '插件网页')}
+                </span>
+                <ChevronDown 
+                  size={14} 
+                  className={`transition-transform duration-200 ${isPluginPagesOpen ? 'rotate-180' : ''}`} 
+                />
+              </button>
+              
+              <AnimatePresence>
+                {isPluginPagesOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden space-y-1 mt-1 px-2"
+                  >
+                    {pluginPages.map((page) => {
+                      const path = `/plugin-page/${page.id}`
+                      const isActive = location.pathname === path
+                      return (
+                        <Link
+                          key={page.id}
+                          to={path}
+                          className={`flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 ${
+                            isActive
+                              ? 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20'
+                              : 'text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                          }`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-current opacity-40" />
+                          <span className="truncate uppercase text-xs font-mono">{page.id}</span>
+                        </Link>
+                      )
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-3">

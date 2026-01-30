@@ -63,6 +63,7 @@
     "enable": "Enable",
     "disable": "Disable",
     "all": "All",
+    "plugin_web_pages": "Plugin Web Pages",
     "config": "Config",
     "reload": "Reload",
     "uninstall": "Uninstall",
@@ -113,12 +114,14 @@
       "no_config_files": "No config files found",
       "form_view": "Form View",
       "code_view": "Code View",
+      "web_view": "Web View",
       "back_to_list": "Back to List",
       "edit": "Edit",
       "save": "Save",
       "edit_content_placeholder": "Edit configuration content here...",
       "cannot_edit_form": "This configuration cannot be edited in form view",
-      "try_code_view": "Please switch to code view to edit this file"
+      "try_code_view": "Please switch to code view to edit this file",
+      "html_no_save": "No manual save needed in web mode. This page is managed by the plugin."
     },
     "install_modal": {
       "install_progress": "Install Progress - ",

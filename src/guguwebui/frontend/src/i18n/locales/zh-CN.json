@@ -64,6 +64,7 @@
     "enable": "启用",
     "disable": "禁用",
     "all": "全部",
+    "plugin_web_pages": "插件网页",
     "config": "配置",
     "reload": "重载",
     "uninstall": "卸载",
@@ -114,12 +115,14 @@
       "no_config_files": "未找到配置文件",
       "form_view": "表单视图",
       "code_view": "代码视图",
+      "web_view": "网页视图",
       "back_to_list": "返回列表",
       "edit": "编辑",
       "save": "保存",
       "edit_content_placeholder": "在这里编辑配置内容...",
       "cannot_edit_form": "该配置无法使用表单视图编辑",
-      "try_code_view": "请切换到代码视图进行编辑"
+      "try_code_view": "请切换到代码视图进行编辑",
+      "html_no_save": "网页模式下无需手动保存，该页面由插件自主管理"
     },
     "install_modal": {
       "install_progress": "安装进度 - ",

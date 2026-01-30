@@ -646,3 +646,15 @@ def send_message_to_webui(server_interface, source: str, message, message_type: 
     from .utils.utils import send_message_to_webui as _send_message_to_webui
     return _send_message_to_webui(server_interface, source, message, message_type, target_players, metadata, is_rtext)
 
+
+def register_plugin_page(plugin_id: str, html_path: str):
+    """
+    供其他插件调用的函数，用于注册其自定义网页
+    
+    Args:
+        plugin_id: 插件ID
+        html_path: 网页 HTML 文件的完整路径或相对于 config 目录的路径
+    """
+    from .utils.constant import REGISTERED_PLUGIN_PAGES
+    REGISTERED_PLUGIN_PAGES[plugin_id] = html_path
+

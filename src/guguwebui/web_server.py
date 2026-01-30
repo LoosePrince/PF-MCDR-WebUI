@@ -856,6 +856,20 @@ async def api_get_rcon_status(request: Request):
     server = app.state.server_interface
     return await get_rcon_status(request, server)
 
+@app.get("/api/plugins/web_pages")
+async def get_registered_web_pages(request: Request):
+    """获取所有已注册的插件网页列表"""
+    if not request.session.get("logged_in"):
+        return JSONResponse({"status": "error", "message": "User not logged in"}, status_code=401)
+    
+    pages = []
+    for plugin_id, config_path in REGISTERED_PLUGIN_PAGES.items():
+        pages.append({
+            "id": plugin_id,
+            "path": config_path
+        })
+    return JSONResponse({"pages": pages})
+
 @app.post("/api/deepseek")
 async def query_deepseek(request: Request, query_data: DeepseekQuery):
     """

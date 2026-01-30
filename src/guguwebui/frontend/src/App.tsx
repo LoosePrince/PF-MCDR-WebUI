@@ -13,6 +13,7 @@ import Settings from './pages/Settings'
 import About from './pages/About'
 import Chat from './pages/Chat'
 import PlayerChat from './pages/PlayerChat'
+import PluginPage from './pages/PluginPage'
 import NotFound from './pages/NotFound'
 import { useAuth } from './hooks/useAuth'
 
@@ -56,6 +57,7 @@ function AppContent() {
                 <Route path="/chat" element={<Chat />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/plugin-page/:pluginId" element={<PluginPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>

@@ -122,3 +122,6 @@ class DeepseekQuery(BaseModel):
     model: Optional[str] = None
     api_url: Optional[str] = None
     api_key: Optional[str] = None
+
+# 已注册的插件网页列表 (插件ID: HTML文件相对于插件config目录的路径)
+REGISTERED_PLUGIN_PAGES: dict[str, str] = {}
