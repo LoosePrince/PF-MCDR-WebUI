@@ -567,7 +567,7 @@ def clear_chat_messages_handler(server: PluginServerInterface = None) -> Dict[st
     return {"status": "success", "message": "聊天消息已清空"}
 
 def send_chat_message_handler(message: str, player_id: str, session_id: str,
-                            server: PluginServerInterface = None) -> Dict[str, Any]:
+                            server: PluginServerInterface = None, is_admin: bool = False) -> Dict[str, Any]:
     """
     发送聊天消息到游戏
 
@@ -576,6 +576,7 @@ def send_chat_message_handler(message: str, player_id: str, session_id: str,
         player_id: 玩家ID
         session_id: 会话ID
         server: MCDR服务器接口
+        is_admin: 是否为管理员（来自WebUI）
 
     Returns:
         Dict: 发送结果
@@ -583,36 +584,40 @@ def send_chat_message_handler(message: str, player_id: str, session_id: str,
     if not message:
         return {"status": "error", "message": "消息内容不能为空"}
 
-    if not player_id or not session_id:
-        return {"status": "error", "message": "玩家ID或会话ID无效"}
+    if not player_id:
+        return {"status": "error", "message": "玩家ID无效"}
 
-    # 验证会话
-    if session_id not in user_db["chat_sessions"]:
-        return {"status": "error", "message": "会话已过期，请重新登录"}
+    # 验证会话（管理员跳过）
+    if not is_admin:
+        if not session_id:
+            return {"status": "error", "message": "会话ID无效"}
+            
+        if session_id not in user_db["chat_sessions"]:
+            return {"status": "error", "message": "会话已过期，请重新登录"}
 
-    session = user_db["chat_sessions"][session_id]
-    if session["player_id"] != player_id:
-        return {"status": "error", "message": "玩家ID与会话不匹配"}
+        session = user_db["chat_sessions"][session_id]
+        if session["player_id"] != player_id:
+            return {"status": "error", "message": "玩家ID与会话不匹配"}
 
-    # 检查会话是否过期
-    expire_time = datetime.datetime.fromisoformat(session["expire_time"].replace('Z', '+00:00'))
-    if datetime.datetime.now(datetime.timezone.utc) > expire_time:
-        del user_db["chat_sessions"][session_id]
-        user_db.save()
-        return {"status": "error", "message": "会话已过期，请重新登录"}
+        # 检查会话是否过期
+        expire_time = datetime.datetime.fromisoformat(session["expire_time"].replace('Z', '+00:00'))
+        if datetime.datetime.now(datetime.timezone.utc) > expire_time:
+            del user_db["chat_sessions"][session_id]
+            user_db.save()
+            return {"status": "error", "message": "会话已过期，请重新登录"}
 
-    # 发言速率限制：同一会话2秒/条
-    try:
-        now_ms = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
-        last_ms = int(session.get("last_sent_ms") or 0)
-        if now_ms - last_ms < 2000:
-            return {"status": "error", "message": "发送过于频繁，请稍后再试"}
-        # 通过频控，更新发送时间
-        session["last_sent_ms"] = now_ms
-        user_db.save()
-    except Exception:
-        # 出现异常不影响正常发送
-        pass
+        # 发言速率限制：同一会话2秒/条
+        try:
+            now_ms = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
+            last_ms = int(session.get("last_sent_ms") or 0)
+            if now_ms - last_ms < 2000:
+                return {"status": "error", "message": "发送过于频繁，请稍后再试"}
+            # 通过频控，更新发送时间
+            session["last_sent_ms"] = now_ms
+            user_db.save()
+        except Exception:
+            # 出现异常不影响正常发送
+            pass
 
     if not server:
         return {"status": "error", "message": "服务器接口不可用"}

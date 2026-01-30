@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -142,6 +142,7 @@ const OnlinePlugins: React.FC = () => {
   const [taskProgress, setTaskProgress] = useState<TaskStatus | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [operatingPluginId, setOperatingPluginId] = useState<string>('');
+  const taskPollingRef = useRef(false);
 
   // 提示通知
   const [showNotification, setShowNotification] = useState(false);
@@ -254,8 +255,13 @@ const OnlinePlugins: React.FC = () => {
     return 'updatable';
   };
 
-  // 轮询任务
+  // 轮询任务：若上次请求未完成则跳过本次，稍后再试
   const pollTaskStatus = useCallback(async (taskId: string) => {
+    if (taskPollingRef.current) {
+      setTimeout(() => pollTaskStatus(taskId), 1000);
+      return;
+    }
+    taskPollingRef.current = true;
     try {
       const resp = await axios.get(`/api/pim/task_status?task_id=${taskId}`);
       if (resp.data.success && resp.data.task_info) {
@@ -282,6 +288,8 @@ const OnlinePlugins: React.FC = () => {
       }
     } catch (error) {
       setTimeout(() => pollTaskStatus(taskId), 1000);
+    } finally {
+      taskPollingRef.current = false;
     }
   }, [operatingPluginId, t, fetchPlugins]);
 

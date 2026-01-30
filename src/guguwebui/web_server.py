@@ -1360,8 +1360,13 @@ async def send_chat_message(request: Request):
         player_id = data.get("player_id", "")
         session_id = data.get("session_id", "")
 
+        # 检查是否为WebUI已登录管理员
+        is_admin = False
+        if request.session.get("logged_in") and request.session.get("username") == player_id:
+            is_admin = True
+
         server:PluginServerInterface = app.state.server_interface
-        result = send_chat_message_handler(message=message, player_id=player_id, session_id=session_id, server=server)
+        result = send_chat_message_handler(message=message, player_id=player_id, session_id=session_id, server=server, is_admin=is_admin)
 
         status_code = 400 if result.get("status") == "error" else 200
         if status_code == 400 and "过于频繁" in result.get("message", ""):

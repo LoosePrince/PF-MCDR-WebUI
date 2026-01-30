@@ -62,6 +62,8 @@ const Terminal: React.FC = () => {
   const suggestionsContainerRef = useRef<HTMLDivElement>(null)
   const suggestionItemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const lastLogCounter = useRef<number>(0)
+  const statusFetchingRef = useRef(false)
+  const newLogsFetchingRef = useRef(false)
 
   // Command Input
   const [commandInput, setCommandInput] = useState('')
@@ -230,6 +232,8 @@ const Terminal: React.FC = () => {
   // --- API Calls ---
 
   const checkServerStatus = async (signal?: AbortSignal) => {
+    if (statusFetchingRef.current) return
+    statusFetchingRef.current = true
     try {
       const res = await axios.get('/api/get_server_status', { signal })
       setServerStatus(res.data.status || 'offline')
@@ -240,6 +244,8 @@ const Terminal: React.FC = () => {
         return
       }
       setServerStatus('error')
+    } finally {
+      statusFetchingRef.current = false
     }
   }
 
@@ -281,8 +287,8 @@ const Terminal: React.FC = () => {
   }
 
   const fetchNewLogs = async (signal?: AbortSignal) => {
-    // Prevent fetching if we are already loading initial logs
-    if (isLoading) return
+    if (isLoading || newLogsFetchingRef.current) return
+    newLogsFetchingRef.current = true
 
     try {
       const res = await axios.get('/api/new_logs', {
@@ -316,6 +322,8 @@ const Terminal: React.FC = () => {
         return
       }
       console.error('Error fetching new logs', e)
+    } finally {
+      newLogsFetchingRef.current = false
     }
   }
 

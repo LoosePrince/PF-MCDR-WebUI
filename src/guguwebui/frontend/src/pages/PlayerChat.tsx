@@ -75,7 +75,6 @@ const PlayerChat: React.FC = () => {
   // We use a ref for the messages to avoid infinite polling loops and closure issues in intervals
   const chatMessagesRef = useRef<ChatMessage[]>([])
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
-  const [isLoadingNewMessages, setIsLoadingNewMessages] = useState(false)
   const [hasMoreMessages, setHasMoreMessages] = useState(true)
   const [chatMessage, setChatMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -93,6 +92,8 @@ const PlayerChat: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false)
 
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const statusFetchingRef = useRef(false)
+  const newMessagesFetchingRef = useRef(false)
 
   // Sync ref with state
   useEffect(() => {
@@ -179,12 +180,11 @@ const PlayerChat: React.FC = () => {
   }, [])
 
   const loadNewMessages = useCallback(async () => {
-    // Avoid re-entry
-    if (isLoadingNewMessages || !isLoggedIn) return
-    
+    if (newMessagesFetchingRef.current || !isLoggedIn) return
+    newMessagesFetchingRef.current = true
+
     const currentMaxId = chatMessagesRef.current.length > 0 ? Math.max(...chatMessagesRef.current.map(m => m.id)) : 0
 
-    setIsLoadingNewMessages(true)
     try {
       const resp = await axios.post('/api/chat/get_new_messages', { 
         after_id: currentMaxId, 
@@ -206,11 +206,13 @@ const PlayerChat: React.FC = () => {
     } catch (e) {
       console.error('Failed to load new messages', e)
     } finally {
-      setIsLoadingNewMessages(false)
+      newMessagesFetchingRef.current = false
     }
-  }, [isLoggedIn, currentPlayer, isLoadingNewMessages])
+  }, [isLoggedIn, currentPlayer])
 
   const fetchServerStatus = useCallback(async () => {
+    if (statusFetchingRef.current) return
+    statusFetchingRef.current = true
     try {
       const sessionId = localStorage.getItem('chat_session_id') || ''
       const url = sessionId ? `/api/get_server_status?session_id=${encodeURIComponent(sessionId)}` : '/api/get_server_status'
@@ -221,6 +223,9 @@ const PlayerChat: React.FC = () => {
         players: resp.data.players || '0/0'
       })
     } catch (e) {}
+    finally {
+      statusFetchingRef.current = false
+    }
   }, [])
 
   // 登录后立即拉取一次服务器状态，并单独轮询 get_server_status（不依赖 loadNewMessages，避免被 2 秒消息轮询导致 effect 反复清理）

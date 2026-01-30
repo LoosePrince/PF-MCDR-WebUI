@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -108,6 +108,7 @@ const LocalPlugins: React.FC = () => {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [operatingPluginId, setOperatingPluginId] = useState<string>('');
   const [operationType, setOperationType] = useState<'install' | 'update' | 'uninstall'>('install');
+  const taskPollingRef = useRef(false);
 
   // Notification state
   const [showNotification, setShowNotification] = useState(false);
@@ -193,6 +194,11 @@ const LocalPlugins: React.FC = () => {
   };
 
   const pollTaskStatus = useCallback(async (taskId: string) => {
+    if (taskPollingRef.current) {
+      setTimeout(() => pollTaskStatus(taskId), 1000);
+      return;
+    }
+    taskPollingRef.current = true;
     try {
       const resp = await axios.get(`/api/pim/task_status?task_id=${taskId}`);
       if (resp.data.success && resp.data.task_info) {
@@ -223,6 +229,8 @@ const LocalPlugins: React.FC = () => {
       console.error('Failed to poll task status:', error);
       // 发生错误时继续轮询，不要立即停止
       setTimeout(() => pollTaskStatus(taskId), 1000);
+    } finally {
+      taskPollingRef.current = false;
     }
   }, [fetchPlugins, operatingPluginId, t]);
 

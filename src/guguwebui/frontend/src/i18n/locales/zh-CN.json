@@ -217,6 +217,7 @@
     },
     "chat": {
       "header_title": "服务器聊天页",
+      "kick_confirm": "确定要将玩家 {{name}} 踢出服务器吗？",
       "header": {
         "players_online": "在线"
       },

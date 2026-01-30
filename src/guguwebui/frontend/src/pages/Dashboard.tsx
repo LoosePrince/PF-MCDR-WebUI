@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCache } from '../context/CacheContext'
@@ -71,7 +71,11 @@ const Dashboard: React.FC = () => {
   const [showRconSetupModal, setShowRconSetupModal] = useState<boolean>(false)
   const [settingUpRcon, setSettingUpRcon] = useState<boolean>(false)
 
+  const statusFetchingRef = useRef(false)
+
   const fetchStatus = useCallback(async (signal?: AbortSignal) => {
+    if (statusFetchingRef.current) return
+    statusFetchingRef.current = true
     try {
       // 尝试从缓存获取服务器状态（5秒缓存）
       const cachedStatus = cache.get<ServerStatus>('server_status')
@@ -107,6 +111,8 @@ const Dashboard: React.FC = () => {
       }
       console.error('Failed to fetch dashboard data:', error)
       setServerStatus(prev => ({ ...prev, status: 'error' }))
+    } finally {
+      statusFetchingRef.current = false
     }
   }, [cache])
 

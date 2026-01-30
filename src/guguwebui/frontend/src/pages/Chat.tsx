@@ -1,17 +1,428 @@
-import React from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { motion, AnimatePresence } from 'framer-motion'
+import { 
+  Send, 
+  Users, 
+  Loader2,
+  RefreshCw,
+  ChevronLeft,
+  UserX,
+  MessageSquare
+} from 'lucide-react'
+import axios from 'axios'
+import { useAuth } from '../hooks/useAuth'
+import { parseRText } from '../utils/rtextParser'
+
+interface ChatMessage {
+  id: number
+  player_id: string
+  uuid?: string
+  message: string
+  timestamp: number
+  is_plugin: boolean
+  is_rtext: boolean
+  rtext_data?: any
+  message_source: string
+}
+
+interface ServerStatus {
+  status: string
+  version: string
+  players: string
+}
+
+interface OnlineStatus {
+  web: string[]
+  game: string[]
+  bot: string[]
+}
 
 const Chat: React.FC = () => {
   const { t } = useTranslation()
+  const { username } = useAuth()
+  
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const chatMessagesRef = useRef<ChatMessage[]>([])
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const [hasMoreMessages, setHasMoreMessages] = useState(true)
+  const [chatMessage, setChatMessage] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [lastSendAtMs, setLastSendAtMs] = useState(0)
+  
+  // Server state
+  const [serverStatus, setServerStatus] = useState<ServerStatus>({ status: 'unknown', version: '', players: '0/0' })
+  const [onlineStatus, setOnlineStatus] = useState<OnlineStatus>({ web: [], game: [], bot: [] })
+  const [showOnlinePanel, setShowOnlinePanel] = useState(false)
+  
+  const chatContainerRef = useRef<HTMLDivElement>(null)
+  const statusFetchingRef = useRef(false)
+  const newMessagesFetchingRef = useRef(false)
+
+  // Sync ref with state
+  useEffect(() => {
+    chatMessagesRef.current = chatMessages
+  }, [chatMessages])
+
+  // Initialize
+  useEffect(() => {
+    fetchInitialMessages()
+  }, [])
+
+  // Auto scroll logic
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior
+      })
+    }
+  }
+
+  // Handle auto-scroll only for new messages if user is at bottom
+  useEffect(() => {
+    if (!chatContainerRef.current || isLoadingMessages) return
+
+    const container = chatContainerRef.current
+    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100
+    
+    // Initial load or new messages when already at bottom
+    if (isAtBottom || chatMessages.length <= 50) {
+      scrollToBottom(chatMessages.length <= 50 ? 'auto' : 'smooth')
+    }
+  }, [chatMessages, isLoadingMessages])
+
+  const fetchInitialMessages = useCallback(async () => {
+    setIsLoadingMessages(true)
+    try {
+      const resp = await axios.post('/api/chat/get_messages', { limit: 50, offset: 0 })
+      if (resp.data.status === 'success') {
+        const msgs = resp.data.messages || []
+        // Backend returns newest first [N, ..., O], we want [O, ..., N] for rendering
+        setChatMessages([...msgs].reverse())
+        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: any) => m.id)) > 1)
+      }
+    } catch (e) {
+      console.error('Failed to load messages', e)
+    } finally {
+      setIsLoadingMessages(false)
+    }
+  }, [])
+
+  const loadNewMessages = useCallback(async () => {
+    if (newMessagesFetchingRef.current) return
+    newMessagesFetchingRef.current = true
+
+    const currentMaxId = chatMessagesRef.current.length > 0 ? Math.max(...chatMessagesRef.current.map(m => m.id)) : 0
+
+    try {
+      const resp = await axios.post('/api/chat/get_new_messages', { 
+        after_id: currentMaxId, 
+        player_id: username
+      })
+      if (resp.data.status === 'success') {
+        if (resp.data.messages && resp.data.messages.length > 0) {
+          // resp.data.messages are newest, we append them to the end
+          const newMsgs = [...resp.data.messages].reverse()
+          setChatMessages(prev => [...prev, ...newMsgs])
+        }
+        if (resp.data.online) {
+          setOnlineStatus({
+            web: resp.data.online.web || [],
+            game: resp.data.online.game || [],
+            bot: resp.data.online.bot || []
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load new messages', e)
+    } finally {
+      newMessagesFetchingRef.current = false
+    }
+  }, [username])
+
+  const fetchServerStatus = useCallback(async () => {
+    if (statusFetchingRef.current) return
+    statusFetchingRef.current = true
+    try {
+      const resp = await axios.get('/api/get_server_status')
+      setServerStatus({
+        status: resp.data.status || 'unknown',
+        version: resp.data.version || '',
+        players: resp.data.players || '0/0'
+      })
+    } catch (e) {}
+    finally {
+      statusFetchingRef.current = false
+    }
+  }, [])
+
+  // Poll for status and messages
+  useEffect(() => {
+    fetchServerStatus()
+    const statusTimer = setInterval(fetchServerStatus, 5000)
+    const messageTimer = setInterval(loadNewMessages, 2000)
+    return () => {
+      clearInterval(statusTimer)
+      clearInterval(messageTimer)
+    }
+  }, [fetchServerStatus, loadNewMessages])
+
+  const loadChatMessages = async (limit = 50, beforeId = 0) => {
+    if (isLoadingMessages) return
+    setIsLoadingMessages(true)
+    
+    // Save current scroll height to maintain position
+    const scrollHeight = chatContainerRef.current?.scrollHeight || 0
+    
+    try {
+      const resp = await axios.post('/api/chat/get_messages', { limit, before_id: beforeId })
+      if (resp.data.status === 'success') {
+        const msgs = resp.data.messages || []
+        // msgs are newer -> older history. For state [Old -> New], prepend them reversed.
+        const historicalMsgs = [...msgs].reverse()
+        setChatMessages(prev => [...historicalMsgs, ...prev])
+        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: any) => m.id)) > 1)
+        
+        // After DOM update, restore scroll position
+        requestAnimationFrame(() => {
+          if (chatContainerRef.current) {
+            const newScrollHeight = chatContainerRef.current.scrollHeight
+            chatContainerRef.current.scrollTop = newScrollHeight - scrollHeight
+          }
+        })
+      }
+    } catch (e) {
+      console.error('Failed to load historical messages', e)
+    } finally {
+      setIsLoadingMessages(false)
+    }
+  }
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (!chatMessage.trim() || isSending) return
+    
+    const now = Date.now()
+    if (now - lastSendAtMs < 2000) return
+
+    setIsSending(true)
+    try {
+      const resp = await axios.post('/api/chat/send_message', {
+        message: chatMessage.trim(),
+        player_id: username
+      })
+      
+      if (resp.data.status === 'success') {
+        setChatMessage('')
+        setLastSendAtMs(Date.now())
+        loadNewMessages()
+      } else {
+        console.error('Send failed', resp.data.message)
+      }
+    } catch (e) {
+      console.error('Network send failed', e)
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleKickPlayer = async (name: string) => {
+    if (!window.confirm(t('page.chat.kick_confirm', { name }))) return
+    try {
+      await axios.post('/api/send_command', { command: `/kick ${name}` })
+      loadNewMessages()
+    } catch (e) {
+      console.error('Kick failed', e)
+    }
+  }
+
+  const renderMessageContent = (msg: ChatMessage): React.ReactNode => {
+    if (msg.message_source === 'webui') return msg.message
+    if (msg.is_rtext && msg.rtext_data) {
+      return parseRText(msg.rtext_data, {
+        onCommandClick: async (command: string) => {
+          try {
+            await axios.post('/api/chat/send_message', {
+              message: command,
+              player_id: username
+            })
+            loadNewMessages()
+          } catch (e) {
+            console.error('执行命令失败:', e)
+          }
+        },
+        onCommandSuggest: (command: string) => {
+          setChatMessage(command)
+        }
+      })
+    }
+    return msg.message
+  }
+
+  const formatMessageDateTime = (ts: number) => {
+    const d = new Date(ts * 1000)
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    return time
+  }
 
   return (
-    <div>
-      <h1>
-        {t('page.chat.header_title')}
-      </h1>
-      <p>
-        {t('page.chat.room.desc')}
-      </p>
+    <div className="h-[calc(100vh-8rem)] flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/20">
+            <MessageSquare size={20} />
+          </div>
+          <div>
+            <h2 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              {t('page.chat.header_title')}
+              {serverStatus.version && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono">{serverStatus.version}</span>}
+            </h2>
+            <div className="flex items-center gap-2 text-xs text-slate-500 font-bold uppercase tracking-wider">
+              <span className={`w-2 h-2 rounded-full ${serverStatus.status === 'running' || serverStatus.status === 'online' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+              {serverStatus.players || '0/0'} {t('page.chat.header.players_online')}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setShowOnlinePanel(!showOnlinePanel)} 
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${showOnlinePanel ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'}`}
+          >
+            <Users size={18} />
+            <span className="hidden sm:inline text-xs font-bold uppercase tracking-wider">{t('page.chat.panel.online_members')}</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden gap-4">
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div 
+            ref={chatContainerRef}
+            className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-slate-950"
+          >
+            {hasMoreMessages && (
+              <button 
+                onClick={() => loadChatMessages(50, Math.min(...chatMessages.map(m => m.id)))}
+                disabled={isLoadingMessages}
+                className="w-full py-2 text-xs font-bold text-slate-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 mb-4"
+              >
+                {isLoadingMessages ? <Loader2 className="animate-spin w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
+                {t('page.chat.room.load_more')}
+              </button>
+            )}
+
+            <div className="space-y-0.5 font-mono text-sm">
+              {chatMessages.map((msg, i) => (
+                <div key={`${msg.id}-${i}`} className="flex items-baseline gap-2 py-0.5 group">
+                  <span className="text-slate-500 shrink-0 text-xs">[{formatMessageDateTime(msg.timestamp)}]</span>
+                  <span className={`font-bold shrink-0 ${msg.player_id === username ? 'text-blue-400' : 'text-amber-500'}`}>
+                    {msg.player_id}:
+                  </span>
+                  <span className="text-slate-200 break-words leading-relaxed">{renderMessageContent(msg)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Input Area */}
+          <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+              <input
+                type="text"
+                value={chatMessage}
+                onChange={(e) => setChatMessage(e.target.value)}
+                placeholder={t('page.chat.room.input_placeholder_send')}
+                className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 
+                  focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm transition-all"
+              />
+              <button
+                type="submit"
+                disabled={!chatMessage.trim() || isSending}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 rounded-xl 
+                  shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center"
+              >
+                {isSending ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} className="sm:mr-2" />}
+                <span className="hidden sm:inline font-bold uppercase tracking-widest text-xs">{t('page.chat.room.send.submit')}</span>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Online List Panel */}
+        <AnimatePresence>
+          {showOnlinePanel && (
+            <motion.div 
+              initial={{ x: 20, opacity: 0 }} 
+              animate={{ x: 0, opacity: 1 }} 
+              exit={{ x: 20, opacity: 0 }}
+              className="w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 
+                rounded-2xl shadow-sm flex flex-col shrink-0 overflow-hidden"
+            >
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+                <h4 className="font-bold text-sm uppercase tracking-wider text-slate-500">{t('page.chat.panel.online_members')}</h4>
+                <button onClick={() => setShowOnlinePanel(false)} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={18} /></button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                {/* Game Players */}
+                {onlineStatus.game.length > 0 && (
+                  <div className="mb-4">
+                    <p className="px-2 mb-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('page.chat.offline.status_game')}</p>
+                    {onlineStatus.game.map(name => (
+                      <PlayerItem key={name} name={name} status="game" onKick={() => handleKickPlayer(name)} />
+                    ))}
+                  </div>
+                )}
+                {/* Bots */}
+                {onlineStatus.bot.length > 0 && (
+                  <div className="mb-4">
+                    <p className="px-2 mb-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">BOTS</p>
+                    {onlineStatus.bot.map(name => (
+                      <PlayerItem key={name} name={name} status="bot" onKick={() => handleKickPlayer(name)} />
+                    ))}
+                  </div>
+                )}
+                {/* Web Players */}
+                {onlineStatus.web.length > 0 && (
+                  <div className="mb-4">
+                    <p className="px-2 mb-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('page.chat.offline.status_web')}</p>
+                    {onlineStatus.web.map(name => (
+                      <PlayerItem key={name} name={name} status="web" />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  )
+}
+
+const PlayerItem: React.FC<{ name: string; status: 'web' | 'game' | 'bot'; onKick?: () => void }> = ({ name, status, onKick }) => {
+  return (
+    <div className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className={`w-2 h-2 rounded-full shrink-0 ${
+          status === 'game' ? 'bg-emerald-500' : status === 'web' ? 'bg-blue-500' : 'bg-purple-500'
+        }`} />
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{name}</span>
+      </div>
+      {onKick && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); onKick(); }}
+          className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+          title="Kick"
+        >
+          <UserX size={14} />
+        </button>
+      )}
     </div>
   )
 }
