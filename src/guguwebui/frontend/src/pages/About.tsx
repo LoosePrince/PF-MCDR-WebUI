@@ -191,91 +191,61 @@ const About: React.FC = () => {
                     <tr>
                       <td className="px-4 py-2">
                         <a
-                          href="https://codemirror.net/"
+                          href="https://mcdreforged.com/"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 hover:underline"
                         >
-                          CodeMirror
+                          {t('page.about.contribute.items.mcdreforged')}
                         </a>
                       </td>
                       <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
-                        {t('page.about.contribute.items.codemirror')}
+                        {t('page.about.contribute.items.mcdreforged_desc')}
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2">
                         <a
-                          href="https://deepseek.com/"
+                          href="https://github.com/zauberzeug/nicegui"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 hover:underline"
                         >
-                          DeepSeek AI
+                          {t('page.about.contribute.items.nicegui')}
                         </a>
                       </td>
                       <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
-                        {t('page.about.contribute.items.deepseek')}
+                        {t('page.about.contribute.items.nicegui_desc')}
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2">
                         <a
-                          href="https://tailwindcss.com/"
+                          href="https://zh.minecraft.wiki/w/文本组件"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 hover:underline"
                         >
-                          TailwindCSS
+                          {t('page.about.contribute.items.minecraft_wiki')}
                         </a>
                       </td>
                       <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
-                        {t('page.about.contribute.items.tailwind')}
+                        {t('page.about.contribute.items.minecraft_wiki_desc')}
                       </td>
                     </tr>
                     <tr>
                       <td className="px-4 py-2">
                         <a
-                          href="https://alpinejs.dev/"
+                          href="https://github.com/py-mine/mcstatus"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 hover:underline"
                         >
-                          Alpine.js
+                          mcstatus
                         </a>
                       </td>
                       <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
-                        {t('page.about.contribute.items.alpine')}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-2">
-                        <a
-                          href="https://fontawesome.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          Font Awesome
-                        </a>
-                      </td>
-                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
-                        {t('page.about.contribute.items.fontawesome')}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-2">
-                        <a
-                          href="https://vditor.b3log.org/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          Vditor
-                        </a>
-                      </td>
-                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
-                        {t('page.about.contribute.items.vditor')}
+                        {t('page.about.contribute.items.mcstatus_desc')}
                       </td>
                     </tr>
                   </tbody>

@@ -341,12 +341,13 @@
           "mcdr_repo": "MCDR 插件仓库",
           "mcdr_repo_desc": "提供了丰富的 MCDR 插件生态，是本项目功能的基础。",
           "mc_server_info": "用于获取 Minecraft 服务器状态与玩家信息的基础实现。",
-          "codemirror": "提供配置编辑器的代码高亮与编辑体验。",
-          "deepseek": "为部分智能辅助功能提供模型支持。",
-          "tailwind": "提供实用的原子化样式，支撑当前的 UI 设计。",
-          "alpine": "旧版前端中使用的轻量级交互框架。",
-          "fontawesome": "旧版界面中使用的图标库。",
-          "vditor": "为部分 Markdown 编辑场景提供所见即所得编辑体验。"
+          "mcdreforged": "MCDReforged (mcdreforged)",
+          "mcdreforged_desc": "MCDR 本体，本插件所依赖的运行平台。",
+          "nicegui": "NiceGUI (zauberzeug/nicegui)",
+          "nicegui_desc": "参考了其在 uvicorn 线程化运行方面的实现思路。",
+          "minecraft_wiki": "Minecraft Wiki（文本组件）",
+          "minecraft_wiki_desc": "RText 解析器所依据的文本组件格式规范。",
+          "mcstatus_desc": "用于查询 Minecraft Java 版服务器状态的 Python 库。"
         }
       },
       "thanks": {

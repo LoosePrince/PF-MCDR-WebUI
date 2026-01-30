@@ -340,12 +340,13 @@
           "mcdr_repo": "MCDR Plugin Repository",
           "mcdr_repo_desc": "Provides a rich MCDR plugin ecosystem, forming the foundation of this project’s features.",
           "mc_server_info": "Base implementation for querying Minecraft server status and player information.",
-          "codemirror": "Provides code highlighting and editing experience for configuration editors.",
-          "deepseek": "Powers some of the intelligent assistant features.",
-          "tailwind": "Utility‑first CSS framework that underpins the current UI design.",
-          "alpine": "Lightweight interaction framework used in the legacy frontend.",
-          "fontawesome": "Icon library used in the legacy interface.",
-          "vditor": "WYSIWYG Markdown editor used in some editing scenarios."
+          "mcdreforged": "MCDReforged (mcdreforged)",
+          "mcdreforged_desc": "MCDR core; the runtime platform this plugin depends on.",
+          "nicegui": "NiceGUI (zauberzeug/nicegui)",
+          "nicegui_desc": "Implementation approach for threaded uvicorn was referenced.",
+          "minecraft_wiki": "Minecraft Wiki (Raw JSON text)",
+          "minecraft_wiki_desc": "Format specification for the RText parser.",
+          "mcstatus_desc": "Python library for querying Minecraft Java Edition server status."
         }
       },
       "thanks": {
