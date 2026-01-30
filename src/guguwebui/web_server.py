@@ -28,7 +28,6 @@ from fastapi.responses import (
     PlainTextResponse,
     FileResponse,
 )
-from fastapi.templating import Jinja2Templates
 from ruamel.yaml.comments import CommentedSeq
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
@@ -85,9 +84,6 @@ app = FastAPI(
 )
 
 # URL路径处理函数已移至 utils.py
-
-# template engine -> jinja2
-templates = Jinja2Templates(directory=f"{STATIC_PATH}/templates")
 
 # SPA 入口文件路径
 static_index_path = Path(STATIC_PATH) / "static" / "index.html"
