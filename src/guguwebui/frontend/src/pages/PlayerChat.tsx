@@ -75,6 +75,7 @@ const PlayerChat: React.FC = () => {
   // We use a ref for the messages to avoid infinite polling loops and closure issues in intervals
   const chatMessagesRef = useRef<ChatMessage[]>([])
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false)
   const [hasMoreMessages, setHasMoreMessages] = useState(true)
   const [chatMessage, setChatMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -176,6 +177,7 @@ const PlayerChat: React.FC = () => {
       console.error('Failed to load messages', e)
     } finally {
       setIsLoadingMessages(false)
+      setInitialMessagesLoaded(true)
     }
   }, [])
 
@@ -236,12 +238,12 @@ const PlayerChat: React.FC = () => {
     return () => clearInterval(statusTimer)
   }, [isLoggedIn, fetchServerStatus])
 
-  // 消息列表轮询（与 status 轮询分开，避免 loadNewMessages 引用变化时清掉 status 的 interval）
+  // 消息列表轮询：仅在登录且初始消息加载完成后开始，避免 get_new_messages 在 get_messages 完成前用 after_id: 0 请求
   useEffect(() => {
-    if (!isLoggedIn) return
+    if (!isLoggedIn || !initialMessagesLoaded) return
     const messageTimer = setInterval(loadNewMessages, 2000)
     return () => clearInterval(messageTimer)
-  }, [isLoggedIn, loadNewMessages])
+  }, [isLoggedIn, initialMessagesLoaded, loadNewMessages])
 
   const notify = (msg: string) => {
     setAuthError(msg)
@@ -393,6 +395,7 @@ const PlayerChat: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('chat_session_id')
     setIsLoggedIn(false)
+    setInitialMessagesLoaded(false)
     setCurrentPlayer('')
     setCurrentPlayerUuid('')
     setChatMessages([])

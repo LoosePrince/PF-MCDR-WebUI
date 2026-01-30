@@ -46,6 +46,7 @@ const Chat: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const chatMessagesRef = useRef<ChatMessage[]>([])
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false)
   const [hasMoreMessages, setHasMoreMessages] = useState(true)
   const [chatMessage, setChatMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -107,6 +108,7 @@ const Chat: React.FC = () => {
       console.error('Failed to load messages', e)
     } finally {
       setIsLoadingMessages(false)
+      setInitialMessagesLoaded(true)
     }
   }, [])
 
@@ -158,16 +160,18 @@ const Chat: React.FC = () => {
     }
   }, [])
 
-  // Poll for status and messages
+  // Poll for status (always) and for new messages (only after initial load)
   useEffect(() => {
     fetchServerStatus()
     const statusTimer = setInterval(fetchServerStatus, 5000)
+    return () => clearInterval(statusTimer)
+  }, [fetchServerStatus])
+
+  useEffect(() => {
+    if (!initialMessagesLoaded) return
     const messageTimer = setInterval(loadNewMessages, 2000)
-    return () => {
-      clearInterval(statusTimer)
-      clearInterval(messageTimer)
-    }
-  }, [fetchServerStatus, loadNewMessages])
+    return () => clearInterval(messageTimer)
+  }, [initialMessagesLoaded, loadNewMessages])
 
   const loadChatMessages = async (limit = 50, beforeId = 0) => {
     if (isLoadingMessages) return
