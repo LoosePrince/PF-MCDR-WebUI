@@ -187,11 +187,12 @@ class ChatLogger:
     def _pack_message(self, message_id, player_id, message, timestamp, rtext_data=None, message_type=0, player_uuid=None):
         """打包消息数据为二进制格式
         
-        新格式(v2): [版本(1字节)][消息ID(8字节)][时间戳(8字节)][消息类型(1字节)][玩家ID长度(4字节)][玩家ID][消息长度(4字节)][消息][RText数据长度(4字节)][RText数据][UUID长度(4字节)][UUID]
-        旧格式(v1): [消息ID(8字节)][时间戳(8字节)][消息类型(1字节)][玩家ID长度(4字节)][玩家ID][消息长度(4字节)][消息][RText数据长度(4字节)][RText数据]
+        v3格式(JSON): [版本(1字节)=3][JSON长度(4字节)][JSON UTF-8]
+        v2格式: [版本(1字节)][消息ID(8字节)][时间戳(8字节)][消息类型(1字节)][玩家ID长度(4字节)][玩家ID][消息长度(4字节)][消息][RText数据长度(4字节)][RText数据][UUID长度(4字节)][UUID]
+        v1格式: [消息ID(8字节)][时间戳(8字节)][消息类型(1字节)][玩家ID长度(4字节)][玩家ID][消息长度(4字节)][消息][RText数据长度(4字节)][RText数据]
         
         消息类型: 0=玩家消息, 1=WebUI消息, 2=插件消息
-        版本: 1=旧格式(兼容), 2=新格式(包含UUID)
+        版本: 1=旧格式(兼容), 2=新格式(包含UUID), 3=JSON格式(便于使用和扩展)
         """
         if not isinstance(player_id, str) or not isinstance(message, str):
             raise ValueError("player_id 和 message 必须是字符串")
@@ -199,59 +200,95 @@ class ChatLogger:
         if not player_id.strip() or not message.strip():
             raise ValueError("player_id 和 message 不能为空")
         
-        # 使用新格式(版本2)
-        version = 2
-        version_bytes = struct.pack('B', version)
-        timestamp_bytes = struct.pack('Q', int(timestamp.timestamp() * 1000))  # 毫秒时间戳
-        message_id_bytes = struct.pack('Q', message_id)  # 消息ID
-        player_id_bytes = player_id.encode('utf-8')
-        message_bytes = message.encode('utf-8')
-        
-        # 处理RText数据
-        rtext_bytes = b''
+        # 使用 v3 格式（JSON，便于使用和扩展）
+        version = 3
+        timestamp_ms = int(timestamp.timestamp() * 1000)
+        payload = {
+            "id": message_id,
+            "player_id": player_id,
+            "message": message,
+            "timestamp_ms": timestamp_ms,
+            "message_type": message_type,
+        }
         if rtext_data is not None:
-            rtext_json = json.dumps(rtext_data, ensure_ascii=False)
-            rtext_bytes = rtext_json.encode('utf-8')
-        
-        # 处理UUID数据
-        uuid_bytes = b''
+            payload["rtext_data"] = rtext_data
         if player_uuid is not None:
-            uuid_bytes = str(player_uuid).encode('utf-8')
-        
-        return (version_bytes +  # 版本号 (1字节)
-                message_id_bytes + timestamp_bytes + 
-                struct.pack('B', message_type) +  # 消息类型 (1字节)
-                struct.pack('I', len(player_id_bytes)) + player_id_bytes + 
-                struct.pack('I', len(message_bytes)) + message_bytes +
-                struct.pack('I', len(rtext_bytes)) + rtext_bytes +
-                struct.pack('I', len(uuid_bytes)) + uuid_bytes)  # UUID字段
+            payload["uuid"] = str(player_uuid)
+        json_str = json.dumps(payload, ensure_ascii=False)
+        json_bytes = json_str.encode('utf-8')
+        return (struct.pack('B', version) +
+                struct.pack('I', len(json_bytes)) +
+                json_bytes)
     
     def _unpack_message(self, data, offset):
-        """从二进制数据中解包消息（支持新旧格式）
+        """从二进制数据中解包消息（支持 v1/v2/v3 格式）
         
         返回: (消息字典, 新的偏移量)
         """
         try:
             original_offset = offset
-            
-            # 尝试检测是否为新格式（版本2）
-            # 新格式第一个字节是版本号，旧格式第一个字节是消息ID的低位
+            if offset >= len(data):
+                return None, original_offset
+
+            first_byte = data[offset]
+
+            # v3 格式：版本号=3，随后 [JSON长度(4字节)][JSON]
+            if first_byte == 3:
+                offset += 1
+                if offset + 4 > len(data):
+                    return None, original_offset
+                json_len = struct.unpack('I', data[offset:offset+4])[0]
+                offset += 4
+                if offset + json_len > len(data):
+                    return None, original_offset
+                try:
+                    payload = json.loads(data[offset:offset+json_len].decode('utf-8'))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    return None, original_offset
+                offset += json_len
+                # 规范化为与 v1/v2 相同的 result 结构
+                timestamp_ms = payload.get("timestamp_ms", 0)
+                timestamp = datetime.datetime.fromtimestamp(timestamp_ms / 1000, tz=datetime.timezone.utc)
+                message_type = payload.get("message_type", 0)
+                player_uuid = payload.get("uuid")
+                rtext_data = payload.get("rtext_data")
+                result = {
+                    'id': payload['id'],
+                    'player_id': payload['player_id'],
+                    'message': payload['message'],
+                    'timestamp': timestamp,
+                    'timestamp_str': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                }
+                if message_type == 2:
+                    result['is_plugin'] = True
+                    result['plugin_id'] = payload['player_id']
+                    result['uuid'] = None
+                    result['message_source'] = 'plugin'
+                elif message_type == 1:
+                    result['is_plugin'] = False
+                    result['plugin_id'] = None
+                    result['uuid'] = player_uuid
+                    result['message_source'] = 'webui'
+                else:
+                    result['is_plugin'] = False
+                    result['plugin_id'] = None
+                    result['uuid'] = player_uuid
+                    result['message_source'] = 'game'
+                result['is_rtext'] = rtext_data is not None
+                result['rtext_data'] = rtext_data
+                return result, offset
+
+            # 尝试检测是否为 v1/v2 格式
+            # v2 第一个字节是版本号 1 或 2，v1 无版本号
             is_new_format = False
             player_uuid = None
-            
-            # 检查第一个字节，如果是1或2，可能是版本号
-            if offset < len(data):
-                first_byte = data[offset]
-                if first_byte in [1, 2]:  # 版本1或版本2
-                    # 进一步验证：检查消息ID是否合理
-                    if offset + 9 <= len(data):  # 版本号(1) + 消息ID(8)
-                        potential_msg_id = struct.unpack('Q', data[offset+1:offset+9])[0]
-                        # 如果消息ID看起来合理（不是极大值），则认为是新格式
-                        if 0 < potential_msg_id < 10**10:  # 合理的消息ID范围
-                            is_new_format = True
-                            version = first_byte
-                            offset += 1  # 跳过版本字节
-            
+            if first_byte in [1, 2]:
+                if offset + 9 <= len(data):
+                    potential_msg_id = struct.unpack('Q', data[offset+1:offset+9])[0]
+                    if 0 < potential_msg_id < 10**10:
+                        is_new_format = True
+                        offset += 1
+
             # 读取消息ID (8字节)
             if offset + 8 > len(data):
                 return None, original_offset
