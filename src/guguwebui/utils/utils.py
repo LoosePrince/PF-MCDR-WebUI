@@ -1106,23 +1106,26 @@ def __copyFolder(server, folder_path, target_folder):
         return False
         
 def amount_static_files(server):
-    # 创建主目录
+    # 创建目标根目录；static 仅复制 index.html + assets，避免整目录复制在 Linux/.mcdr 下把 assets 当文件
     os.makedirs('./guguwebui_static', exist_ok=True)
-    
-    # 使用新的文件夹复制函数来复制各个目录
-    success = True
-    # 复制各个子目录（新增 static 用于前端构建产物，新增 lang 用于前端多语言）
-    for folder in ['static']:
-        if not __copyFolder(server, f'guguwebui/{folder}', f'./guguwebui_static/{folder}'):
-            success = False
-            server.logger.warning(f"复制 'guguwebui/{folder}' 目录失败")
-    
-    if success:
-        server.logger.debug("成功复制所有guguwebui目录")
-        return
-    
-    # 如果文件夹复制失败，退回到单文件复制方式
-    server.logger.warning("部分文件夹复制失败")
+    static_target = Path('./guguwebui_static/static')
+    static_target.mkdir(parents=True, exist_ok=True)
+
+    # 1. 复制 static/index.html
+    try:
+        __copyFile(server, 'guguwebui/static/index.html', static_target / 'index.html')
+    except Exception as e:
+        server.logger.warning(f"复制 guguwebui/static/index.html 失败: {e}")
+
+    # 2. 复制 static/assets 文件夹（及其中文件）
+    assets_target = static_target / 'assets'
+    if assets_target.exists() and assets_target.is_file():
+        assets_target.unlink()
+    assets_target.mkdir(parents=True, exist_ok=True)
+    if not __copyFolder(server, 'guguwebui/static/assets', str(assets_target)):
+        server.logger.debug("插件内无 guguwebui/static/assets 或复制未包含文件，已确保目录存在")
+
+    server.logger.debug("成功复制 static 资源（index.html + assets）")
 
 # 检查是否存在旧配置，并自动继承旧的deepseek_api_key和deepseek_model参数
 def migrate_old_config():

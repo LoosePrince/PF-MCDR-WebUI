@@ -215,11 +215,13 @@ def patch_asyncio(server: ServerInterface):
 # token verification
 def verify_token(request: Request):
     token = request.cookies.get("token")  # get token from cookie
-    
-    if not token: # token not exists
+
+    if not token:  # token not exists
+        request.session.clear()  # 与 db 保持一致：token 无效时清除 session
         return RedirectResponse(url=get_redirect_url(request, "/login"), status_code=status.HTTP_302_FOUND)
 
-    if token not in user_db['token']: # check token in user_db
+    if token not in user_db['token']:  # check token in user_db (e.g. db.json 被清空或 token 已过期)
+        request.session.clear()  # 与 db 保持一致：token 无效时清除 session
         return RedirectResponse(url=get_redirect_url(request, "/login"), status_code=status.HTTP_302_FOUND)
 
     return True

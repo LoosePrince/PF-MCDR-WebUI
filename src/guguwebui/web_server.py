@@ -31,6 +31,7 @@ from fastapi.responses import (
 from ruamel.yaml.comments import CommentedSeq
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .utils.log_watcher import LogWatcher
 from .utils.PIM import PluginInstaller, create_installer, initialize_pim  # 修改导入，添加 initialize_pim
@@ -433,6 +434,18 @@ def logout(request: Request):
     
     return response
 
+
+class SessionTokenSyncMiddleware(BaseHTTPMiddleware):
+    """确保 session 与 user_db 中的 token 一致：若 cookie 有 token 但 token 已不在 db（如 db 被清空），则清除 session。"""
+
+    async def dispatch(self, request: Request, call_next):
+        token = request.cookies.get("token")
+        if token and token not in user_db.get("token", {}):
+            request.session.clear()
+        return await call_next(request)
+
+
+app.add_middleware(SessionTokenSyncMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 # ============================================================#
 # Pages - 使用 React SPA
@@ -572,6 +585,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/checkLogin")
 async def check_login_status(request: Request):
+    # 与 db 保持一致：若 cookie 中有 token 但 token 已不在 user_db（如 db.json 被清空），则视为未登录
+    token = request.cookies.get("token")
+    if token and token not in user_db.get("token", {}):
+        request.session.clear()
+        return JSONResponse({"status": "error", "message": "User not logged in"})
     if request.session.get("logged_in"):
         username = request.session.get("username", "tempuser")
         return JSONResponse({"status": "success", "username": username})
