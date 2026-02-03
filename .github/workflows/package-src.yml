@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - src/**
-      - 'src/guguwebui/frontend/**'
   workflow_dispatch:
 
 jobs:
