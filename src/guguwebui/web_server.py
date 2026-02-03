@@ -34,12 +34,20 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .utils.log_watcher import LogWatcher
-from .utils.PIM import PluginInstaller, create_installer, initialize_pim  # 修改导入，添加 initialize_pim
+from .utils.PIM import PluginInstaller, create_installer, initialize_pim
+from .state import pip_tasks, WEB_ONLINE_PLAYERS, RCON_ONLINE_CACHE, REGISTERED_PLUGIN_PAGES
 
 from .utils.constant import *
 from .utils.server_util import *
 from .utils.table import yaml
-from .utils.utils import *
+from .utils.auth_util import verify_password, migrate_old_config
+from .utils.mc_util import get_java_server_info, get_plugin_version, load_plugin_info, get_plugins_info
+from .utils.file_util import amount_static_files
+
+from .services.auth_service import AuthService
+from .services.plugin_service import PluginService
+from .services.config_service import ConfigService
+from .services.server_service import ServerService
 
 from mcdreforged.api.all import MCDRPluginEvents
 
@@ -73,8 +81,7 @@ from .api.server import (
     get_new_logs, get_command_suggestions, send_command, get_rcon_status
 )
 
-# 获取插件真实版本号已移至 utils.py
-
+# 获取插件真实版本号
 app = FastAPI(
     title="GUGU WebUI",
     description="MCDR WebUI 管理界面",
@@ -83,6 +90,9 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json"
 )
+
+# 导出 get_plugins_info 供 __init__.py 使用
+__all__ = ['app', 'init_app', 'get_plugins_info', 'log_watcher', 'DEFALUT_CONFIG', 'STATIC_PATH', 'ThreadedUvicorn']
 
 # URL路径处理函数已移至 utils.py
 
@@ -103,23 +113,28 @@ def serve_spa_index(request: Request) -> FileResponse:
 # 全局LogWatcher实例
 log_watcher = LogWatcher()
 
-# 用于保存pip任务状态的字典
-pip_tasks = {}
+# 全局服务实例
+auth_service: AuthService = None
+plugin_service: PluginService = None
+config_service: ConfigService = None
+server_service: ServerService = None
 
 # 尝试迁移旧配置
 migrate_old_config()
 
 
-# 事件处理函数已移至 api/chat.py
-
-
 # 初始化函数，在应用程序启动时调用
 def init_app(server_instance):
     """初始化应用程序，注册事件监听器"""
-    global log_watcher
+    global log_watcher, auth_service, plugin_service, config_service, server_service
     
     # 存储服务器接口
     app.state.server_interface = server_instance
+    
+    # 初始化服务
+    auth_service = AuthService(server_instance)
+    config_service = ConfigService(server_instance)
+    server_service = ServerService(server_instance, log_watcher)
     
     # 确保user_db包含所有必要的键
     try:
@@ -160,12 +175,17 @@ def init_app(server_instance):
         # 将初始化后的PIM实例存储到app.state中，供API调用
         app.state.pim_helper = pim_helper
         app.state.plugin_installer = plugin_installer
+        
+        # 初始化插件服务
+        plugin_service = PluginService(server_instance, pim_helper, plugin_installer)
+        
         if pim_helper and plugin_installer:
             server_instance.logger.info("内置PIM模块初始化成功")
         else:
             server_instance.logger.warning("内置PIM模块初始化部分失败，某些功能可能不可用")
             
         # 在启动时检查插件仓库缓存
+        from .utils.file_util import check_repository_cache
         check_repository_cache(server_instance)
     except Exception as e:
         server_instance.logger.error(f"内置PIM模块初始化失败: {e}")
@@ -305,102 +325,8 @@ async def login(
     temp_code: str = Form(""),
     remember: bool = Form(False),
 ):
-    now = datetime.datetime.now(datetime.timezone.utc)
-    server:PluginServerInterface = app.state.server_interface
-    server_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
-
-    # 获取当前应用的根路径，用于处理子应用挂载
-    root_path = request.scope.get("root_path", "")
-    if root_path:
-        # 如果是子应用挂载，需要调整重定向URL和cookie路径
-        redirect_url = get_redirect_url(request, "/index")
-        cookie_path = root_path
-    else:
-        # 独立运行模式
-        redirect_url = "/index"
-        cookie_path = "/"
-
-    # check account & password
-    if account and password:
-        # 防呆处理：自动去除可能存在的<>字符
-        account = account.replace('<', '').replace('>', '')
-        password = password.replace('<', '').replace('>', '')
-        # check if super admin & only_super_admin
-        disable_other_admin = server_config.get("disable_other_admin", False)
-        super_admin_account = str(server_config.get("super_admin_account"))
-        
-        if disable_other_admin and account != super_admin_account:
-            return JSONResponse({"status": "error", "message": "只有超级管理才能登录。"}, status_code=403)
-
-        if account in user_db["user"] and verify_password(
-            password, user_db["user"][account]
-        ):
-            # token Generation
-            token = secrets.token_hex(16)
-            expiry = now + (
-                    datetime.timedelta(days=365)
-                    if remember
-                    else datetime.timedelta(days=1)
-                )
-            max_age = datetime.timedelta(days=365) if remember else datetime.timedelta(days=1)
-            max_age = max_age.total_seconds()
-
-            # 设置session和token
-            request.session["logged_in"] = True
-            request.session["token"] = token
-            request.session["username"] = account
-
-            user_db["token"][token] = {"user_name": account, "expire_time": str(expiry)}
-            user_db.save()
-
-            # 创建响应并设置cookie
-            response = JSONResponse({"status": "success", "message": "登录成功"})
-            response.set_cookie("token", token, expires=expiry, path=cookie_path, httponly=True, max_age=max_age)
-
-            return response
-
-        else:
-            return JSONResponse({"status": "error", "message": "账号或密码错误。"}, status_code=401)
-
-    # temp password
-    elif temp_code:
-        # disallow temp_password check
-        allow_temp_password = server_config.get('allow_temp_password', True)
-        if not allow_temp_password:
-            return JSONResponse({"status": "error", "message": "已禁止临时登录码登录。"}, status_code=403)
-
-        if temp_code in user_db["temp"] and user_db["temp"][temp_code] > str(now):
-            # token Generation
-            token = secrets.token_hex(16)
-            expiry = now + datetime.timedelta(hours=2)  # 临时码有效期为2小时
-            max_age = datetime.timedelta(hours=2)
-            max_age = max_age.total_seconds()
-
-            # 设置session和token
-            request.session["logged_in"] = True
-            request.session["token"] = token
-            request.session["username"] = "tempuser"
-
-            user_db["token"][token] = {"user_name": "tempuser", "expire_time": str(expiry)}
-            user_db.save()
-
-            # 创建响应并设置cookie
-            response = JSONResponse({"status": "success", "message": "临时登录成功"})
-            response.set_cookie("token", token, expires=expiry, path=cookie_path, httponly=True, max_age=max_age)
-
-            server.logger.info(f"临时用户登录成功")
-            return response
-
-        else:
-            if temp_code in user_db["temp"]:  # delete expired token
-                del user_db["temp"][temp_code]
-                user_db.save()
-            # Invalid temp password
-            return JSONResponse({"status": "error", "message": "临时登录码无效。"}, status_code=401)
-
-    else:
-        # 如果未提供完整的登录信息
-        return JSONResponse({"status": "error", "message": "请填写完整的登录信息。"}, status_code=400)
+    global auth_service
+    return await auth_service.login(request, account, password, temp_code, remember)
 
 
 # logout Endpoint
@@ -1121,6 +1047,68 @@ class PipPackageRequest(BaseModel):
 
 # Pip 包管理函数已移至 utils.py
 
+def get_installed_pip_packages():
+    """获取已安装的pip包列表"""
+    try:
+        import subprocess
+        import sys
+        
+        # 执行 pip list --format=json
+        cmd = [sys.executable, '-m', 'pip', 'list', '--format=json']
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0:
+            packages = json.loads(result.stdout)
+            return {"status": "success", "packages": packages}
+        else:
+            return {"status": "error", "message": f"获取pip列表失败: {result.stderr}"}
+    except Exception as e:
+        return {"status": "error", "message": f"获取pip列表时发生异常: {str(e)}"}
+
+async def pip_task(task_id: str, action: str, package: str):
+    """异步执行pip安装/卸载任务"""
+    from .state import pip_tasks
+    import subprocess
+    import sys
+    
+    pip_tasks[task_id] = {
+        "completed": False,
+        "success": False,
+        "output": f"正在{ '安装' if action == 'install' else '卸载' } {package}..."
+    }
+    
+    try:
+        # 构造命令
+        if action == "install":
+            cmd = [sys.executable, '-m', 'pip', 'install', package]
+        else:
+            cmd = [sys.executable, '-m', 'pip', 'uninstall', '-y', package]
+            
+        # 执行命令
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        output = stdout.decode() + stderr.decode()
+        
+        success = (process.returncode == 0)
+        
+        pip_tasks[task_id].update({
+            "completed": True,
+            "success": success,
+            "output": output
+        })
+        
+    except Exception as e:
+        pip_tasks[task_id].update({
+            "completed": True,
+            "success": False,
+            "output": f"任务执行出错: {str(e)}"
+        })
+
 @app.get("/api/pip/list")
 async def api_pip_list(request: Request, token_valid: bool = Depends(verify_token)):
     """获取已安装的pip包列表"""
@@ -1242,7 +1230,7 @@ async def chat_set_password(request: Request):
 		code = data.get("code", "")
 		password = data.get("password", "")
 		server:PluginServerInterface = app.state.server_interface
-		result = set_chat_user_password(code, password, server)
+		result = await set_chat_user_password(code, password, server)
 
 		status_code = 400 if result.get("status") == "error" else 200
 		return JSONResponse(result, status_code=status_code)
@@ -1268,7 +1256,7 @@ async def chat_login(request: Request):
             client_ip = "unknown"
 
         server:PluginServerInterface = app.state.server_interface
-        result = chat_user_login(player_id, password, client_ip, server)
+        result = await chat_user_login(player_id, password, client_ip, server)
 
         status_code = 400 if result.get("status") == "error" else 200
         if status_code == 400 and "IP已达上限" in result.get("message", ""):
@@ -1289,7 +1277,7 @@ async def chat_check_session(request: Request):
         data = await request.json()
         session_id = data.get("session_id", "")
         server: PluginServerInterface = app.state.server_interface
-        result = check_chat_session(session_id, server)
+        result = await check_chat_session(session_id, server)
 
         status_code = 400 if result.get("status") == "error" else 200
         return JSONResponse(result, status_code=status_code)
@@ -1329,7 +1317,7 @@ async def get_chat_messages(request: Request):
         before_id = data.get("before_id")  # 新增：获取历史消息
 
         server:PluginServerInterface = app.state.server_interface
-        result = get_chat_messages_handler(limit=limit, offset=offset, after_id=after_id, before_id=before_id, server=server)
+        result = await get_chat_messages_handler(limit=limit, offset=offset, after_id=after_id, before_id=before_id, server=server)
 
         return JSONResponse(result)
 
@@ -1351,7 +1339,7 @@ async def get_new_chat_messages(request: Request):
         player_id_heartbeat = data.get("player_id")
 
         server:PluginServerInterface = app.state.server_interface
-        result = get_new_chat_messages_handler(after_id=after_id, player_id_heartbeat=player_id_heartbeat, server=server)
+        result = await get_new_chat_messages_handler(after_id=after_id, player_id_heartbeat=player_id_heartbeat, server=server)
 
         return JSONResponse(result)
 
@@ -1394,7 +1382,7 @@ async def send_chat_message(request: Request):
             is_admin = True
 
         server:PluginServerInterface = app.state.server_interface
-        result = send_chat_message_handler(message=message, player_id=player_id, session_id=session_id, server=server, is_admin=is_admin)
+        result = await send_chat_message_handler(message=message, player_id=player_id, session_id=session_id, server=server, is_admin=is_admin)
 
         status_code = 400 if result.get("status") == "error" else 200
         if status_code == 400 and "过于频繁" in result.get("message", ""):

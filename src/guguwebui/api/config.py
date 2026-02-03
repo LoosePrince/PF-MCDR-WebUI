@@ -13,15 +13,14 @@ from typing import List, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi import status, Depends
-from ..utils.constant import DEFALUT_CONFIG, saveconfig, config_data
-from ..utils.utils import (
-    find_plugin_config_paths, build_json_i18n_translations,
-    build_yaml_i18n_translations, get_comment, consistent_type_update,
-    get_server_port
+from ..utils.constant import DEFALUT_CONFIG, saveconfig, config_data, SERVER_PROPERTIES_PATH
+from ..utils.i18n_util import (
+    build_json_i18n_translations, build_yaml_i18n_translations, get_comment, consistent_type_update
 )
+from ..utils.mc_util import get_server_port, find_plugin_config_paths
 from ..utils.chat_logger import ChatLogger
 from ..utils.api_cache import api_cache
-from ..web_server import verify_token
+from ..utils.server_util import verify_token
 
 
 async def list_config_files(
@@ -260,6 +259,8 @@ async def save_web_config(
         return JSONResponse({"status": "error", "message": f"保存配置文件失败: {str(e)}"}, status_code=500)
 
 
+from ..utils.path_util import SafePath, get_base_dirs
+
 async def load_config(
     request: Request,
     path: str,
@@ -274,7 +275,11 @@ async def load_config(
             content={"success": False, "error": "服务器接口未提供"}
         )
 
-    path_obj: Path = Path(path)
+    try:
+        path_obj = SafePath.get_safe_path(path, get_base_dirs(server))
+    except ValueError as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=403)
+
     mcdr_language: str = server.get_mcdr_language()
 
     # 提取 config/chat_with_deepseek 目录
@@ -418,8 +423,12 @@ async def save_config(
             content={"success": False, "error": "服务器接口未提供"}
         )
 
-    config_path = Path(config_data.file_path)
-    if config_path == Path("config\\guguwebui\\config.json"):
+    try:
+        config_path = SafePath.get_safe_path(config_data.file_path, get_base_dirs(server))
+    except ValueError as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=403)
+
+    if config_path == Path(server.get_data_folder()) / "config.json":
         return JSONResponse({"status": "error", "message": "无法在此处修改guguwebui配置文件"})
 
     plugin_config = config_data.config_data
@@ -536,7 +545,7 @@ async def setup_rcon_config(
     try:
         # 获取Minecraft服务器端口
         try:
-            mc_server_port = get_server_port()
+            mc_server_port = get_server_port(server)
         except Exception as e:
             return JSONResponse(
                 {"status": "error", "message": f"无法获取Minecraft服务器端口: {str(e)}"},

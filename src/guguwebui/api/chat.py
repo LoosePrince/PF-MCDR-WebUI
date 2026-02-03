@@ -16,23 +16,9 @@ from fastapi.responses import JSONResponse
 
 from ..utils.constant import user_db, DEFALUT_CONFIG
 from ..utils.chat_logger import ChatLogger
-from ..utils.utils import (
-    cleanup_chat_verifications, verify_password, hash_password,
-    get_player_uuid, create_chat_message_rtext, create_chat_logger_status_rtext,
-    get_java_server_info, get_bot_list
-)
-
-#============================================================#
-# 全局变量定义
-# Web在线玩家心跳（基于 /api/chat/get_new_messages 请求），值为最近心跳Unix秒
-WEB_ONLINE_PLAYERS: dict[str, int] = {}
-
-# RCON 在线玩家缓存，降低查询频率
-RCON_ONLINE_CACHE = {
-    "names": set(),
-    "ts": 0,      # 上次刷新时间（秒）
-    "dirty": False  # 标记需要刷新
-}
+from ..utils.auth_util import verify_password, hash_password, cleanup_chat_verifications
+from ..utils.mc_util import get_player_uuid, create_chat_message_rtext, get_java_server_info, get_bot_list, create_chat_logger_status_rtext
+from ..state import WEB_ONLINE_PLAYERS, RCON_ONLINE_CACHE
 
 #============================================================#
 # 验证码管理功能
@@ -107,7 +93,7 @@ def check_chat_verification_status(code: str) -> Dict[str, Any]:
     # 未绑定则尚未在游戏内验证
     return {"status": "error", "message": "验证码尚未在游戏内验证"}
 
-def set_chat_user_password(code: str, password: str, server: PluginServerInterface) -> Dict[str, Any]:
+async def set_chat_user_password(code: str, password: str, server: PluginServerInterface) -> Dict[str, Any]:
     """
     设置聊天页用户密码
 
@@ -169,7 +155,7 @@ def set_chat_user_password(code: str, password: str, server: PluginServerInterfa
     result = {"status": "success", "message": "密码设置成功", "player_id": player_id}
     if server:
         try:
-            uuid_val = get_player_uuid(player_id, server)
+            uuid_val = await get_player_uuid(player_id, server)
             if uuid_val:
                 result["uuid"] = uuid_val
         except Exception:
@@ -178,7 +164,7 @@ def set_chat_user_password(code: str, password: str, server: PluginServerInterfa
 
 #============================================================#
 # 用户认证功能
-def chat_user_login(player_id: str, password: str, client_ip: str, server: PluginServerInterface) -> Dict[str, Any]:
+async def chat_user_login(player_id: str, password: str, client_ip: str, server: PluginServerInterface) -> Dict[str, Any]:
     """
     聊天页用户登录
 
@@ -266,14 +252,14 @@ def chat_user_login(player_id: str, password: str, client_ip: str, server: Plugi
     }
     if server:
         try:
-            uuid_val = get_player_uuid(player_id, server)
+            uuid_val = await get_player_uuid(player_id, server)
             if uuid_val:
                 result["uuid"] = uuid_val
         except Exception:
             pass
     return result
 
-def check_chat_session(session_id: str, server: PluginServerInterface = None) -> Dict[str, Any]:
+async def check_chat_session(session_id: str, server: PluginServerInterface = None) -> Dict[str, Any]:
     """
     检查聊天页会话状态
 
@@ -309,7 +295,7 @@ def check_chat_session(session_id: str, server: PluginServerInterface = None) ->
     }
     if server:
         try:
-            uuid_val = get_player_uuid(player_id, server)
+            uuid_val = await get_player_uuid(player_id, server)
             if uuid_val:
                 result["uuid"] = uuid_val
         except Exception:
@@ -339,7 +325,7 @@ def chat_user_logout(session_id: str, server: PluginServerInterface) -> Dict[str
 
 #============================================================#
 # 消息处理功能
-def get_chat_messages_handler(limit: int = 50, offset: int = 0, after_id: Optional[int] = None,
+async def get_chat_messages_handler(limit: int = 50, offset: int = 0, after_id: Optional[int] = None,
                               before_id: Optional[int] = None, server: PluginServerInterface = None) -> Dict[str, Any]:
     """
     获取聊天消息
@@ -382,12 +368,7 @@ def get_chat_messages_handler(limit: int = 50, offset: int = 0, after_id: Option
         # 只对缺失UUID的玩家进行网络查询
         if need_uuid_players:
             for pid in need_uuid_players:
-                try:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(get_player_uuid, pid, server)
-                        uuid_val = future.result(timeout=0.5)  # 减少超时时间
-                except (concurrent.futures.TimeoutError, Exception):
-                    uuid_val = None
+                uuid_val = await get_player_uuid(pid, server)
                 uuid_cache[pid] = uuid_val
         
         # 为缺失UUID的消息设置UUID
@@ -407,7 +388,7 @@ def get_chat_messages_handler(limit: int = 50, offset: int = 0, after_id: Option
         "has_more": len(messages) == limit
     }
 
-def get_new_chat_messages_handler(after_id: int = 0, player_id_heartbeat: str = None,
+async def get_new_chat_messages_handler(after_id: int = 0, player_id_heartbeat: str = None,
                                    server: PluginServerInterface = None) -> Dict[str, Any]:
     """
     获取新消息（基于最后消息ID）
@@ -428,110 +409,55 @@ def get_new_chat_messages_handler(after_id: int = 0, player_id_heartbeat: str = 
     # 为消息补充UUID信息（带超时处理）
     try:
         uuid_cache = {}
-
-        def get_uuid_with_timeout(player_id):
-            """带超时的UUID获取"""
-            try:
-                return get_player_uuid(player_id, server)
-            except Exception:
-                return None
-
-        # 为每个玩家并行获取UUID，单个玩家1秒超时
+        # 为每个玩家并行获取UUID
         for m in messages:
             pid = m.get('player_id')
-            if not pid:
-                continue
+            if not pid: continue
             if pid in uuid_cache:
                 uuid_val = uuid_cache[pid]
             else:
-                try:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(get_uuid_with_timeout, pid)
-                        uuid_val = future.result(timeout=1.0)  # 1秒超时
-                except (concurrent.futures.TimeoutError, Exception):
-                    uuid_val = None
+                uuid_val = await get_player_uuid(pid, server)
                 uuid_cache[pid] = uuid_val
             m['uuid'] = uuid_val
-    except Exception:
-        pass
+    except Exception: pass
 
     # 记录Web在线心跳（+5秒）
     try:
         if isinstance(player_id_heartbeat, str) and player_id_heartbeat:
             WEB_ONLINE_PLAYERS[player_id_heartbeat] = int(time.time()) + 5
-    except Exception:
-        pass
+    except Exception: pass
 
     # 生成在线列表：游戏在线（通过 get_java_server_info），Web在线（通过心跳）
     online_web = set(pid for pid, until in WEB_ONLINE_PLAYERS.items() if until >= int(time.time()))
     online_game = set()
 
-    # 快速获取服务器信息（1秒超时）
-    def get_server_info_with_timeout():
-        """带超时的服务器信息获取"""
-        try:
-            return get_java_server_info()
-        except Exception:
-            return {}
+    # 获取服务器信息
+    # Need to get port from config
+    from ..utils.mc_util import get_server_port
+    mc_port = get_server_port(server)
+    server_info = await get_java_server_info(mc_port)
 
-    # 使用线程池执行器获取服务器信息，1秒超时
-    server_info = {}
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(get_server_info_with_timeout)
-            server_info = future.result(timeout=1.0)  # 1秒超时
-    except (concurrent.futures.TimeoutError, Exception):
-        # 超时或异常时使用空字典
-        server_info = {}
-
-    # 快速RCON查询（1秒超时）
-    def get_rcon_online_players():
-        """带超时的RCON查询"""
-        try:
-            if hasattr(server, "is_rcon_running") and server.is_rcon_running():
-                now_sec = int(time.time())
-                if RCON_ONLINE_CACHE["dirty"] or (now_sec - int(RCON_ONLINE_CACHE["ts"]) >= 300):
-                    feedback = server.rcon_query("list")
-                    names = set()
-                    if isinstance(feedback, str) and ":" in feedback:
-                        names_part = feedback.split(":", 1)[1].strip()
-                        if names_part:
-                            for name in [n.strip() for n in names_part.split(",") if n.strip()]:
-                                names.add(name)
-                    RCON_ONLINE_CACHE["names"] = names
-                    RCON_ONLINE_CACHE["ts"] = now_sec
-                    RCON_ONLINE_CACHE["dirty"] = False
-                return set(RCON_ONLINE_CACHE["names"])
-        except Exception:
-            # RCON失败时保留旧缓存
-            return set(RCON_ONLINE_CACHE["names"])
-        return set()
-
-    # 使用线程池执行器，1秒超时
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(get_rcon_online_players)
-            online_game = future.result(timeout=1.0)  # 1秒超时
-    except (concurrent.futures.TimeoutError, Exception):
-        # 超时或异常时使用缓存数据
+    # 快速RCON查询
+    if hasattr(server, "is_rcon_running") and server.is_rcon_running():
+        now_sec = int(time.time())
+        if RCON_ONLINE_CACHE["dirty"] or (now_sec - int(RCON_ONLINE_CACHE["ts"]) >= 300):
+            try:
+                # RCON query is still sync in MCDR, but we can run it in executor if needed
+                feedback = server.rcon_query("list")
+                names = set()
+                if isinstance(feedback, str) and ":" in feedback:
+                    names_part = feedback.split(":", 1)[1].strip()
+                    if names_part:
+                        for name in [n.strip() for n in names_part.split(",") if n.strip()]:
+                            names.add(name)
+                RCON_ONLINE_CACHE["names"] = names
+                RCON_ONLINE_CACHE["ts"] = now_sec
+                RCON_ONLINE_CACHE["dirty"] = False
+            except Exception: pass
         online_game = set(RCON_ONLINE_CACHE["names"])
 
-    # 快速获取假人列表（1秒超时）
-    def get_bot_list_with_timeout():
-        """带超时的假人列表获取"""
-        try:
-            return get_bot_list(server)
-        except Exception:
-            return []
-
-    # 使用线程池执行器获取假人列表，1秒超时
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(get_bot_list_with_timeout)
-            online_bot = future.result(timeout=1.0)  # 1秒超时
-    except (concurrent.futures.TimeoutError, Exception):
-        # 超时或异常时使用空列表
-        online_bot = []
+    # 快速获取假人列表
+    online_bot = get_bot_list(server)
 
     return {
         "status": "success",
@@ -566,7 +492,7 @@ def clear_chat_messages_handler(server: PluginServerInterface = None) -> Dict[st
 
     return {"status": "success", "message": "聊天消息已清空"}
 
-def send_chat_message_handler(message: str, player_id: str, session_id: str,
+async def send_chat_message_handler(message: str, player_id: str, session_id: str,
                             server: PluginServerInterface = None, is_admin: bool = False) -> Dict[str, Any]:
     """
     发送聊天消息到游戏
@@ -630,7 +556,7 @@ def send_chat_message_handler(message: str, player_id: str, session_id: str,
     # 获取玩家UUID（如果可用）
     player_uuid = "未知"  # 默认值
     try:
-        player_uuid = get_player_uuid(player_id, server)
+        player_uuid = await get_player_uuid(player_id, server)
         # 如果仍然没有找到UUID，设置为"未知"
         if not player_uuid:
             player_uuid = "未知"
@@ -660,7 +586,15 @@ def send_chat_message_handler(message: str, player_id: str, session_id: str,
 
     # 如果当前服务器内没有玩家在线，则仅记录，不下发到游戏
     try:
-        info = get_java_server_info()
+        # Need to get port from config
+        from ..utils.mc_util import get_minecraft_path
+        import javaproperties
+        try:
+            with open(get_minecraft_path(server, "working_directory") + "/server.properties", "r") as f:
+                props = javaproperties.load(f)
+                mc_port = int(props.get("server-port", 25565))
+        except: mc_port = 25565
+        info = await get_java_server_info(mc_port)
         player_count_raw = info.get("server_player_count")
         player_count = int(player_count_raw) if player_count_raw is not None and str(player_count_raw).isdigit() else 0
     except Exception:

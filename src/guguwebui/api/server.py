@@ -9,9 +9,10 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi import status
 from ..utils.constant import server_control, user_db
-from ..utils.utils import get_java_server_info
+from ..utils.mc_util import get_java_server_info, get_minecraft_path, get_server_port
 from ..utils.api_cache import api_cache
-from ..web_server import verify_token
+import javaproperties
+from ..utils.server_util import verify_token
 
 
 async def get_server_status(
@@ -58,7 +59,11 @@ async def get_server_status(
 
     # 缓存未命中，执行实际查询
     server_status = "online" if server.is_server_running() or server.is_server_startup() else "offline"
-    server_message = get_java_server_info()
+    
+    # 获取MC服务器端口
+    mc_port = get_server_port(server)
+
+    server_message = await get_java_server_info(mc_port)
 
     server_version = server_message.get("server_version", "")
     version_string = f"Version: {server_version}" if server_version else ""
@@ -305,6 +310,8 @@ async def get_rcon_status(
         )
 
 
+from ..utils.mcdr_adapter import MCDRAdapter
+
 async def get_command_suggestions(
     request: Request,
     input: str = "",
@@ -318,20 +325,8 @@ async def get_command_suggestions(
         )
 
     try:
-        # 如果MCDR服务器接口不可用，返回空列表
-        if not server:
-            return JSONResponse({"status": "success", "suggestions": []})
-
-        # 获取命令管理器
-        command_manager = getattr(server, "_mcdr_server", None)
-        if not command_manager:
-            return JSONResponse({"status": "success", "suggestions": []})
-        command_manager = getattr(command_manager, "command_manager", None)
-        if not command_manager:
-            return JSONResponse({"status": "success", "suggestions": []})
-
         # 获取根命令节点
-        root_nodes = getattr(command_manager, "root_nodes", {})
+        root_nodes = MCDRAdapter.get_root_nodes(server)
 
         # 命令建议列表
         suggestions = []

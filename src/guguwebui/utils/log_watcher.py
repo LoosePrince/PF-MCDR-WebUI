@@ -351,45 +351,40 @@ class LogWatcher:
             
         # 尝试直接获取MCDR内部日志系统
         try:
-            # 使用传递的 server_interface，而不是从 app 获取
+            from .mcdr_adapter import MCDRAdapter
             if self.server_interface:
-                # 获取MCDR内部对象
-                mcdr_server_obj = getattr(self.server_interface, "_mcdr_server", None)
-                if mcdr_server_obj is not None:
-                    # 获取MCDR内部日志记录器
-                    mcdr_logger = getattr(mcdr_server_obj, "logger", None)
-                    if mcdr_logger is not None:
-                        # 添加我们的处理器到MCDR内部日志记录器
-                        mcdr_logger.addHandler(self.mcdr_log_handler)
-                        if self.server_interface:
-                            self.server_interface.logger.debug(f"已添加日志处理器到MCDR内部日志记录器: {mcdr_logger}")
-                        
-                        # 直接添加处理器到控制台处理器
-                        console_handler = getattr(mcdr_logger, "console_handler", None)
-                        if console_handler is not None:
-                            # SyncStdoutStreamHandler 没有 addHandler 方法，不能直接添加处理器
-                            # 可以尝试拦截其 emit 方法
-                            try:
-                                original_emit = console_handler.emit
-                                # 保存原始方法以便后续恢复
-                                console_handler._original_emit = original_emit
-                                def intercepted_console_emit(record):
-                                    try:
-                                        # 调用原始方法
-                                        original_emit(record)
-                                        # 同时用我们的处理器处理
-                                        self.mcdr_log_handler.emit(record)
-                                    except Exception as e:
-                                        if self.server_interface:
-                                            self.server_interface.logger.error(f"控制台处理器拦截出错: {e}")
-                                        original_emit(record)
-                                # 替换方法
-                                console_handler.emit = intercepted_console_emit
-                                if self.server_interface:
-                                    self.server_interface.logger.debug(f"已拦截MCDR控制台处理器的emit方法: {console_handler}")
-                            except Exception as e:
-                                if self.server_interface:
-                                    self.server_interface.logger.error(f"拦截控制台处理器emit方法失败: {e}")
+                mcdr_logger = MCDRAdapter.get_mcdr_logger(self.server_interface)
+                if mcdr_logger is not None:
+                    mcdr_logger.addHandler(self.mcdr_log_handler)
+                    if self.server_interface:
+                        self.server_interface.logger.debug(f"已添加日志处理器到MCDR内部日志记录器: {mcdr_logger}")
+                    
+                    # 直接添加处理器到控制台处理器
+                    console_handler = getattr(mcdr_logger, "console_handler", None)
+                    if console_handler is not None:
+                        # SyncStdoutStreamHandler 没有 addHandler 方法，不能直接添加处理器
+                        # 可以尝试拦截其 emit 方法
+                        try:
+                            original_emit = console_handler.emit
+                            # 保存原始方法以便后续恢复
+                            console_handler._original_emit = original_emit
+                            def intercepted_console_emit(record):
+                                try:
+                                    # 调用原始方法
+                                    original_emit(record)
+                                    # 同时用我们的处理器处理
+                                    self.mcdr_log_handler.emit(record)
+                                except Exception as e:
+                                    if self.server_interface:
+                                        self.server_interface.logger.error(f"控制台处理器拦截出错: {e}")
+                                    original_emit(record)
+                            # 替换方法
+                            console_handler.emit = intercepted_console_emit
+                            if self.server_interface:
+                                self.server_interface.logger.debug(f"已拦截MCDR控制台处理器的emit方法: {console_handler}")
+                        except Exception as e:
+                            if self.server_interface:
+                                self.server_interface.logger.error(f"拦截控制台处理器emit方法失败: {e}")
                         
                         # 获取MCDR日志文件处理器
                         file_handler = getattr(mcdr_logger, "file_handler", None)
@@ -977,16 +972,15 @@ class LogWatcher:
             
         # 恢复控制台处理器的 emit 方法
         try:
+            from .mcdr_adapter import MCDRAdapter
             if self.server_interface:
-                mcdr_server_obj = getattr(self.server_interface, "_mcdr_server", None)
-                if mcdr_server_obj is not None:
-                    mcdr_logger = getattr(mcdr_server_obj, "logger", None)
-                    if mcdr_logger is not None:
-                        console_handler = getattr(mcdr_logger, "console_handler", None)
-                        if console_handler is not None and hasattr(console_handler, '_original_emit'):
-                            console_handler.emit = console_handler._original_emit
-                            if self.server_interface:
-                                self.server_interface.logger.info("已恢复控制台处理器的 emit 方法")
+                mcdr_logger = MCDRAdapter.get_mcdr_logger(self.server_interface)
+                if mcdr_logger is not None:
+                    console_handler = getattr(mcdr_logger, "console_handler", None)
+                    if console_handler is not None and hasattr(console_handler, '_original_emit'):
+                        console_handler.emit = console_handler._original_emit
+                        if self.server_interface:
+                            self.server_interface.logger.info("已恢复控制台处理器的 emit 方法")
         except Exception as e:
             if self.server_interface:
                 self.server_interface.logger.error(f"恢复控制台处理器 emit 方法失败: {e}")

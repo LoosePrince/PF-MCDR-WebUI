@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-
+import anyio
+import asyncio
 from pathlib import Path
 from ruamel.yaml import YAML
 
 yaml = YAML()
 yaml.preserve_quotes = True
+
 class table(object):    
     """A json/yml file reader with save function.
     It also can auto-save when first level for dict changes.
@@ -21,6 +23,7 @@ class table(object):
         self.path = path if not self.yaml else path.replace(".json", ".yml")
         self.path = Path(self.path)
         self.default_content = default_content
+        self._lock = asyncio.Lock()
         self.load()    
 
     def load(self) -> None: # loading
@@ -34,19 +37,33 @@ class table(object):
             self.data = self.default_content if self.default_content else {}
             self.save()
 
-    def save(self) -> None: # saving
+    def save(self) -> None: # synchronous saving for compatibility
         self.path.parents[0].mkdir(parents=True, exist_ok=True)
         if self.yaml:
             with open(self.path, 'w', encoding='UTF-8') as f:
                 yaml.dump(self.data, f)        
         else:
             with open(self.path, 'w', encoding='UTF-8') as f:
-                json.dump(self.data, f, ensure_ascii= False)        
+                json.dump(self.data, f, ensure_ascii= False)
+
+    async def save_async(self) -> None: # asynchronous saving
+        async with self._lock:
+            await anyio.Path(self.path.parent).mkdir(parents=True, exist_ok=True)
+            if self.yaml:
+                # ruamel.yaml doesn't support async dump directly, use run_in_executor
+                def dump_yaml():
+                    with open(self.path, 'w', encoding='UTF-8') as f:
+                        yaml.dump(self.data, f)
+                await asyncio.get_event_loop().run_in_executor(None, dump_yaml)
+            else:
+                content = json.dumps(self.data, ensure_ascii=False)
+                async with await anyio.open_file(self.path, mode='w', encoding='UTF-8') as f:
+                    await f.write(content)
     
     def __getitem__(self, key:str): # get item like dict[key]
         return self.data[key]    
 
-    def __setitem__(self, key:str, value): # auto-save
+    def __setitem__(self, key:str, value): # auto-save (still sync for now to avoid breaking existing code)
         self.data[key] = value
         self.save()   
 

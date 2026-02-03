@@ -13,8 +13,9 @@ from fastapi.responses import JSONResponse
 from fastapi import status, Body, Depends
 from ..utils.constant import DEFALUT_CONFIG, toggleconfig, plugin_info
 from ..utils.PIM import create_installer
-from ..utils.utils import load_plugin_info, __copyFile, __copyFolder
-from ..web_server import verify_token
+from ..utils.mc_util import load_plugin_info
+from ..utils.file_util import __copyFile, __copyFolder
+from ..utils.server_util import verify_token
 
 
 async def package_pim_plugin(server, plugins_dir: str) -> str:

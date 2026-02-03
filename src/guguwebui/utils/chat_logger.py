@@ -441,12 +441,24 @@ class ChatLogger:
         # 获取UUID（仅对玩家消息和WebUI消息）
         if player_uuid is None and message_type in [0, 1] and server is not None:
             try:
-                from ..utils.utils import get_player_uuid
-                import concurrent.futures
+                from .mc_util import get_player_uuid
+                import asyncio
                 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(get_player_uuid, player_id, server)
-                    player_uuid = future.result(timeout=1.0)  # 1秒超时
+                # Run async function in sync context
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                if loop.is_running():
+                    # This is tricky in a running event loop, but ChatLogger.add_message 
+                    # is usually called from MCDR thread which is sync.
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        player_uuid = pool.submit(lambda: asyncio.run(get_player_uuid(player_id, server))).result(timeout=2.0)
+                else:
+                    player_uuid = loop.run_until_complete(get_player_uuid(player_id, server))
             except Exception:
                 player_uuid = None  # 获取失败时设为None
         

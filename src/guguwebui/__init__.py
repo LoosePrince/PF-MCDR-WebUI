@@ -16,7 +16,7 @@ def on_load(server: PluginServerInterface, old):
     
     # 检测并提示插件运行模式
     try:
-        from .utils.utils import detect_plugin_format
+        from .utils.mc_util import detect_plugin_format
         plugin_format = detect_plugin_format(server)
         format_map = {
             "mcdr_file": ".mcdr 文件",
@@ -39,22 +39,23 @@ def on_load(server: PluginServerInterface, old):
     
     # 导入必需的模块
     try:
-        # 导入 uvicorn
         import uvicorn
-        
-        # 导入其他模块 - 明确导入需要的内容而不是使用通配符
+        # 导入其他模块 - 明确导入需要的内容
         from fastapi.staticfiles import StaticFiles
-        from .utils.utils import (
-            amount_static_files, 
+        from .utils.file_util import amount_static_files
+        from .utils.auth_util import (
             create_account_command, 
             change_account_command, 
-            get_temp_password_command
+            get_temp_password_command,
+            verify_chat_code_command
         )
+        from .utils.mc_util import get_minecraft_path
         from .utils.constant import user_db
         from .web_server import (
-            app, init_app, get_plugins_info, log_watcher, 
+            app, init_app, log_watcher, 
             DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn
         )
+        from .utils.mc_util import get_plugins_info
         from .utils.server_util import patch_asyncio
         from .utils.PIM import PluginInstaller, create_installer
         
@@ -176,7 +177,7 @@ def on_load(server: PluginServerInterface, old):
     # 初始化聊天消息监听器
     try:
         from .utils.chat_logger import ChatLogger
-        from .utils.utils import create_chat_logger_status_rtext
+        from .utils.mc_util import create_chat_logger_status_rtext
         global chat_logger
         chat_logger = ChatLogger()
         status_msg = create_chat_logger_status_rtext('init', True)
@@ -323,7 +324,8 @@ def on_plugin_loaded(server: PluginServerInterface, plugin_id: str):
 def start_standalone_server(server: PluginServerInterface):
     """启动独立服务器模式"""
     try:
-        from .web_server import app, init_app, get_plugins_info, DEFALUT_CONFIG
+        from .web_server import app, init_app, DEFALUT_CONFIG
+        from .utils.mc_util import get_plugins_info
         from .utils.server_util import ThreadedUvicorn
         import uvicorn
         import os
@@ -564,7 +566,7 @@ def on_unload(server: PluginServerInterface):
 
 
 def register_command(server:PluginServerInterface, host:str, port:int):
-    from .utils.utils import get_temp_password_command, create_account_command, change_account_command, verify_chat_code_command  # 在函数内部导入所有需要的命令函数
+    from .utils.auth_util import get_temp_password_command, create_account_command, change_account_command, verify_chat_code_command  # 在函数内部导入所有需要的命令函数
     
     # 注册指令
     server.register_command(
@@ -633,7 +635,7 @@ def on_user_info(server: PluginServerInterface, info):
                 if player_name and message_content and player_name.strip() and message_content.strip():
                     # 记录聊天消息
                     chat_logger.add_message(player_name.strip(), message_content.strip(), server=server)
-                    from .utils.utils import create_chat_logger_status_rtext
+                    from .utils.mc_util import create_chat_logger_status_rtext
                     status_msg = create_chat_logger_status_rtext('record', True, player_name.strip(), message_content.strip())
                     server.logger.debug(status_msg)
                 else:
@@ -643,7 +645,7 @@ def on_user_info(server: PluginServerInterface, info):
 
 def send_message_to_webui(server_interface, source: str, message, message_type: str = "info", target_players: list = None, metadata: dict = None, is_rtext: bool = False):
     """供其他插件调用的函数，用于发送消息到WebUI并同步到游戏"""
-    from .utils.utils import send_message_to_webui as _send_message_to_webui
+    from .utils.mc_util import send_message_to_webui as _send_message_to_webui
     return _send_message_to_webui(server_interface, source, message, message_type, target_players, metadata, is_rtext)
 
 
