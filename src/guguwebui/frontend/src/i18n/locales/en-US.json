@@ -342,8 +342,8 @@
           "mc_server_info": "Base implementation for querying Minecraft server status and player information.",
           "mcdreforged": "MCDReforged (mcdreforged)",
           "mcdreforged_desc": "MCDR core; the runtime platform this plugin depends on.",
-          "nicegui": "NiceGUI (zauberzeug/nicegui)",
-          "nicegui_desc": "Implementation approach for threaded uvicorn was referenced.",
+          "wolfgangfahl": "WolfgangFahl (zauberzeug/nicegui/issues/1956)",
+          "wolfgangfahl_desc": "Implementation approach for threaded uvicorn was referenced.",
           "minecraft_wiki": "Minecraft Wiki (Raw JSON text)",
           "minecraft_wiki_desc": "Format specification for the RText parser.",
           "mcstatus_desc": "Python library for querying Minecraft Java Edition server status."

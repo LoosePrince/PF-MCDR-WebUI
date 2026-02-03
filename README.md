@@ -215,15 +215,9 @@ AI分析![image](https://github.com/user-attachments/assets/91276765-ec5b-47eb-8
 | [MCDR 插件仓库](https://mcdreforged.com/zh-CN/plugins) | 插件生态 | 提供了丰富的 MCDR 插件生态，是本项目功能的基础 |
 | [MC-Server-Info](https://github.com/Spark-Code-China/MC-Server-Info) | Minecraft 服务器信息查询 | 用于获取服务器状态与玩家信息的基础实现（仓库被作者删除） |
 | [MCDReforged](https://mcdreforged.com/) | MCDR 本体 | 本插件所依赖的运行平台 |
-| [NiceGUI](https://github.com/zauberzeug/nicegui) | Web UI 框架 | 参考了其在 uvicorn 线程化运行方面的实现思路 |
+| [WolfgangFahl](https://github.com/zauberzeug/nicegui/issues/1956) | uvicorn 线程化 | 参考了其在 uvicorn 线程化运行方面的实现思路 |
 | [Minecraft Wiki（文本组件）](https://zh.minecraft.wiki/w/文本组件) | 文本组件格式规范 | RText 解析器所依据的格式规范 |
 | [mcstatus](https://github.com/py-mine/mcstatus) | Minecraft 服务器状态查询 | 用于查询 Minecraft Java 版服务器状态的 Python 库 |
-| [CodeMirror](https://codemirror.net/) | 在线编辑器 | 目前使用 |
-| [DeepSeek AI](https://deepseek.com/) | AI 辅助功能接口支持 | |
-| [Vditor](https://vditor.b3log.org/) | Markdown 编辑器 | |
-| [TailwindCSS](https://tailwindcss.com/) | CSS 框架 | |
-| [Alpine.js](https://alpinejs.dev/) | JS 框架 | |
-| [Font Awesome](https://fontawesome.com/) | 图标库 | |
 
 | 特别鸣谢 | 说明 |
 |---|---|

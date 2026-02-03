@@ -206,16 +206,16 @@ const About: React.FC = () => {
                     <tr>
                       <td className="px-4 py-2">
                         <a
-                          href="https://github.com/zauberzeug/nicegui"
+                          href="https://github.com/zauberzeug/nicegui/issues/1956"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 hover:underline"
                         >
-                          {t('page.about.contribute.items.nicegui')}
+                          {t('page.about.contribute.items.wolfgangfahl')}
                         </a>
                       </td>
                       <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
-                        {t('page.about.contribute.items.nicegui_desc')}
+                        {t('page.about.contribute.items.wolfgangfahl_desc')}
                       </td>
                     </tr>
                     <tr>
