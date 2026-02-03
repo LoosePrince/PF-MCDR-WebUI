@@ -36,6 +36,7 @@ class PluginInstaller:
 
     def uninstall(self, plugin_id: str) -> str:
         task_id = self.task_manager.create_task('uninstall', plugin_id)
+        self.logger.debug(f"创建卸载任务: {task_id} for {plugin_id}")
         thread = threading.Thread(target=self._uninstall_thread, args=(task_id, plugin_id), daemon=True)
         thread.start()
         return task_id
@@ -96,12 +97,28 @@ class PluginInstaller:
 
         # 检查已安装版本
         installed_meta = self.server.get_plugin_metadata(plugin_id)
+        
+        # 记录受影响的依赖插件，以便后续重新启用
+        affected_plugins = []
+        
         if installed_meta:
             current_ver = str(installed_meta.version)
             if current_ver == target_release.version:
                 self.task_manager.update_task(task_id, message=f"{prefix}插件 {plugin_id} 已是最新版本 ({current_ver})")
                 return
             self.task_manager.update_task(task_id, message=f"{prefix}检测到旧版本: {current_ver} -> 目标版本: {target_release.version}")
+
+            # 查找依赖于此插件的其他插件
+            for pid in self.server.get_plugin_list():
+                p_meta = self.server.get_plugin_metadata(pid)
+                if p_meta and plugin_id in p_meta.dependencies:
+                    affected_plugins.append(pid)
+            
+            if affected_plugins:
+                self.task_manager.update_task(task_id, message=f"{prefix}发现受影响的依赖插件: {', '.join(affected_plugins)}，正在停止...")
+                for pid in affected_plugins:
+                    if self.server.unload_plugin(pid):
+                        self.task_manager.update_task(task_id, message=f"{prefix}已停止依赖插件: {pid}")
 
         # 卸载旧版本
         if installed_meta:
@@ -152,6 +169,19 @@ class PluginInstaller:
         if self.server.load_plugin(target_path):
             self._cleanup_pending_files(plugin_id)
             self.task_manager.update_task(task_id, message=f"✓ {prefix}插件 {plugin_id} 加载成功")
+            
+            # 重新加载受影响的依赖插件
+            if affected_plugins:
+                self.task_manager.update_task(task_id, message=f"{prefix}正在重新启用受影响的依赖插件...")
+                for pid in affected_plugins:
+                    # 获取插件路径以重新加载
+                    p_meta = self.server.get_plugin_metadata(pid)
+                    if p_meta:
+                        # 尝试通过 ID 加载，如果失败则尝试通过路径
+                        if self.server.load_plugin(pid):
+                            self.task_manager.update_task(task_id, message=f"{prefix}已重新启用依赖插件: {pid}")
+                        else:
+                            self.task_manager.update_task(task_id, message=f"⚠ {prefix}未能自动重新启用依赖插件: {pid}，请手动加载")
         else:
             if not is_dependency:
                 raise Exception(f"主插件 {plugin_id} 加载失败，请检查控制台日志")
@@ -189,31 +219,51 @@ class PluginInstaller:
             self.task_manager.update_task(task_id, message=f"⚠ {prefix}读取 requirements.txt 失败: {e}")
 
     def _uninstall_thread(self, task_id: str, plugin_id: str):
+        self.logger.debug(f"卸载线程启动: {task_id} for {plugin_id}")
         try:
-            self.task_manager.update_task(task_id, progress=0.2, message=f"正在卸载 {plugin_id}...")
-            
-            # 1. 尝试从 MCDR 卸载（如果已加载）
-            is_loaded = self.server.get_plugin_instance(plugin_id) is not None
-            if is_loaded:
-                if not self.server.unload_plugin(plugin_id):
-                    self.logger.warning(f"插件 {plugin_id} 卸载失败，将尝试直接删除文件")
-            
-            # 2. 标记并清理文件（无论是否加载，只要本地存在就清理）
-            self.task_manager.update_task(task_id, progress=0.5, message="正在清理本地文件...")
-            success, files = self.mark_for_deletion(plugin_id)
-            
-            if files:
-                self._cleanup_pending_files(plugin_id)
-                self.task_manager.update_task(task_id, progress=1.0, status='completed', message=f"插件 {plugin_id} 已完全卸载并删除")
-            elif is_loaded:
-                # 只有内存加载但没找到文件的情况（极少见）
-                self.task_manager.update_task(task_id, progress=1.0, status='completed', message=f"插件 {plugin_id} 已从内存卸载")
-            else:
-                raise Exception(f"未找到插件 {plugin_id} 的本地文件，无需卸载")
-
+            self._uninstall_logic(task_id, plugin_id)
+            self.task_manager.update_task(task_id, progress=1.0, status='completed', message=f"任务完成")
         except Exception as e:
-            self.logger.error(f"卸载失败: {e}")
-            self.task_manager.update_task(task_id, status='failed', message=f"错误: {str(e)}", end_time=time.time())
+            self.logger.error(f"卸载失败: {e}", exc_info=True)
+            self.task_manager.update_task(task_id, status='failed', message=f"卸载失败: {str(e)}", end_time=time.time())
+
+    def _uninstall_logic(self, task_id: str, plugin_id: str, is_dependency: bool = False):
+        """核心卸载逻辑，支持递归卸载依赖于此插件的其他插件"""
+        prefix = "[联动卸载] " if is_dependency else ""
+        
+        # 1. 查找依赖于此插件的其他插件（联动卸载）
+        # 必须在卸载当前插件之前完成，并且要先删除文件，防止 MCDR 自动重载
+        all_plugins = self.server.get_plugin_list()
+        for pid in all_plugins:
+            p_meta = self.server.get_plugin_metadata(pid)
+            if p_meta:
+                deps = getattr(p_meta, 'dependencies', {})
+                is_dep = False
+                if isinstance(deps, dict):
+                    is_dep = any(str(d).lower() == plugin_id.lower() for d in deps.keys())
+                elif isinstance(deps, list):
+                    is_dep = any(str(d).lower() == plugin_id.lower() for d in deps)
+                
+                if is_dep:
+                    self.task_manager.update_task(task_id, message=f"{prefix}发现依赖于 {plugin_id} 的插件: {pid}，正在卸载...")
+                    # 递归处理依赖插件
+                    self._uninstall_logic(task_id, pid, is_dependency=True)
+
+        # 2. 处理当前插件
+        self.task_manager.update_task(task_id, message=f"{prefix}正在处理卸载: {plugin_id}")
+
+        # 3. 标记并【立即】清理文件
+        # 在调用 unload 之前清理文件，可以防止 MCDR 在 unload 后的自动扫描中重新发现并尝试加载该插件
+        self.mark_for_deletion(plugin_id)
+        self._cleanup_pending_files(plugin_id)
+        self.task_manager.update_task(task_id, message=f"{prefix}已清理本地文件")
+
+        # 4. 尝试从 MCDR 卸载
+        if self.server.get_plugin_instance(plugin_id):
+            self.server.unload_plugin(plugin_id)
+            self.task_manager.update_task(task_id, message=f"✓ {prefix}插件 {plugin_id} 已从内存卸载")
+        
+        self.task_manager.update_task(task_id, message=f"✓ {prefix}插件 {plugin_id} 卸载完成")
 
     def _find_release(self, plugin_data: PluginData, version: str) -> Optional[ReleaseData]:
         if not version:

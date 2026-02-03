@@ -441,20 +441,6 @@ const LocalPlugins: React.FC = () => {
     }
   };
 
-  const handleReloadAll = async () => {
-    try {
-      const resp = await api.post('/reload_all_plugins');
-      if (resp.data.status === 'success') {
-        notify(t('plugins.msg.reload_success'), 'success');
-        fetchPlugins();
-      } else {
-        notify(t('plugins.msg.reload_failed_prefix', { message: resp.data.message }), 'error');
-      }
-    } catch (error: any) {
-      notify(t('plugins.msg.reload_failed'), 'error');
-    }
-  };
-
   const formatDate = (dateString: string | undefined): string => {
     if (!dateString) return '';
     try {
@@ -526,7 +512,7 @@ const LocalPlugins: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleReloadAll}
+            onClick={() => fetchPlugins()}
             className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/10 text-blue-600 border border-blue-200 dark:border-blue-800/50 rounded-xl hover:bg-blue-100 transition-colors shadow-sm font-semibold text-sm"
           >
             <RotateCw size={18} />
