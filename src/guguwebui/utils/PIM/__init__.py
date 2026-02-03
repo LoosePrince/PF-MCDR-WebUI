@@ -1,17 +1,22 @@
-from .pim_helper.PIM import (
-    PIMHelper,
-    PluginInstaller,
-    get_installer,
-    create_installer,
-    initialize_pim,
-    get_global_registry
-)
+from .pim_helper import PIMHelper
+from .pim_helper.models import PluginData, ReleaseData
+from .pim_helper.registry import MetaRegistry
+from .pim_helper.installer import PluginInstaller
+from .pim_helper.tasks import TaskManager
+
+# 统一导出接口
+def create_installer(server):
+    return PIMHelper(server).installer
+
+def initialize_pim(server):
+    helper = PIMHelper(server)
+    return helper, helper.installer
 
 __all__ = [
     'PIMHelper',
     'PluginInstaller',
-    'get_installer',
+    'MetaRegistry',
+    'TaskManager',
     'create_installer',
-    'initialize_pim',
-    'get_global_registry'
+    'initialize_pim'
 ]

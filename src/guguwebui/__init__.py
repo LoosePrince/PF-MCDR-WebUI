@@ -56,9 +56,9 @@ def on_load(server: PluginServerInterface, old):
             DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn
         )
         from .utils.server_util import patch_asyncio
-        from .utils.PIM import PluginInstaller, get_installer, create_installer
+        from .utils.PIM import PluginInstaller, create_installer
         
-        __all__ = ['PluginInstaller', 'get_installer', 'create_installer']
+        __all__ = ['PluginInstaller', 'create_installer']
         
         server.logger.info("所有模块导入成功")
         

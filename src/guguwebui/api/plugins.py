@@ -179,7 +179,7 @@ async def install_plugin(
             installer = create_installer(server)
 
         # 启动异步安装
-        task_id = installer.install_plugin(plugin_id, version, repo_url)
+        task_id = installer.install(plugin_id, version, repo_url)
 
         # 构建响应消息
         message = f"开始安装插件 {plugin_id}"
@@ -251,7 +251,7 @@ async def update_plugin(
             installer = create_installer(server)
 
         # 启动异步安装/更新
-        task_id = installer.install_plugin(plugin_id, version, repo_url)
+        task_id = installer.install(plugin_id, version, repo_url)
 
         # 构建响应消息
         message = f"开始更新插件 {plugin_id}"
@@ -318,7 +318,7 @@ async def uninstall_plugin(
             installer = create_installer(server)
 
         # 启动异步卸载，同时处理已加载和未加载的插件
-        task_id = installer.uninstall_plugin(plugin_id)
+        task_id = installer.uninstall(plugin_id)
 
         return JSONResponse(
             content={
