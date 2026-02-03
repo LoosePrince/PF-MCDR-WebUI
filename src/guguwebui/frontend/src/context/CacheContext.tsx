@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import React, { createContext, useContext, useRef, useCallback, ReactNode, useMemo } from 'react'
 
 interface CacheItem<T> {
   data: T
@@ -16,10 +16,10 @@ interface CacheContextType {
 const CacheContext = createContext<CacheContextType | undefined>(undefined)
 
 export const CacheProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [cache, setCache] = useState<Map<string, CacheItem<any>>>(new Map())
+  const cacheRef = useRef<Map<string, CacheItem<any>>>(new Map())
 
   const get = useCallback(<T,>(key: string): T | null => {
-    const item = cache.get(key)
+    const item = cacheRef.current.get(key)
     if (!item) {
       return null
     }
@@ -29,44 +29,34 @@ export const CacheProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const elapsed = Date.now() - item.timestamp
       if (elapsed > item.ttl) {
         // 缓存已过期，删除
-        setCache(prev => {
-          const newCache = new Map(prev)
-          newCache.delete(key)
-          return newCache
-        })
+        cacheRef.current.delete(key)
         return null
       }
     }
 
     return item.data as T
-  }, [cache])
+  }, [])
 
   const set = useCallback(<T,>(key: string, data: T, ttl?: number): void => {
-    setCache(prev => {
-      const newCache = new Map(prev)
-      newCache.set(key, {
-        data,
-        timestamp: Date.now(),
-        ttl
-      })
-      return newCache
+    cacheRef.current.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl
     })
   }, [])
 
   const invalidate = useCallback((key: string): void => {
-    setCache(prev => {
-      const newCache = new Map(prev)
-      newCache.delete(key)
-      return newCache
-    })
+    cacheRef.current.delete(key)
   }, [])
 
   const clear = useCallback((): void => {
-    setCache(new Map())
+    cacheRef.current.clear()
   }, [])
 
+  const value = useMemo(() => ({ get, set, invalidate, clear }), [get, set, invalidate, clear])
+
   return (
-    <CacheContext.Provider value={{ get, set, invalidate, clear }}>
+    <CacheContext.Provider value={value}>
       {children}
     </CacheContext.Provider>
   )

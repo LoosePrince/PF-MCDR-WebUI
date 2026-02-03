@@ -1,26 +1,40 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 
+interface IcpRecord {
+  icp: string
+  url: string
+}
+
 interface VersionFooterProps {
   className?: string
 }
 
 const VersionFooter: React.FC<VersionFooterProps> = ({ className = '' }) => {
   const [version, setVersion] = useState<string | null>(null)
+  const [icpRecords, setIcpRecords] = useState<IcpRecord[]>([])
 
   useEffect(() => {
     let cancelled = false
 
-    const fetchVersion = async () => {
+    const fetchData = async () => {
       try {
-        const { data } = await axios.get('/api/plugins', {
+        // 获取版本信息
+        const { data: pluginData } = await axios.get('/api/plugins', {
           params: { plugin_id: 'guguwebui' },
         })
         if (cancelled) return
-        const plugins = Array.isArray(data.plugins) ? data.plugins : []
+        const plugins = Array.isArray(pluginData.plugins) ? pluginData.plugins : []
         const webui = plugins[0]
         if (webui && webui.version) {
           setVersion(webui.version)
+        }
+
+        // 获取 ICP 备案信息
+        const { data: icpData } = await axios.get('/api/config/icp-records')
+        if (cancelled) return
+        if (icpData.status === 'success' && Array.isArray(icpData.icp_records)) {
+          setIcpRecords(icpData.icp_records)
         }
       } catch {
         if (!cancelled) {
@@ -29,16 +43,33 @@ const VersionFooter: React.FC<VersionFooterProps> = ({ className = '' }) => {
       }
     }
 
-    fetchVersion()
+    fetchData()
     return () => {
       cancelled = true
     }
   }, [])
 
   return (
-    <p className={`text-xs text-slate-400 dark:text-slate-600 font-medium ${className}`}>
-      {version ? `GUGUWebUI v${version}` : 'GUGUWebUI'}
-    </p>
+    <div className={`flex flex-col items-center gap-1 ${className}`}>
+      <p className="text-xs text-slate-400 dark:text-slate-600 font-medium">
+        {version ? `GUGUWebUI v${version}` : 'GUGUWebUI'}
+      </p>
+      {icpRecords.length > 0 && (
+        <div className="flex flex-col items-center gap-0.5">
+          {icpRecords.map((record, index) => (
+            <a
+              key={index}
+              href={record.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-slate-400/80 dark:text-slate-600/80 hover:text-blue-500 transition-colors"
+            >
+              {record.icp}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

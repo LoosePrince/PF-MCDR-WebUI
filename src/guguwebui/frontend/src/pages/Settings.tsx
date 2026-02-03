@@ -48,6 +48,8 @@ interface WebConfig {
   chat_verification_expire_minutes: number
   chat_session_expire_hours: number
   chat_message_count: number
+  force_standalone: boolean
+  icp_records: { icp: string; url: string }[]
 }
 
 const Settings: React.FC = () => {
@@ -60,6 +62,7 @@ const Settings: React.FC = () => {
   const [validatingAiKey, setValidatingAiKey] = useState(false)
   const [pimStatus, setPimStatus] = useState<'installed' | 'not_installed' | 'installing' | 'loading'>('loading')
   const [newRepo, setNewRepo] = useState<Repository>({ name: '', url: '' })
+  const [newIcp, setNewIcp] = useState({ icp: '', url: '' })
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
@@ -197,6 +200,31 @@ const Settings: React.FC = () => {
       const updatedRepos = config.repositories.filter((_, i) => i !== index)
       setConfig({ ...config, repositories: updatedRepos })
       showNotification(t('page.settings.msg.repo_deleted_tip'), 'success')
+    }
+  }
+
+  const addIcpRecord = () => {
+    if (!newIcp.icp || !newIcp.url) {
+      showNotification(t('page.settings.msg.icp_required'), 'error')
+      return
+    }
+    if (config) {
+      if (config.icp_records.length >= 2) {
+        showNotification(t('page.settings.msg.icp_limit'), 'error')
+        return
+      }
+      const updatedIcp = [...config.icp_records, newIcp]
+      setConfig({ ...config, icp_records: updatedIcp })
+      setNewIcp({ icp: '', url: '' })
+      showNotification(t('page.settings.msg.icp_added_tip'), 'success')
+    }
+  }
+
+  const deleteIcpRecord = (index: number) => {
+    if (config) {
+      const updatedIcp = config.icp_records.filter((_, i) => i !== index)
+      setConfig({ ...config, icp_records: updatedIcp })
+      showNotification(t('page.settings.msg.icp_deleted_tip'), 'success')
     }
   }
 
@@ -394,6 +422,36 @@ const Settings: React.FC = () => {
                   />
                 </button>
               </div>
+
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">{t('page.settings.security.force_standalone')}</p>
+                  <p className="text-xs text-slate-500">{t('page.settings.security.force_standalone_desc')}</p>
+                </div>
+                <button
+                  onClick={() => setConfig({ ...config, force_standalone: !config.force_standalone })}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors ${config.force_standalone ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                >
+                  <motion.div
+                    animate={{ x: config.force_standalone ? 24 : 0 }}
+                    className="w-4 h-4 bg-white rounded-full shadow-sm"
+                  />
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() =>
+                  handleSave('config', {
+                    force_standalone: config.force_standalone
+                  })
+                }
+                disabled={saving === 'security'}
+                className="flex items-center gap-2 px-6 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-semibold rounded-2xl transition-all shadow-lg shadow-rose-500/20"
+              >
+                {saving === 'security' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {t('page.settings.security.save')}
+              </button>
             </div>
           </motion.div>
         </div>
@@ -696,6 +754,85 @@ const Settings: React.FC = () => {
             >
               {saving === 'repos' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {t('page.settings.repo.save')}
+            </button>
+          </div>
+        </motion.div>
+
+        {/* ICP Records Section */}
+        <motion.div variants={itemVariants} className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          <div className="flex items-center gap-3 text-slate-500">
+            <Shield className="w-6 h-6" />
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              {t('page.settings.icp.title')}
+            </h2>
+          </div>
+
+          <p className="text-sm text-slate-500">{t('page.settings.icp.tip')}</p>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-medium">
+                <tr>
+                  <th className="px-6 py-4">{t('page.settings.icp.text')}</th>
+                  <th className="px-6 py-4">{t('page.settings.icp.url')}</th>
+                  <th className="px-6 py-4 text-right">{t('page.settings.icp.actions')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {config.icp_records.map((record, idx) => (
+                  <tr key={idx}>
+                    <td className="px-6 py-4 text-slate-900 dark:text-white font-medium">{record.icp}</td>
+                    <td className="px-6 py-4 text-slate-500 truncate max-w-xs">{record.url}</td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => deleteIcpRecord(idx)}
+                        className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {config.icp_records.length < 2 && (
+                  <tr className="bg-slate-50/30 dark:bg-slate-800/30">
+                    <td className="px-6 py-3">
+                      <input
+                        value={newIcp.icp}
+                        onChange={(e) => setNewIcp({ ...newIcp, icp: e.target.value })}
+                        placeholder={t('page.settings.icp.placeholder_text')}
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                      />
+                    </td>
+                    <td className="px-6 py-3">
+                      <input
+                        value={newIcp.url}
+                        onChange={(e) => setNewIcp({ ...newIcp, url: e.target.value })}
+                        placeholder={t('page.settings.icp.placeholder_url')}
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                      />
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <button
+                        onClick={addIcpRecord}
+                        className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={() => handleSave('config', { icp_records: config.icp_records })}
+              disabled={saving === 'icp'}
+              className="flex items-center gap-2 px-6 py-2.5 bg-slate-600 hover:bg-slate-700 disabled:opacity-50 text-white font-semibold rounded-2xl transition-all shadow-lg shadow-slate-500/20"
+            >
+              {saving === 'icp' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {t('page.settings.icp.save')}
             </button>
           </div>
         </motion.div>

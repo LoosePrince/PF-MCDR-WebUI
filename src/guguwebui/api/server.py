@@ -226,7 +226,7 @@ async def get_rcon_status(
     request: Request,
     server=None
 ) -> JSONResponse:
-    """获取RCON连接状态（使用永久缓存，因为RCON状态在插件生命周期内不会改变）"""
+    """获取RCON连接状态（使用短期缓存，因为RCON状态可能随服务器状态改变）"""
     if not server:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -241,9 +241,9 @@ async def get_rcon_status(
                 status_code=401
             )
 
-        # 尝试从缓存获取（永久缓存，直到插件重启）
+        # 尝试从缓存获取（短期缓存，5秒）
         cache_key = "rcon_status"
-        cached_result = api_cache.get(cache_key, ttl=None)
+        cached_result = api_cache.get(cache_key, ttl=5.0)
         if cached_result is not None:
             return JSONResponse(cached_result)
 
@@ -255,12 +255,13 @@ async def get_rcon_status(
         
         # 读取MCDR配置检查RCON是否启用
         try:
-            import yaml
+            import ruamel.yaml
             from pathlib import Path
             config_path = Path("config.yml")
             if config_path.exists():
+                yaml = ruamel.yaml.YAML()
                 with open(config_path, "r", encoding="UTF-8") as f:
-                    mcdr_config = yaml.load(f, Loader=yaml.FullLoader)
+                    mcdr_config = yaml.load(f)
                     rcon_config = mcdr_config.get("rcon", {})
                     rcon_enabled = rcon_config.get("enable", False)
         except Exception:
@@ -289,8 +290,8 @@ async def get_rcon_status(
             "rcon_info": rcon_info
         }
 
-        # 存储到永久缓存（直到插件重启）
-        api_cache.set(cache_key, result, ttl=None)
+        # 存储到短期缓存（5秒）
+        api_cache.set(cache_key, result, ttl=5.0)
 
         return JSONResponse(result)
 

@@ -105,6 +105,8 @@ async def get_web_config(
             "public_chat_to_game_enabled": config.get("public_chat_to_game_enabled", False),
             "chat_verification_expire_minutes": config.get("chat_verification_expire_minutes", 10),
             "chat_session_expire_hours": config.get("chat_session_expire_hours", 24),
+            "force_standalone": config.get("force_standalone", False),
+            "icp_records": config.get("icp_records", []),
             "chat_message_count": chat_message_count,
         }
 
@@ -131,6 +133,8 @@ async def get_web_config(
             "public_chat_to_game_enabled": config.get("public_chat_to_game_enabled", False),
             "chat_verification_expire_minutes": config.get("chat_verification_expire_minutes", 10),
             "chat_session_expire_hours": config.get("chat_session_expire_hours", 24),
+            "force_standalone": config.get("force_standalone", False),
+            "icp_records": config.get("icp_records", []),
             "chat_message_count": 0,
         }
 
@@ -199,6 +203,10 @@ async def save_web_config(
             web_config["chat_verification_expire_minutes"] = config.chat_verification_expire_minutes
         if config.chat_session_expire_hours is not None:
             web_config["chat_session_expire_hours"] = config.chat_session_expire_hours
+        if config.force_standalone is not None:
+            web_config["force_standalone"] = config.force_standalone
+        if config.icp_records is not None:
+            web_config["icp_records"] = config.icp_records
 
         response = {"status": "success", "message": "配置已保存，重启插件后生效"}
     # disable_admin_login_web & enable_temp_login_password

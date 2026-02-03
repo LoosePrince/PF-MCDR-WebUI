@@ -88,7 +88,7 @@ const Dashboard: React.FC = () => {
         cache.set('server_status', statusResp.data, 5000)
       }
       
-      // RCON状态使用永久缓存（直到页面刷新）
+      // RCON状态使用短期缓存（5秒）
       const cachedRcon = cache.get<RconStatus>('rcon_status')
       if (cachedRcon) {
         setRconStatus(cachedRcon)
@@ -100,8 +100,8 @@ const Dashboard: React.FC = () => {
             rcon_connected: rconResp.data.rcon_connected,
           }
           setRconStatus(rconData)
-          // 永久缓存（直到页面刷新）
-          cache.set('rcon_status', rconData)
+          // 缓存5秒
+          cache.set('rcon_status', rconData, 5000)
         }
       }
     } catch (error: any) {

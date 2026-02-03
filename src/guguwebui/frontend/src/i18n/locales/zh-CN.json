@@ -394,6 +394,10 @@
         "repo_added_tip": "仓库已添加，请点击保存按钮保存配置",
         "repo_deleted_tip": "仓库已删除，请点击保存按钮保存配置",
         "repos_save_success": "仓库配置保存成功",
+        "icp_required": "备案号和链接不能为空",
+        "icp_limit": "最多只能添加两个备案信息",
+        "icp_added_tip": "备案信息已添加，请点击保存按钮保存配置",
+        "icp_deleted_tip": "备案信息已删除，请点击保存按钮保存配置",
         "mcdr_url_save_success": "MCDR插件目录URL保存成功",
         "plugin_repo_save_success": "插件目录配置保存成功",
         "https_need_both_files": "启用HTTPS需要同时提供证书文件和密钥文件路径",
@@ -442,7 +446,10 @@
       "security": {
         "title": "安全设置",
         "disable_admin_web": "禁用管理员网页登录",
-        "enable_temp_code": "启用临时登录密码"
+        "enable_temp_code": "启用临时登录密码",
+        "force_standalone": "强制独立运行",
+        "force_standalone_desc": "忽略 fastapi_mcdr 插件，强制作为独立 Web 服务运行",
+        "save": "保存安全设置"
       },
       "ai": {
         "title": "AI 模型配置",
@@ -497,6 +504,16 @@
         "placeholder_name": "仓库名称",
         "placeholder_url": "仓库URL地址",
         "save": "保存仓库配置"
+      },
+      "icp": {
+        "title": "ICP 备案信息",
+        "tip": "配置网站底部的 ICP 备案信息，最多支持两个。",
+        "text": "备案号",
+        "url": "查询链接",
+        "actions": "操作",
+        "placeholder_text": "例如：浙ICP备12345678号",
+        "placeholder_url": "https://beian.miit.gov.cn/",
+        "save": "保存备案信息"
       },
       "pim": {
         "title": "PIM独立插件配置",

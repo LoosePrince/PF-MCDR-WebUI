@@ -97,6 +97,7 @@ class saveconfig(BaseModel):
     public_chat_to_game_enabled: Optional[bool] = None
     chat_verification_expire_minutes: Optional[int] = None
     chat_session_expire_hours: Optional[int] = None
+    force_standalone: Optional[bool] = None
 
 class toggleconfig(BaseModel):
     plugin_id: str
