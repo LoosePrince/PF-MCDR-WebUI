@@ -631,6 +631,7 @@
         "disable_console_color_tip": "设置为 true 时, MCDR 将在所有消息打印到控制台之前删除所有控制台字体格式化程序代码",
         "custom_handlers": "自定义 服务端处理器 类",
         "custom_handlers_tip": "多条请直接修改配置文件",
+        "advanced_warning": "请保持默认值, 除非你清楚地知道这是什么",
         "custom_info_reactors": "处理 info 对象的自定义 Info 响应器 类",
         "watchdog": "看门狗",
         "watchdog_threshold": "响应时间阈值",
@@ -641,6 +642,7 @@
         "catalogue_meta_url": "重写用于拉取插件仓库元信息链接",
         "plugin_download_url": "重写插件文件的下载链接",
         "plugin_download_timeout": "下载插件文件的超时时间",
+        "telemetry": "遥测与使用统计（telemetry）",
         "plugin_pip_install_extra_args": "在插件安装过程中，安装插件依赖的 python 包时，传递给 pip 子进程的额外参数",
         "http_proxy": "http_proxy",
         "https_proxy": "https_proxy"

@@ -612,6 +612,7 @@
         "disable_console_color_tip": "When set to true, MCDR will strip all console style codes before printing messages.",
         "custom_handlers": "Custom server handler classes",
         "custom_handlers_tip": "For multiple entries, please edit the configuration file directly.",
+        "advanced_warning": "Keep the default unless you know exactly what you are doing.",
         "custom_info_reactors": "Custom Info reactor classes",
         "watchdog": "Watchdog",
         "watchdog_threshold": "Response time threshold",
@@ -622,6 +623,7 @@
         "catalogue_meta_url": "Override URL used to fetch plugin catalogue metadata",
         "plugin_download_url": "Override plugin download URL",
         "plugin_download_timeout": "Timeout for downloading plugin files",
+        "telemetry": "Telemetry (usage statistics reporting)",
         "plugin_pip_install_extra_args": "Additional arguments passed to pip when installing plugin Python dependencies",
         "http_proxy": "http_proxy",
         "https_proxy": "https_proxy"

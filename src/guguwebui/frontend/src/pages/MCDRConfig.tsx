@@ -37,6 +37,7 @@ const MCDRConfig: React.FC = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState('');
   const [notificationType, setNotificationType] = useState<'success' | 'error'>('success');
+  const [rconConnected, setRconConnected] = useState(false);
 
   // RCON Modal states
   const [showRconSetupModal, setShowRconSetupModal] = useState(false);
@@ -66,12 +67,14 @@ const MCDRConfig: React.FC = () => {
   const loadData = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const [configResp, permResp] = await Promise.all([
+      const [configResp, permResp, rconResp] = await Promise.all([
         api.get('/load_config?path=config.yml', { signal }),
-        api.get('/load_config?path=permission.yml', { signal })
+        api.get('/load_config?path=permission.yml', { signal }),
+        api.get('/get_rcon_status', { signal }).catch(() => ({ data: { connected: false } }))
       ]);
       setConfigData(configResp.data);
       setPermissionData(permResp.data);
+      setRconConnected(rconResp.data?.connected || false);
     } catch (error: any) {
       // 忽略取消的请求错误
       if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
@@ -307,6 +310,68 @@ const MCDRConfig: React.FC = () => {
                   </ConfigItem>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ConfigItem label={t('page.mcdr.form.encoding')} sub={t('page.mcdr.form.encoding_tip')}>
+                      <input
+                        type="text"
+                        value={configData.encoding || ''}
+                        onChange={(e) => updateConfig('encoding', e.target.value)}
+                        placeholder="utf8"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </ConfigItem>
+                    <ConfigItem label={t('page.mcdr.form.decoding')} sub={t('page.mcdr.form.decoding_tip')}>
+                      <input
+                        type="text"
+                        value={configData.decoding || ''}
+                        onChange={(e) => updateConfig('decoding', e.target.value)}
+                        placeholder="utf8"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </ConfigItem>
+                  </div>
+
+                  <ConfigItem
+                    label={t('page.mcdr.form.plugin_directories')}
+                    sub={t('page.mcdr.form.plugin_directories_tip')}
+                  >
+                    <div className="space-y-2">
+                      {(configData.plugin_directories || ['plugins']).map((dir: string, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={dir}
+                            onChange={(e) => {
+                              const newList = [...(configData.plugin_directories || ['plugins'])];
+                              newList[idx] = e.target.value;
+                              updateConfig('plugin_directories', newList);
+                            }}
+                            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                          />
+                          <button
+                            onClick={() => {
+                              const newList = (configData.plugin_directories || ['plugins']).filter((_: any, i: number) => i !== idx);
+                              updateConfig('plugin_directories', newList);
+                            }}
+                            className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newList = [...(configData.plugin_directories || ['plugins']), ''];
+                          updateConfig('plugin_directories', newList);
+                        }}
+                        className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        <UserPlus size={14} />
+                        {t('common.add')}
+                      </button>
+                    </div>
+                  </ConfigItem>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <ConfigItem label={t('page.mcdr.form.handler')} sub={t('page.mcdr.form.handler_tip')}>
                     <button
                       type="button"
@@ -340,21 +405,23 @@ const MCDRConfig: React.FC = () => {
               {/* RCON Settings */}
               <ConfigSection title={t('page.mcdr.rcon.title')} icon={Terminal}>
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <Zap className="text-blue-500" size={24} />
-                      <div>
-                        <h4 className="font-semibold text-blue-900 dark:text-blue-200">{t('page.mcdr.rcon.setup_button')}</h4>
-                        <p className="text-sm text-blue-700 dark:text-blue-300">{t('page.mcdr.rcon.desc')}</p>
+                  {!rconConnected && (
+                    <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <Zap className="text-blue-500" size={24} />
+                        <div>
+                          <h4 className="font-semibold text-blue-900 dark:text-blue-200">{t('page.mcdr.rcon.setup_button')}</h4>
+                          <p className="text-sm text-blue-700 dark:text-blue-300">{t('page.mcdr.rcon.desc')}</p>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => setShowRconSetupModal(true)}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                      >
+                        {t('page.mcdr.rcon.setup_button')}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setShowRconSetupModal(true)}
-                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-                    >
-                      {t('page.mcdr.rcon.setup_button')}
-                    </button>
-                  </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <ConfigItem label={t('page.mcdr.rcon.enable')} sub={t('page.mcdr.rcon.enable_tip')}>
@@ -400,8 +467,8 @@ const MCDRConfig: React.FC = () => {
                 <div className="space-y-4">
                   <ConfigItem label={t('page.mcdr.debug.all')}>
                     <Switch
-                      checked={configData.debugging?.all === true}
-                      onChange={(v) => updateConfig('debugging.all', v)}
+                      checked={configData.debug?.all === true}
+                      onChange={(v) => updateConfig('debug.all', v)}
                     />
                   </ConfigItem>
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
@@ -409,8 +476,8 @@ const MCDRConfig: React.FC = () => {
                       <div key={key} className="flex items-center justify-between text-sm">
                         <span className="text-slate-600 dark:text-slate-400">{t(`page.mcdr.debug.${key}`)}</span>
                         <Switch
-                          checked={configData.debugging?.[key] === true}
-                          onChange={(v) => updateConfig(`debugging.${key}`, v)}
+                          checked={configData.debug?.[key] === true}
+                          onChange={(v) => updateConfig(`debug.${key}`, v)}
                           size="sm"
                         />
                       </div>
@@ -434,6 +501,105 @@ const MCDRConfig: React.FC = () => {
                       onChange={(v) => updateConfig('disable_console_color', v)}
                     />
                   </ConfigItem>
+                  <ConfigItem label={t('page.mcdr.form.disable_console_thread')} sub={t('page.mcdr.form.disable_console_thread_tip')}>
+                    <Switch
+                      checked={configData.disable_console_thread === true}
+                      onChange={(v) => updateConfig('disable_console_thread', v)}
+                    />
+                  </ConfigItem>
+                </div>
+              </ConfigSection>
+
+              {/* Watchdog & Catalogue Settings */}
+              <ConfigSection title={t('page.mcdr.form.watchdog')} icon={Shield}>
+                <div className="space-y-6">
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/30 rounded-lg flex gap-3 mb-2">
+                    <Info className="text-yellow-600 shrink-0" size={20} />
+                    <p className="text-xs text-yellow-800 dark:text-yellow-200">{t('page.mcdr.form.advanced_warning')}</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ConfigItem label={t('page.mcdr.form.watchdog_threshold')} sub={t('page.mcdr.form.watchdog_threshold_tip')}>
+                      <input
+                        type="number"
+                        value={configData.watchdog_threshold ?? 10}
+                        onChange={(e) => updateConfig('watchdog_threshold', parseInt(e.target.value))}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </ConfigItem>
+                    <ConfigItem label={t('page.mcdr.form.handler_detection')} sub={t('page.mcdr.form.handler_detection')}>
+                      <Switch
+                        checked={configData.handler_detection !== false}
+                        onChange={(v) => updateConfig('handler_detection', v)}
+                      />
+                    </ConfigItem>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ConfigItem label={t('page.mcdr.form.catalogue_meta_cache_ttl')}>
+                      <input
+                        type="number"
+                        value={configData.catalogue_meta_cache_ttl ?? 1200}
+                        onChange={(e) => updateConfig('catalogue_meta_cache_ttl', parseInt(e.target.value))}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </ConfigItem>
+                    <ConfigItem label={t('page.mcdr.form.catalogue_meta_fetch_timeout')}>
+                      <input
+                        type="number"
+                        value={configData.catalogue_meta_fetch_timeout ?? 15}
+                        onChange={(e) => updateConfig('catalogue_meta_fetch_timeout', parseInt(e.target.value))}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </ConfigItem>
+                  </div>
+
+                  <ConfigItem label={t('page.mcdr.form.catalogue_meta_url')}>
+                    <input
+                      type="text"
+                      value={configData.catalogue_meta_url || ''}
+                      onChange={(e) => updateConfig('catalogue_meta_url', e.target.value)}
+                      placeholder="https://..."
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                    />
+                  </ConfigItem>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ConfigItem label={t('page.mcdr.form.plugin_download_timeout')}>
+                      <input
+                        type="number"
+                        value={configData.plugin_download_timeout ?? 15}
+                        onChange={(e) => updateConfig('plugin_download_timeout', parseInt(e.target.value))}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </ConfigItem>
+                    <ConfigItem label={t('page.mcdr.form.telemetry')}>
+                      <Switch
+                        checked={configData.telemetry !== false}
+                        onChange={(v) => updateConfig('telemetry', v)}
+                      />
+                    </ConfigItem>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ConfigItem label={t('page.mcdr.form.http_proxy')}>
+                      <input
+                        type="text"
+                        value={configData.http_proxy || ''}
+                        onChange={(e) => updateConfig('http_proxy', e.target.value)}
+                        placeholder="http://127.0.0.1:7890"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </ConfigItem>
+                    <ConfigItem label={t('page.mcdr.form.https_proxy')}>
+                      <input
+                        type="text"
+                        value={configData.https_proxy || ''}
+                        onChange={(e) => updateConfig('https_proxy', e.target.value)}
+                        placeholder="http://127.0.0.1:7890"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                    </ConfigItem>
+                  </div>
                 </div>
               </ConfigSection>
             </div>
