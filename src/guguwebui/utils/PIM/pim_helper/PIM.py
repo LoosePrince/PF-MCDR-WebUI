@@ -3657,6 +3657,99 @@ class PluginInstaller:
                             self.install_tasks[task_id]['all_messages'] = source.messages
                     return
                 
+                # 更新进度到70%
+                with self._lock:
+                    if task_id in self.install_tasks:
+                        self.install_tasks[task_id]['progress'] = 0.7
+                        self.install_tasks[task_id]['message'] = f"正在检查 Python 依赖..."
+                        if 'all_messages' not in self.install_tasks[task_id]:
+                            self.install_tasks[task_id]['all_messages'] = []
+                        self.install_tasks[task_id]['all_messages'].append(f"正在检查 Python 依赖...")
+                
+                # 在加载前先检查并安装 requirements.txt 中的 Python 依赖
+                source.reply(f"正在检查 Python 依赖 (requirements.txt)...")
+                try:
+                    import zipfile as zf_req
+                    import tempfile
+                    import subprocess
+                    import sys
+                    
+                    with zf_req.ZipFile(target_path, 'r') as zip_ref:
+                        # 查找 requirements.txt
+                        has_requirements = any(f == 'requirements.txt' for f in zip_ref.namelist())
+                        
+                        if has_requirements:
+                            source.reply(f"检测到 requirements.txt 文件，正在安装 Python 依赖...")
+                            
+                            # 在临时目录中提取 requirements.txt
+                            with tempfile.TemporaryDirectory() as temp_dir:
+                                # 提取 requirements.txt 到临时目录
+                                zip_ref.extract('requirements.txt', temp_dir)
+                                req_path = os.path.join(temp_dir, 'requirements.txt')
+                                
+                                # 读取 requirements.txt 内容
+                                with open(req_path, 'r', encoding='utf-8') as f:
+                                    requirements = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                                
+                                if requirements:
+                                    source.reply(f"找到 Python 依赖项: {', '.join(requirements)}")
+                                    
+                                    # 安装所有依赖
+                                    try:
+                                        pip_cmd = [sys.executable, "-m", "pip", "install", "--upgrade"]
+                                        
+                                        # 检查是否有 pip 额外参数
+                                        try:
+                                            mcdr_config = self.server.get_mcdr_config()
+                                            pip_extra_args = mcdr_config.get('plugin_pip_install_extra_args', '')
+                                            if pip_extra_args:
+                                                pip_cmd.extend(pip_extra_args.split())
+                                        except Exception:
+                                            pass
+                                            
+                                        pip_cmd.extend(requirements)
+                                        
+                                        source.reply(f"执行命令: {' '.join(pip_cmd)}")
+                                        
+                                        result = subprocess.run(
+                                            pip_cmd,
+                                            stdout=subprocess.PIPE,
+                                            stderr=subprocess.PIPE,
+                                            text=True,
+                                            check=True
+                                        )
+                                        
+                                        # 刷新模块缓存
+                                        import importlib
+                                        importlib.invalidate_caches()
+                                        
+                                        source.reply(f"✓ Python 依赖项安装成功")
+                                        
+                                        # 输出安装日志摘要
+                                        if result.stdout:
+                                            lines = result.stdout.splitlines()
+                                            if len(lines) > 5:
+                                                source.reply("安装输出 (部分):")
+                                                for line in lines[-5:]:
+                                                    source.reply(f"> {line}")
+                                        
+                                    except subprocess.CalledProcessError as e:
+                                        source.reply(f"⚠ 安装 Python 依赖项时出现警告")
+                                        # 输出错误信息
+                                        if e.stderr:
+                                            error_lines = e.stderr.splitlines()
+                                            source.reply("错误信息 (部分):")
+                                            for line in error_lines[-5:]:
+                                                source.reply(f"> {line}")
+                                        source.reply("将继续尝试加载插件...")
+                                else:
+                                    source.reply(f"requirements.txt 为空，跳过 Python 依赖安装")
+                        else:
+                            source.reply(f"未检测到 requirements.txt 文件，跳过 Python 依赖安装")
+                except Exception as e:
+                    source.reply(f"检查 Python 依赖时出错: {e}")
+                    source.reply("将继续尝试加载插件...")
+                
                 # 更新进度到80%
                 with self._lock:
                     if task_id in self.install_tasks:
