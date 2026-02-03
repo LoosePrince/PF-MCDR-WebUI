@@ -1,12 +1,17 @@
 import os
 import logging
+import threading
+import time
 from typing import List, Dict, Optional, Tuple, Any
-from mcdreforged.api.all import PluginServerInterface
+from mcdreforged.api.all import PluginServerInterface, Literal, Text, RText, RColor
 
 from .models import PluginData, ReleaseData, PluginRequirement
 from .registry import MetaRegistry, EmptyMetaRegistry, RegistryManager, PluginCatalogueAccess
 from .installer import PluginInstaller
 from .tasks import TaskManager
+
+# 全局实例，供独立插件模式使用
+_helper_instance: Optional['PIMHelper'] = None
 
 class PIMHelper:
     """PIM 助手 - 模块协调者"""
@@ -105,3 +110,83 @@ class PIMHelper:
 
     def get_all_tasks(self) -> Dict[str, Any]:
         return self.installer.task_manager.get_all_tasks()
+
+# --- MCDR 插件入口点 (支持独立运行) ---
+
+def on_load(server: PluginServerInterface, old):
+    global _helper_instance
+    _helper_instance = PIMHelper(server)
+    register_commands(server)
+    server.logger.info("PIM Helper 独立插件模式已就绪")
+
+def register_commands(server: PluginServerInterface):
+    """注册 !!pim 指令树"""
+    
+    def get_helper():
+        return _helper_instance
+
+    def list_plugins(src, ctx):
+        keyword = ctx.get('keyword')
+        get_helper().list_plugins(src, keyword)
+
+    def install_plugin(src, ctx):
+        plugin_id = ctx['plugin_id']
+        version = ctx.get('version')
+        task_id = get_helper().install(plugin_id, version)
+        src.reply(f"已启动安装任务: {task_id} (插件: {plugin_id})")
+        # 启动一个简易的监控线程，将进度反馈给指令源
+        _start_task_monitor(src, task_id)
+
+    def uninstall_plugin(src, ctx):
+        plugin_id = ctx['plugin_id']
+        task_id = get_helper().uninstall(plugin_id)
+        src.reply(f"已启动卸载任务: {task_id} (插件: {plugin_id})")
+        _start_task_monitor(src, task_id)
+
+    def _start_task_monitor(src, task_id):
+        def monitor():
+            last_msg_idx = 0
+            while True:
+                task = get_helper().get_task_status(task_id)
+                if not task: break
+                
+                msgs = task.get('all_messages', [])
+                if len(msgs) > last_msg_idx:
+                    for i in range(last_msg_idx, len(msgs)):
+                        src.reply(f"[{task_id}] {msgs[i]}")
+                    last_msg_idx = len(msgs)
+                
+                if task['status'] in ('completed', 'failed'):
+                    break
+                time.sleep(0.5)
+        
+        threading.Thread(target=monitor, daemon=True).start()
+
+    # 注册指令树
+    server.register_command(
+        Literal('!!pim')
+        .requires(lambda src: src.has_permission(4))
+        .then(
+            Literal('list')
+            .runs(list_plugins)
+            .then(Text('keyword').runs(list_plugins))
+        )
+        .then(
+            Literal('install')
+            .then(
+                Text('plugin_id')
+                .runs(install_plugin)
+                .then(Text('version').runs(install_plugin))
+            )
+        )
+        .then(
+            Literal('uninstall')
+            .then(Text('plugin_id').runs(uninstall_plugin))
+        )
+        .then(
+            Literal('update')
+            .then(Text('plugin_id').runs(install_plugin))
+        )
+    )
+    
+    server.register_help_message('!!pim', 'PIM 插件管理工具')
