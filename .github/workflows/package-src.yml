@@ -88,7 +88,30 @@ jobs:
         name: guguweb_beta.mcdr
         path: .
 
-    - name: Generate pre-release tag
+    - name: Determine release type from commit message
+      id: release_meta
+      run: |
+        COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
+        TITLE=$(printf "%s\n" "$COMMIT_MESSAGE" | head -n 1 | tr -d '\r')
+        BODY=$(printf "%s\n" "$COMMIT_MESSAGE" | tail -n +2 | sed 's/\r$//')
+        TYPE="beta"
+        VERSION_FROM_TITLE=""
+
+        if [[ "$TITLE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          TYPE="formal"
+          VERSION_FROM_TITLE="${TITLE#v}"
+        fi
+
+        echo "type=$TYPE" >> "$GITHUB_OUTPUT"
+        echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+
+        echo "body<<EOF" >> "$GITHUB_OUTPUT"
+        printf "%s\n" "$BODY" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
+
+        echo "version_from_title=$VERSION_FROM_TITLE" >> "$GITHUB_OUTPUT"
+
+    - name: Generate tag
       id: tag
       run: |
         # 从mcdreforged.plugin.json读取版本号
@@ -99,28 +122,46 @@ jobs:
           exit 1
         fi
         echo "Current plugin version: $VERSION"
-        
-        # 生成时间戳标签，格式：v{version}-beta.$(date +%Y%m%d-%H%M%S)
-        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-        TAG="v${VERSION}-beta.${TIMESTAMP}"
-        echo "tag=${TAG}" >> $GITHUB_OUTPUT
-        echo "Generated tag: ${TAG}"
-        
-        # 验证标签格式
-        if [[ ! $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]{8}-[0-9]{6}$ ]]; then
-          echo "Error: Invalid tag format generated: $TAG"
-          echo "Expected format: vX.Y.Z-beta.YYYYMMDD-HHMMSS"
-          echo "Actual tag: $TAG"
-          exit 1
+
+        RELEASE_TYPE="${{ steps.release_meta.outputs.type }}"
+        VERSION_FROM_TITLE="${{ steps.release_meta.outputs.version_from_title }}"
+
+        if [ "$RELEASE_TYPE" = "formal" ]; then
+          if [ -z "$VERSION_FROM_TITLE" ]; then
+            echo "Error: Formal release detected but version_from_title is empty"
+            exit 1
+          fi
+          if [ "$VERSION" != "$VERSION_FROM_TITLE" ]; then
+            echo "Error: Version mismatch between mcdreforged.plugin.json ($VERSION) and commit title (v$VERSION_FROM_TITLE)"
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          echo "Generating formal release tag: ${TAG}"
+        else
+          # 生成时间戳标签，格式：v{version}-beta.$(date +%Y%m%d-%H%M%S)
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          TAG="v${VERSION}-beta.${TIMESTAMP}"
+          echo "Generating beta pre-release tag: ${TAG}"
+
+          # 验证标签格式（仅对 beta 生效）
+          if [[ ! $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]{8}-[0-9]{6}$ ]]; then
+            echo "Error: Invalid tag format generated: $TAG"
+            echo "Expected format: vX.Y.Z-beta.YYYYMMDD-HHMMSS"
+            echo "Actual tag: $TAG"
+            exit 1
+          fi
         fi
-        
+
+        echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
         # 检查是否与现有标签冲突
         echo "Checking for tag conflicts..."
         if gh api repos/${{ github.repository }}/git/refs/tags/$TAG >/dev/null 2>&1; then
           echo "Error: Tag $TAG already exists!"
           exit 1
         fi
-        
+
         echo "✓ Tag $TAG is available"
 
     - name: Delete existing pre-releases
@@ -166,46 +207,109 @@ jobs:
         
         echo "=========================================="
 
-    - name: Create pre-release
+    - name: Delete beta tags for formal release
       run: |
-        echo "Creating pre-release: ${{ steps.tag.outputs.tag }}"
+        RELEASE_TYPE="${{ steps.release_meta.outputs.type }}"
+        if [ "$RELEASE_TYPE" != "formal" ]; then
+          echo "Not a formal release, skip deleting beta tags."
+          exit 0
+        fi
+
+        echo "Searching for beta tags (vX.Y.Z-beta.*) to delete..."
+        BETA_TAG_REFS=$(gh api repos/${{ github.repository }}/git/refs/tags --paginate --jq '.[] | select(.ref | test("refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+-beta\\.")) | .ref' 2>/dev/null || echo "")
+
+        if [ -z "$BETA_TAG_REFS" ]; then
+          echo "No beta tags found."
+        else
+          for REF in $BETA_TAG_REFS; do
+            TAG_NAME=${REF#"refs/tags/"}
+            echo "Deleting beta tag: $TAG_NAME"
+            if gh api repos/${{ github.repository }}/git/refs/tags/$TAG_NAME -X DELETE; then
+              echo "✓ Successfully deleted beta tag: $TAG_NAME"
+            else
+              echo "⚠ Failed to delete beta tag: $TAG_NAME"
+            fi
+          done
+        fi
+
+    - name: Create release
+      run: |
+        RELEASE_TYPE="${{ steps.release_meta.outputs.type }}"
+        TAG="${{ steps.tag.outputs.tag }}"
+        VERSION="${{ steps.tag.outputs.version }}"
+
+        echo "Creating ${RELEASE_TYPE} release: ${TAG}"
         
-        # 检查MCDR文件是否存在
+        # 检查MCDR文件是否存在（构建产物）
         if [ ! -f "guguweb_beta.mcdr" ]; then
           echo "Error: guguweb_beta.mcdr file not found!"
           exit 1
         fi
         
-        # 获取文件大小
+        # 获取原始文件大小
         FILE_SIZE=$(stat -c%s "guguweb_beta.mcdr" 2>/dev/null || stat -f%z "guguweb_beta.mcdr" 2>/dev/null || echo "unknown")
-        echo "File size: ${FILE_SIZE} bytes"
-        
-        # 创建新的pre-release
-        if gh release create ${{ steps.tag.outputs.tag }} \
-          --title "Beta Build v${VERSION} - ${{ steps.tag.outputs.tag }}" \
-          --notes "Automated beta build from source changes
+        echo "Original file size: ${FILE_SIZE} bytes"
 
-        **Build Info:**
-        - Commit: ${{ github.sha }}
-        - Branch: ${{ github.ref_name }}
-        - Build Time: $(date -u)
-        - Triggered by: ${{ github.actor }}
-        - File Size: ${FILE_SIZE} bytes
+        if [ "$RELEASE_TYPE" = "formal" ]; then
+          # 正式版：重命名为 guguweb_v1.x.x.mcdr，并使用提交信息第二行及之后作为说明
+          ASSET_NAME="guguweb_v${VERSION}.mcdr"
+          cp guguweb_beta.mcdr "$ASSET_NAME"
 
-        **Installation:**
-        Download the \`guguweb_beta.mcdr\` file and place it in your MCDR plugins directory.
+          FILE_SIZE=$(stat -c%s "$ASSET_NAME" 2>/dev/null || stat -f%z "$ASSET_NAME" 2>/dev/null || echo "unknown")
+          echo "Formal release asset: ${ASSET_NAME} (${FILE_SIZE} bytes)"
 
-        **Changes:**
-        This is an automated build triggered by changes in the \`src/\` directory." \
-          --prerelease \
-          --target ${{ github.sha }} \
-          guguweb_beta.mcdr; then
-          
-          echo "✓ Successfully created pre-release: ${{ steps.tag.outputs.tag }}"
-          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.tag }}"
+          NOTES_FILE="release_notes.md"
+          # 使用提交信息第二行及之后作为说明（可多行）
+          printf '%s\n' "${{ steps.release_meta.outputs.body }}" > "$NOTES_FILE"
+
+          if gh release create "$TAG" \
+            --title "v${VERSION}" \
+            --notes-file "$NOTES_FILE" \
+            --target ${{ github.sha }} \
+            "$ASSET_NAME"; then
+            
+            echo "✓ Successfully created formal release: $TAG"
+            echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/${TAG}"
+          else
+            echo "❌ Failed to create formal release"
+            exit 1
+          fi
         else
-          echo "❌ Failed to create pre-release"
-          exit 1
+          # Beta 版：保持原有文件名和自动说明
+          ASSET_NAME="guguweb_beta.mcdr"
+          NOTES_FILE="beta_notes.md"
+          BUILD_TIME=$(date -u)
+
+          {
+            echo "Automated beta build from source changes"
+            echo
+            echo "**Build Info:**"
+            echo "- Commit: ${{ github.sha }}"
+            echo "- Branch: ${{ github.ref_name }}"
+            echo "- Build Time: ${BUILD_TIME}"
+            echo "- Triggered by: ${{ github.actor }}"
+            echo "- File Size: ${FILE_SIZE} bytes"
+            echo
+            echo "**Installation:**"
+            echo "Download the \`${ASSET_NAME}\` file and place it in your MCDR plugins directory."
+            echo
+            echo "**Changes:**"
+            echo "This is an automated build triggered by changes in the \`src/\` directory."
+          } > "$NOTES_FILE"
+
+          if gh release create "$TAG" \
+            --title "Beta Build v${VERSION} - ${TAG}" \
+            --notes-file "$NOTES_FILE" \
+            --prerelease \
+            --target ${{ github.sha }} \
+            "$ASSET_NAME"; then
+            
+            echo "✓ Successfully created beta pre-release: $TAG"
+            echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/${TAG}"
+          else
+            echo "❌ Failed to create beta pre-release"
+            exit 1
+          fi
         fi
 
     - name: Clean up
