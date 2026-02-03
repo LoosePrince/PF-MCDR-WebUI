@@ -27,7 +27,7 @@ import {
   ArrowUpCircle,
   Download
 } from 'lucide-react';
-import axios from 'axios';
+import api, { isCancel } from '../utils/api';
 import { VersionSelectModal } from '../components/VersionSelectModal';
 
 interface PluginDescription {
@@ -141,19 +141,19 @@ const LocalPlugins: React.FC = () => {
   const fetchPlugins = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const resp = await axios.get('/api/plugins', { signal });
+      const resp = await api.get('/plugins', { signal });
       const pluginList = resp.data.plugins || [];
 
       // Fetch repository info for each plugin concurrently
       const pluginsWithRepo = await Promise.all(pluginList.map(async (p: PluginMetadata) => {
         try {
-          const repoResp = await axios.get(`/api/pim/plugin_repository?plugin_id=${p.id}`, { signal });
+          const repoResp = await api.get(`/pim/plugin_repository?plugin_id=${p.id}`, { signal });
           if (repoResp.data.success) {
             return { ...p, repository: repoResp.data.repository };
           }
         } catch (e: any) {
           // 忽略取消的请求错误和repo获取错误
-          if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+          if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
             throw e; // 重新抛出取消错误，让外层处理
           }
           // Ignore repo fetch errors
@@ -164,7 +164,7 @@ const LocalPlugins: React.FC = () => {
       setPlugins(pluginsWithRepo);
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to fetch plugins:', error);
@@ -201,7 +201,7 @@ const LocalPlugins: React.FC = () => {
     }
     taskPollingRef.current = true;
     try {
-      const resp = await axios.get(`/api/pim/task_status?task_id=${taskId}`);
+      const resp = await api.get(`/pim/task_status?task_id=${taskId}`);
       if (resp.data.success && resp.data.task_info) {
         const taskInfo = resp.data.task_info;
         const status: TaskStatus = {
@@ -250,7 +250,7 @@ const LocalPlugins: React.FC = () => {
     try {
       // status 'loaded' -> false (unload), others -> true (load)
       const targetStatus = plugin.status !== 'loaded';
-      const resp = await axios.post('/api/toggle_plugin', {
+      const resp = await api.post('/toggle_plugin', {
         plugin_id: plugin.id,
         status: targetStatus
       });
@@ -276,7 +276,7 @@ const LocalPlugins: React.FC = () => {
     }
 
     try {
-      const resp = await axios.post('/api/reload_plugin', {
+      const resp = await api.post('/reload_plugin', {
         plugin_id: plugin.id
       });
       if (resp.data.status === 'success') {
@@ -301,7 +301,7 @@ const LocalPlugins: React.FC = () => {
 
   const confirmUninstall = async (plugin: PluginMetadata) => {
     try {
-      const resp = await axios.post('/api/pim/uninstall_plugin', {
+      const resp = await api.post('/pim/uninstall_plugin', {
         plugin_id: plugin.id
       });
       if (resp.data.success) {
@@ -329,7 +329,7 @@ const LocalPlugins: React.FC = () => {
 
   const confirmUpdate = async (plugin: PluginMetadata) => {
     try {
-      const resp = await axios.post('/api/pim/update_plugin', {
+      const resp = await api.post('/pim/update_plugin', {
         plugin_id: plugin.id
       });
       if (resp.data.success) {
@@ -354,7 +354,7 @@ const LocalPlugins: React.FC = () => {
     setConfigData(null);
     setConfigTranslations(null);
     try {
-      const resp = await axios.get(`/api/list_config_files?plugin_id=${plugin.id}`);
+      const resp = await api.get(`/list_config_files?plugin_id=${plugin.id}`);
       setConfigFiles(resp.data.files || []);
     } catch (error) {
       notify(t('plugins.msg.load_config_files_failed'), 'error');
@@ -369,12 +369,12 @@ const LocalPlugins: React.FC = () => {
     setLoadingConfigs(true);
     try {
       if (mode === 'code') {
-        const resp = await axios.get(`/api/load_config_file?path=${encodeURIComponent(file)}`);
+        const resp = await api.get(`/load_config_file?path=${encodeURIComponent(file)}`);
         const data = resp.data;
         setConfigContent(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
       } else if (mode === 'web') {
         // Force auto type to get HTML from backend
-        const resp = await axios.get(`/api/load_config?path=${encodeURIComponent(file)}&type=auto`);
+        const resp = await api.get(`/load_config?path=${encodeURIComponent(file)}&type=auto`);
         if (resp.data && resp.data.type === 'html') {
           setConfigContent(resp.data.content);
         } else {
@@ -384,7 +384,7 @@ const LocalPlugins: React.FC = () => {
         }
       } else {
         // Force json type to avoid auto-switching to HTML
-        const resp = await axios.get(`/api/load_config?path=${encodeURIComponent(file)}&type=json`);
+        const resp = await api.get(`/load_config?path=${encodeURIComponent(file)}&type=json`);
         
         // Validation: If backend still returns HTML structure when JSON is requested, ignore it
         if (resp.data && resp.data.type === 'html') {
@@ -396,7 +396,7 @@ const LocalPlugins: React.FC = () => {
         setConfigData(resp.data);
         // Fetch translations - explicitly set type=json to avoid HTML return
         try {
-          const transResp = await axios.get(`/api/load_config?path=${encodeURIComponent(file)}&translation=true&type=json`);
+          const transResp = await api.get(`/load_config?path=${encodeURIComponent(file)}&translation=true&type=json`);
           setConfigTranslations(transResp.data);
         } catch (e) {
           console.error('Failed to load translations:', e);
@@ -417,12 +417,12 @@ const LocalPlugins: React.FC = () => {
     try {
       let resp;
       if (editorMode === 'code') {
-        resp = await axios.post('/api/save_config_file', {
+        resp = await api.post('/save_config_file', {
           action: editingFile,
           content: configContent
         });
       } else {
-        resp = await axios.post('/api/save_config', {
+        resp = await api.post('/save_config', {
           file_path: editingFile,
           config_data: configData
         });
@@ -443,7 +443,7 @@ const LocalPlugins: React.FC = () => {
 
   const handleReloadAll = async () => {
     try {
-      const resp = await axios.post('/api/reload_all_plugins');
+      const resp = await api.post('/reload_all_plugins');
       if (resp.data.status === 'success') {
         notify(t('plugins.msg.reload_success'), 'success');
         fetchPlugins();
@@ -475,7 +475,7 @@ const LocalPlugins: React.FC = () => {
     setLoadingVersions(true);
     setShowVersionModal(true);
     try {
-      const resp = await axios.get(`/api/pim/plugin_versions_v2?plugin_id=${plugin.id}`);
+      const resp = await api.get(`/pim/plugin_versions_v2?plugin_id=${plugin.id}`);
       if (resp.data.success) {
         // 映射后端字段到前端字段，并格式化日期
         const versions = (resp.data.versions || []).map((v: any) => ({

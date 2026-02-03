@@ -82,6 +82,8 @@ function AppContent() {
   )
 }
 
+import { getBasePath } from './utils/api'
+
 function App() {
   const { i18n } = useTranslation()
 
@@ -89,16 +91,6 @@ function App() {
   React.useEffect(() => {
     document.documentElement.lang = i18n.language
   }, [i18n.language])
-
-  // 动态获取 base path（支持 fastapi_mcdr 的子路径模式）
-  const getBasePath = () => {
-    // 如果当前路径包含 /guguwebui，说明使用了 fastapi_mcdr
-    const pathname = window.location.pathname
-    if (pathname.startsWith('/guguwebui')) {
-      return '/guguwebui'
-    }
-    return ''
-  }
 
   return (
     <BrowserRouter basename={getBasePath()}>

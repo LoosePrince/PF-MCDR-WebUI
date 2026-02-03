@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import axios from 'axios'
+import api from '../utils/api'
 
 interface IcpRecord {
   icp: string
@@ -20,7 +20,7 @@ const VersionFooter: React.FC<VersionFooterProps> = ({ className = '' }) => {
     const fetchData = async () => {
       try {
         // 获取版本信息
-        const { data: pluginData } = await axios.get('/api/plugins', {
+        const { data: pluginData } = await api.get('/plugins', {
           params: { plugin_id: 'guguwebui' },
         })
         if (cancelled) return
@@ -31,7 +31,7 @@ const VersionFooter: React.FC<VersionFooterProps> = ({ className = '' }) => {
         }
 
         // 获取 ICP 备案信息
-        const { data: icpData } = await axios.get('/api/config/icp-records')
+        const { data: icpData } = await api.get('/config/icp-records')
         if (cancelled) return
         if (icpData.status === 'success' && Array.isArray(icpData.icp_records)) {
           setIcpRecords(icpData.icp_records)

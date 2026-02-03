@@ -32,7 +32,7 @@ import {
   FileText,
   BookOpen
 } from 'lucide-react';
-import axios from 'axios';
+import api, { isCancel } from '../utils/api';
 import { VersionSelectModal } from '../components/VersionSelectModal';
 import { NiceSelect } from '../components/NiceSelect';
 
@@ -159,13 +159,13 @@ const OnlinePlugins: React.FC = () => {
   // 获取本地插件以比对安装状态
   const fetchLocalPlugins = useCallback(async (signal?: AbortSignal) => {
     try {
-      const resp = await axios.get('/api/plugins', { signal });
+      const resp = await api.get('/plugins', { signal });
       if (resp.data && resp.data.plugins) {
         setLocalPlugins(resp.data.plugins);
       }
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to fetch local plugins:', error);
@@ -174,7 +174,7 @@ const OnlinePlugins: React.FC = () => {
 
   const fetchRepositories = useCallback(async (signal?: AbortSignal) => {
     try {
-      const resp = await axios.get('/api/get_web_config', { signal });
+      const resp = await api.get('/get_web_config', { signal });
       const data = resp.data;
       const repos: Repository[] = [
         { name: t('page.settings.repo.official'), url: data.mcdr_plugins_url || '', repoId: 0 },
@@ -191,7 +191,7 @@ const OnlinePlugins: React.FC = () => {
       if (!selectedRepo && repos.length > 0) setSelectedRepo(repos[0].url);
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to fetch repositories:', error);
@@ -202,14 +202,14 @@ const OnlinePlugins: React.FC = () => {
     setLoading(true);
     await fetchLocalPlugins(signal);
     try {
-      const resp = await axios.get('/api/online-plugins', {
+      const resp = await api.get('/online-plugins', {
         params: { repo_url: selectedRepo || undefined },
         signal
       });
       setPlugins(resp.data || []);
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to fetch online plugins:', error);
@@ -263,7 +263,7 @@ const OnlinePlugins: React.FC = () => {
     }
     taskPollingRef.current = true;
     try {
-      const resp = await axios.get(`/api/pim/task_status?task_id=${taskId}`);
+      const resp = await api.get(`/pim/task_status?task_id=${taskId}`);
       if (resp.data.success && resp.data.task_info) {
         const taskInfo = resp.data.task_info;
         const status: TaskStatus = {
@@ -334,7 +334,7 @@ const OnlinePlugins: React.FC = () => {
     }
 
     try {
-      const resp = await axios.post('/api/pim/install_plugin', {
+      const resp = await api.post('/pim/install_plugin', {
         plugin_id: pluginId,
         version: version,
         repo_url: selectedRepo || undefined
@@ -363,7 +363,7 @@ const OnlinePlugins: React.FC = () => {
     setLoadingVersions(true);
     setShowVersionModal(true);
     try {
-      const resp = await axios.get(`/api/pim/plugin_versions_v2`, {
+      const resp = await api.get(`/pim/plugin_versions_v2`, {
         params: { plugin_id: plugin.id, repo_url: selectedRepo || undefined }
       });
       if (resp.data.success) {
@@ -443,7 +443,7 @@ const OnlinePlugins: React.FC = () => {
 
     setLoadingReadme(true);
     try {
-      const resp = await axios.get(plugin.readme_url);
+      const resp = await api.get(plugin.readme_url);
       const content = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data, null, 2);
       // 只显示前500个字符作为预览
       setPluginReadme(content.length > 500 ? content.substring(0, 500) + '...' : content);
@@ -474,7 +474,7 @@ const OnlinePlugins: React.FC = () => {
 
     try {
       const url = defaultType === 'readme' ? plugin.readme_url : catalogue;
-      const resp = await axios.get(url);
+      const resp = await api.get(url);
       setReadmeContent(typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data, null, 2));
     } catch (error) {
       console.error('Failed to fetch readme content:', error);
@@ -499,7 +499,7 @@ const OnlinePlugins: React.FC = () => {
           : t('page.online_plugins.catalogue_doc');
         throw new Error(t('page.online_plugins.msg.doc_not_found', { docType }));
       }
-      const resp = await axios.get(url);
+      const resp = await api.get(url);
       setReadmeContent(typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data, null, 2));
     } catch (error) {
       console.error(`Error switching to ${type}:`, error);

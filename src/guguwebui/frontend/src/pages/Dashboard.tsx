@@ -19,7 +19,7 @@ import {
   Info,
   X
 } from 'lucide-react'
-import axios from 'axios'
+import api, { isCancel } from '../utils/api'
 
 interface ServerStatus {
   status: 'online' | 'offline' | 'loading' | 'error'
@@ -82,7 +82,7 @@ const Dashboard: React.FC = () => {
       if (cachedStatus) {
         setServerStatus(cachedStatus)
       } else {
-        const statusResp = await axios.get('/api/get_server_status', { signal })
+        const statusResp = await api.get('/get_server_status', { signal })
         setServerStatus(statusResp.data)
         // 缓存5秒
         cache.set('server_status', statusResp.data, 5000)
@@ -93,7 +93,7 @@ const Dashboard: React.FC = () => {
       if (cachedRcon) {
         setRconStatus(cachedRcon)
       } else {
-        const rconResp = await axios.get('/api/get_rcon_status', { signal })
+        const rconResp = await api.get('/get_rcon_status', { signal })
         if (rconResp.data.status === 'success') {
           const rconData = {
             rcon_enabled: rconResp.data.rcon_enabled,
@@ -106,7 +106,7 @@ const Dashboard: React.FC = () => {
       }
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch dashboard data:', error)
@@ -128,7 +128,7 @@ const Dashboard: React.FC = () => {
   const refreshPipPackages = useCallback(async (signal?: AbortSignal) => {
     setLoadingPipPackages(true)
     try {
-      const { data } = await axios.get('/api/pip/list', { signal })
+      const { data } = await api.get('/pip/list', { signal })
       if (data.status === 'success') {
         setPipPackages(data.packages || [])
       } else {
@@ -140,7 +140,7 @@ const Dashboard: React.FC = () => {
       }
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return
       }
       console.error('Error fetching pip packages:', error)
@@ -156,7 +156,7 @@ const Dashboard: React.FC = () => {
 
   const pollPipTaskStatus = useCallback(async (taskId: string) => {
     try {
-      const { data } = await axios.get('/api/pip/task_status', {
+      const { data } = await api.get('/pip/task_status', {
         params: { task_id: taskId },
       })
 
@@ -219,7 +219,7 @@ const Dashboard: React.FC = () => {
 
     try {
       const payload = pkgName ? { package: pkgName } : {}
-      const { data } = await axios.post(url, payload)
+      const { data } = await api.post(url, payload)
 
       if (data.status !== 'success' || !data.task_id) {
         setPipOutput(prev => [
@@ -255,18 +255,18 @@ const Dashboard: React.FC = () => {
   const handleInstallPip = useCallback(async () => {
     if (!newPipPackage.trim() || installingPip) return
     setShowInstallPipModal(false)
-    await startPipOperation('/api/pip/install', newPipPackage.trim(), true)
+    await startPipOperation('/pip/install', newPipPackage.trim(), true)
   }, [installingPip, newPipPackage, startPipOperation])
 
   const handleUninstallPip = useCallback(async (pkgName: string) => {
     if (!pkgName || uninstallingPip) return
-    await startPipOperation('/api/pip/uninstall', pkgName, false)
+    await startPipOperation('/pip/uninstall', pkgName, false)
   }, [startPipOperation, uninstallingPip])
 
   const setupRcon = useCallback(async () => {
     try {
       setSettingUpRcon(true)
-      const { data } = await axios.post('/api/setup_rcon')
+      const { data } = await api.post('/setup_rcon')
 
       if (data.status === 'success') {
         setShowRconSetupModal(false)
@@ -297,7 +297,7 @@ const Dashboard: React.FC = () => {
   const fetchWebVersion = useCallback(async (signal?: AbortSignal) => {
     try {
       // 使用 plugin_id 精确获取指定插件信息，替代 detail=false 的用法
-      const { data } = await axios.get('/api/plugins', { params: { plugin_id: 'guguwebui' }, signal })
+      const { data } = await api.get('/plugins', { params: { plugin_id: 'guguwebui' }, signal })
       const plugins = Array.isArray(data.plugins) ? data.plugins : []
       const webui = plugins[0]
       if (webui && webui.version) {
@@ -307,7 +307,7 @@ const Dashboard: React.FC = () => {
       setWebVersion(t('page.index.unknown'))
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch WebUI version:', error)
@@ -346,7 +346,7 @@ const Dashboard: React.FC = () => {
   const handleAction = async (action: 'start' | 'stop' | 'restart') => {
     setActionLoading(action)
     try {
-      const { data } = await axios.post('/api/control_server', { action })
+      const { data } = await api.post('/control_server', { action })
       if (data.status === 'success') {
         const actionText =
           action === 'start'

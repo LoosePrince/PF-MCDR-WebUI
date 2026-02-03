@@ -99,10 +99,24 @@ __all__ = ['app', 'init_app', 'get_plugins_info', 'log_watcher', 'DEFALUT_CONFIG
 # SPA 入口文件路径
 static_index_path = Path(STATIC_PATH) / "static" / "index.html"
 
-def serve_spa_index(request: Request) -> FileResponse:
-    """返回 SPA 的 index.html 文件，用于客户端路由"""
+def serve_spa_index(request: Request) -> HTMLResponse:
+    """返回 SPA 的 index.html 文件，并注入配置"""
     if static_index_path.exists():
-        return FileResponse(str(static_index_path))
+        with open(static_index_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # 获取当前应用的根路径
+        root_path = request.scope.get("root_path", "")
+        if not root_path.endswith("/"):
+            root_path += "/"
+        
+        # 注入全局变量和 <base> 标签以支持相对路径
+        # root_path 示例: "" -> "/", "/guguwebui" -> "/guguwebui/"
+        config_script = f'<script>window.__GUGU_CONFIG__ = {json.dumps({"root_path": root_path.rstrip("/")})};</script>'
+        base_tag = f'<base href="{root_path}">'
+        content = content.replace('<head>', f'<head>{base_tag}{config_script}')
+        
+        return HTMLResponse(content=content)
     else:
         # 如果 index.html 不存在，返回简单的错误页面
         return HTMLResponse(
@@ -204,8 +218,12 @@ def on_server_output(server, info):
 def on_mcdr_info(server, info):
     """处理MCDR信息事件"""
     global log_watcher
+    # 增加调试日志
+    server.logger.debug(f"收到 MCDR 日志事件: {getattr(info, 'content', '')[:50]}...")
     if log_watcher:
         log_watcher.on_mcdr_info(server, info)
+    else:
+        server.logger.warning("LogWatcher 尚未初始化，无法记录日志")
 
 
 # 语言列表 API：返回 /lang 目录下的 json 文件及其显示名称

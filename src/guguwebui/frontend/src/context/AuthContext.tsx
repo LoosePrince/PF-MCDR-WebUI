@@ -1,7 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react'
-import axios from 'axios'
-
-const API_BASE = '/api'
+import api, { getBasePath } from '../utils/api'
 
 interface AuthContextType {
   isAuthenticated: boolean | null
@@ -25,7 +23,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkLoginStatus = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/checkLogin`)
+      const response = await api.get('/checkLogin')
       if (response.data.status === 'success') {
         setIsAuthenticated(true)
         setUsername(response.data.username)
@@ -48,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       formData.append('password', password)
       formData.append('remember', remember.toString())
 
-      const response = await axios.post(`${API_BASE}/login`, formData, {
+      const response = await api.post('/login', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -71,10 +69,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await axios.get('/logout')
+      await api.get(getBasePath() + '/logout')
       setIsAuthenticated(false)
       setUsername(null)
-      window.location.href = '/login'
+      window.location.href = getBasePath() + '/login'
     } catch (error) {
       console.error('Logout error:', error)
     }

@@ -98,6 +98,7 @@ class saveconfig(BaseModel):
     chat_verification_expire_minutes: Optional[int] = None
     chat_session_expire_hours: Optional[int] = None
     force_standalone: Optional[bool] = None
+    icp_records: Optional[list] = None
 
 class toggleconfig(BaseModel):
     plugin_id: str

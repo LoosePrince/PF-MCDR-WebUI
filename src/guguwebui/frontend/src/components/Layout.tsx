@@ -22,7 +22,7 @@ import {
   X,
   Languages
 } from 'lucide-react'
-import axios from 'axios'
+import api from '../utils/api'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
 import VersionFooter from './VersionFooter'
@@ -44,7 +44,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     const fetchPluginPages = async () => {
       try {
-        const resp = await axios.get('/api/plugins/web_pages')
+        const resp = await api.get('/plugins/web_pages')
         setPluginPages(resp.data.pages || [])
       } catch (err) {
         console.error('Failed to fetch registered plugin pages:', err)

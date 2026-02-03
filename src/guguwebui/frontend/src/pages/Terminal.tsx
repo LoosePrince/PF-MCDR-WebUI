@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
-import axios from 'axios'
+import api, { isCancel } from '../utils/api'
 import {
   Terminal as TerminalIcon,
   RotateCcw,
@@ -235,12 +235,12 @@ const Terminal: React.FC = () => {
     if (statusFetchingRef.current) return
     statusFetchingRef.current = true
     try {
-      const res = await axios.get('/api/get_server_status', { signal })
+      const res = await api.get('/get_server_status', { signal })
       setServerStatus(res.data.status || 'offline')
       setServerVersion(res.data.version || '')
     } catch (e: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+      if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
         return
       }
       setServerStatus('error')
@@ -251,12 +251,12 @@ const Terminal: React.FC = () => {
 
   const checkApiKeyStatus = async (signal?: AbortSignal) => {
     try {
-      const res = await axios.get('/api/get_web_config', { signal })
+      const res = await api.get('/get_web_config', { signal })
       const config: AIConfig = res.data
       setHasApiKey(!!config.ai_api_key_configured)
     } catch (e: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+      if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to check API key status', e)
@@ -266,7 +266,7 @@ const Terminal: React.FC = () => {
   const loadLogs = async (signal?: AbortSignal) => {
     setIsLoading(true)
     try {
-      const res = await axios.get('/api/server_logs', { params: { max_lines: 500 }, signal })
+      const res = await api.get('/server_logs', { params: { max_lines: 500 }, signal })
       if (res.data.status === 'success') {
         const newLogs: LogItem[] = res.data.logs || []
         setLogs(newLogs)
@@ -276,7 +276,7 @@ const Terminal: React.FC = () => {
       }
     } catch (e: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+      if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
         return
       }
       showNote(t('page.terminal.msg.load_logs_failed'), 'error')
@@ -291,7 +291,7 @@ const Terminal: React.FC = () => {
     newLogsFetchingRef.current = true
 
     try {
-      const res = await axios.get('/api/new_logs', {
+      const res = await api.get('/new_logs', {
         params: {
           last_counter: lastLogCounter.current,
           max_lines: 100
@@ -318,7 +318,7 @@ const Terminal: React.FC = () => {
       }
     } catch (e: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+      if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
         return
       }
       console.error('Error fetching new logs', e)
@@ -339,7 +339,7 @@ const Terminal: React.FC = () => {
     }
 
     try {
-      const res = await axios.post('/api/send_command', { command: cmd })
+      const res = await api.post('/send_command', { command: cmd })
       if (res.data.status === 'success') {
         // Update History
         setCommandHistory(prev => {
@@ -373,7 +373,7 @@ const Terminal: React.FC = () => {
 
     // Debounce handled by caller or simple timer here
     try {
-      const res = await axios.get('/api/command_suggestions', { params: { input } })
+      const res = await api.get('/command_suggestions', { params: { input } })
       if (res.data.status === 'success') {
         const list = res.data.suggestions || []
         setSuggestions(list)
@@ -493,7 +493,7 @@ const Terminal: React.FC = () => {
         payload.chat_history = aiChatHistory
       }
 
-      const res = await axios.post('/api/deepseek', payload)
+      const res = await api.post('/deepseek', payload)
       if (res.data.status === 'success') {
         const answer = res.data.answer
         setAiChatHistory(prev => [
@@ -834,7 +834,7 @@ const Terminal: React.FC = () => {
             <button
               onClick={async () => {
                 try {
-                  const res = await axios.post('/api/save_web_config', { action: 'config', ai_api_key: apiKey.trim() })
+                  const res = await api.post('/save_web_config', { action: 'config', ai_api_key: apiKey.trim() })
                   if (res.data.status === 'success') {
                     showNote(t('page.terminal.ai_modal.save_success'), 'success')
                     setHasApiKey(true)

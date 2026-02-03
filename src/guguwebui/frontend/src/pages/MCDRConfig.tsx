@@ -18,7 +18,7 @@ import {
   Globe,
   BookOpen
 } from 'lucide-react';
-import axios from 'axios';
+import api, { isCancel } from '../utils/api';
 import { NiceSelect } from '../components/NiceSelect';
 
 interface RconConfig {
@@ -67,14 +67,14 @@ const MCDRConfig: React.FC = () => {
     setLoading(true);
     try {
       const [configResp, permResp] = await Promise.all([
-        axios.get('/api/load_config?path=config.yml', { signal }),
-        axios.get('/api/load_config?path=permission.yml', { signal })
+        api.get('/load_config?path=config.yml', { signal }),
+        api.get('/load_config?path=permission.yml', { signal })
       ]);
       setConfigData(configResp.data);
       setPermissionData(permResp.data);
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to load MCDR config:', error);
@@ -95,7 +95,7 @@ const MCDRConfig: React.FC = () => {
     setSaving(true);
     const data = file === 'config.yml' ? configData : permissionData;
     try {
-      const resp = await axios.post('/api/save_config', {
+      const resp = await api.post('/save_config', {
         file_path: file,
         config_data: data
       });
@@ -114,13 +114,13 @@ const MCDRConfig: React.FC = () => {
   const setupRcon = async () => {
     setSettingUpRcon(true);
     try {
-      const resp = await axios.post('/api/setup_rcon');
+      const resp = await api.post('/setup_rcon');
       if (resp.data.status === 'success') {
         setRconConfig(resp.data.config);
         setShowRconSetupModal(false);
         setShowRconRestartModal(true);
         // Reload config to show new values
-        const configResp = await axios.get('/api/load_config?path=config.yml');
+        const configResp = await api.get('/load_config?path=config.yml');
         setConfigData(configResp.data);
         notify(t('page.mcdr.rcon.setup_success_msg'), 'success');
       } else {
@@ -136,7 +136,7 @@ const MCDRConfig: React.FC = () => {
   const restartServer = async () => {
     setRestarting(true);
     try {
-      const resp = await axios.post('/api/control_server', { action: 'restart' });
+      const resp = await api.post('/control_server', { action: 'restart' });
       if (resp.data.status === 'success') {
         setShowRconRestartModal(false);
         notify(t('page.mcdr.rcon.restart_success'), 'success');

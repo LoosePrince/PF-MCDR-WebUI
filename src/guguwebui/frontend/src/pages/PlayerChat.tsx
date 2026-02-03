@@ -16,7 +16,7 @@ import {
   ChevronLeft,
   X
 } from 'lucide-react'
-import axios from 'axios'
+import api from '../utils/api'
 import VersionFooter from '../components/VersionFooter'
 import { parseRText } from '../utils/rtextParser'
 
@@ -141,7 +141,7 @@ const PlayerChat: React.FC = () => {
       if (!sessionId) return
   
       try {
-        const resp = await axios.post('/api/chat/check_session', { session_id: sessionId })
+        const resp = await api.post('/chat/check_session', { session_id: sessionId })
         if (resp.data.status === 'success' && resp.data.valid) {
           setIsLoggedIn(true)
           setCurrentPlayer(resp.data.player_id)
@@ -167,7 +167,7 @@ const PlayerChat: React.FC = () => {
   const fetchInitialMessages = useCallback(async () => {
     setIsLoadingMessages(true)
     try {
-      const resp = await axios.post('/api/chat/get_messages', { limit: 50, offset: 0 })
+      const resp = await api.post('/chat/get_messages', { limit: 50, offset: 0 })
       if (resp.data.status === 'success') {
         const msgs = resp.data.messages || []
         setChatMessages(msgs)
@@ -188,7 +188,7 @@ const PlayerChat: React.FC = () => {
     const currentMaxId = chatMessagesRef.current.length > 0 ? Math.max(...chatMessagesRef.current.map(m => m.id)) : 0
 
     try {
-      const resp = await axios.post('/api/chat/get_new_messages', { 
+      const resp = await api.post('/chat/get_new_messages', { 
         after_id: currentMaxId, 
         player_id: currentPlayer 
       })
@@ -217,8 +217,8 @@ const PlayerChat: React.FC = () => {
     statusFetchingRef.current = true
     try {
       const sessionId = localStorage.getItem('chat_session_id') || ''
-      const url = sessionId ? `/api/get_server_status?session_id=${encodeURIComponent(sessionId)}` : '/api/get_server_status'
-      const resp = await axios.get(url)
+      const url = sessionId ? `/get_server_status?session_id=${encodeURIComponent(sessionId)}` : '/get_server_status'
+      const resp = await api.get(url)
       setServerStatus({
         status: resp.data.status || 'unknown',
         version: resp.data.version || '',
@@ -254,7 +254,7 @@ const PlayerChat: React.FC = () => {
     if (isLoadingMessages) return
     setIsLoadingMessages(true)
     try {
-      const resp = await axios.post('/api/chat/get_messages', { limit, before_id: beforeId })
+      const resp = await api.post('/chat/get_messages', { limit, before_id: beforeId })
       if (resp.data.status === 'success') {
         const msgs = resp.data.messages || []
         setChatMessages(prev => [...prev, ...msgs])
@@ -303,7 +303,7 @@ const PlayerChat: React.FC = () => {
     setIsGenerating(true)
     setAuthError('')
     try {
-      const resp = await axios.post('/api/chat/generate_code')
+      const resp = await api.post('/chat/generate_code')
       if (resp.data.status === 'success') {
         setVerificationCode(resp.data.code)
         setCurrentStep(2)
@@ -321,7 +321,7 @@ const PlayerChat: React.FC = () => {
     setIsChecking(true)
     setAuthError('')
     try {
-      const resp = await axios.post('/api/chat/check_verification', { code: verificationCode })
+      const resp = await api.post('/chat/check_verification', { code: verificationCode })
       if (resp.data.status === 'success' && resp.data.verified) {
         setCurrentStep(3)
       } else {
@@ -347,7 +347,7 @@ const PlayerChat: React.FC = () => {
     setIsSettingPassword(true)
     setAuthError('')
     try {
-      const resp = await axios.post('/api/chat/set_password', {
+      const resp = await api.post('/chat/set_password', {
         code: verificationCode,
         password: newPassword
       })
@@ -372,7 +372,7 @@ const PlayerChat: React.FC = () => {
     setIsLoggingIn(true)
     setAuthError('')
     try {
-      const resp = await axios.post('/api/chat/login', {
+      const resp = await api.post('/chat/login', {
         player_id: loginPlayerId,
         password: loginPassword
       })
@@ -411,7 +411,7 @@ const PlayerChat: React.FC = () => {
     setIsSending(true)
     try {
       const sessionId = localStorage.getItem('chat_session_id')
-      const resp = await axios.post('/api/chat/send_message', {
+      const resp = await api.post('/chat/send_message', {
         message: chatMessage.trim(),
         player_id: currentPlayer,
         session_id: sessionId
@@ -446,7 +446,7 @@ const PlayerChat: React.FC = () => {
           // 执行命令：发送到服务器
           try {
             const sessionId = localStorage.getItem('chat_session_id')
-            await axios.post('/api/chat/send_message', {
+            await api.post('/chat/send_message', {
               message: command,
               player_id: currentPlayer,
               session_id: sessionId

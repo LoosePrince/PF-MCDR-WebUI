@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Puzzle, Loader2, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api';
 
 const PluginPage: React.FC = () => {
   const { pluginId } = useParams<{ pluginId: string }>();
@@ -19,7 +19,7 @@ const PluginPage: React.FC = () => {
       setError(null);
       try {
         // 先获取注册的页面信息
-        const pagesResp = await axios.get('/api/plugins/web_pages');
+        const pagesResp = await api.get('/plugins/web_pages');
         const pages = pagesResp.data.pages || [];
         const pageInfo = pages.find((p: any) => p.id === pluginId);
         
@@ -30,7 +30,7 @@ const PluginPage: React.FC = () => {
         }
 
         // 加载 HTML 内容
-        const resp = await axios.get(`/api/load_config?path=${encodeURIComponent(pageInfo.path)}&type=auto`);
+        const resp = await api.get(`/load_config?path=${encodeURIComponent(pageInfo.path)}&type=auto`);
         if (resp.data && resp.data.type === 'html') {
           setHtmlContent(resp.data.content);
         } else {

@@ -10,11 +10,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  base: '',
   build: {
     outDir: '../static',
     emptyOutDir: true,
-    // 设置资源基础路径，因为静态文件被挂载到 /static 路径
-    base: '/static/',
     // 路由已懒加载，主包已拆分；vendor 单库体积较大时放宽告警阈值
     chunkSizeWarningLimit: 600,
     rollupOptions: {

@@ -10,7 +10,7 @@ import {
   UserX,
   MessageSquare
 } from 'lucide-react'
-import axios from 'axios'
+import api from '../utils/api'
 import { useAuth } from '../hooks/useAuth'
 import { parseRText } from '../utils/rtextParser'
 
@@ -97,7 +97,7 @@ const Chat: React.FC = () => {
   const fetchInitialMessages = useCallback(async () => {
     setIsLoadingMessages(true)
     try {
-      const resp = await axios.post('/api/chat/get_messages', { limit: 50, offset: 0 })
+      const resp = await api.post('/chat/get_messages', { limit: 50, offset: 0 })
       if (resp.data.status === 'success') {
         const msgs = resp.data.messages || []
         // Backend returns newest first [N, ..., O], we want [O, ..., N] for rendering
@@ -119,7 +119,7 @@ const Chat: React.FC = () => {
     const currentMaxId = chatMessagesRef.current.length > 0 ? Math.max(...chatMessagesRef.current.map(m => m.id)) : 0
 
     try {
-      const resp = await axios.post('/api/chat/get_new_messages', { 
+      const resp = await api.post('/chat/get_new_messages', { 
         after_id: currentMaxId, 
         player_id: username
       })
@@ -148,7 +148,7 @@ const Chat: React.FC = () => {
     if (statusFetchingRef.current) return
     statusFetchingRef.current = true
     try {
-      const resp = await axios.get('/api/get_server_status')
+      const resp = await api.get('/get_server_status')
       setServerStatus({
         status: resp.data.status || 'unknown',
         version: resp.data.version || '',
@@ -181,7 +181,7 @@ const Chat: React.FC = () => {
     const scrollHeight = chatContainerRef.current?.scrollHeight || 0
     
     try {
-      const resp = await axios.post('/api/chat/get_messages', { limit, before_id: beforeId })
+      const resp = await api.post('/chat/get_messages', { limit, before_id: beforeId })
       if (resp.data.status === 'success') {
         const msgs = resp.data.messages || []
         // msgs are newer -> older history. For state [Old -> New], prepend them reversed.
@@ -213,7 +213,7 @@ const Chat: React.FC = () => {
 
     setIsSending(true)
     try {
-      const resp = await axios.post('/api/chat/send_message', {
+      const resp = await api.post('/chat/send_message', {
         message: chatMessage.trim(),
         player_id: username
       })
@@ -235,7 +235,7 @@ const Chat: React.FC = () => {
   const handleKickPlayer = async (name: string) => {
     if (!window.confirm(t('page.chat.kick_confirm', { name }))) return
     try {
-      await axios.post('/api/send_command', { command: `/kick ${name}` })
+      await api.post('/send_command', { command: `/kick ${name}` })
       loadNewMessages()
     } catch (e) {
       console.error('Kick failed', e)
@@ -248,7 +248,7 @@ const Chat: React.FC = () => {
       return parseRText(msg.rtext_data, {
         onCommandClick: async (command: string) => {
           try {
-            await axios.post('/api/chat/send_message', {
+            await api.post('/chat/send_message', {
               message: command,
               player_id: username
             })

@@ -21,7 +21,7 @@ import {
   AlertCircle,
   X
 } from 'lucide-react'
-import axios from 'axios'
+import api, { isCancel } from '../utils/api'
 
 interface Repository {
   name: string
@@ -73,11 +73,11 @@ const Settings: React.FC = () => {
 
   const fetchConfig = useCallback(async (signal?: AbortSignal) => {
     try {
-      const { data } = await axios.get('/api/get_web_config', { signal })
+      const { data } = await api.get('/get_web_config', { signal })
       setConfig(data)
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch config:', error)
@@ -89,7 +89,7 @@ const Settings: React.FC = () => {
 
   const fetchPimStatus = useCallback(async (signal?: AbortSignal) => {
     try {
-      const { data } = await axios.get('/api/check_pim_status', { signal })
+      const { data } = await api.get('/check_pim_status', { signal })
       if (data.status === 'success') {
         setPimStatus(data.pim_status)
       } else {
@@ -98,7 +98,7 @@ const Settings: React.FC = () => {
       }
     } catch (error: any) {
       // 忽略取消的请求错误
-      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch PIM status:', error)
@@ -124,7 +124,7 @@ const Settings: React.FC = () => {
     setSaving(action)
     try {
       const payload = { action, ...data }
-      const { data: resp } = await axios.post('/api/save_web_config', payload)
+      const { data: resp } = await api.post('/save_web_config', payload)
       if (resp.status === 'success') {
         showNotification(resp.message || t('common.save_success'), 'success')
         fetchConfig()
@@ -142,7 +142,7 @@ const Settings: React.FC = () => {
   const toggleSetting = async (key: 'disable_admin_login_web' | 'enable_temp_login_password') => {
     setSaving(key)
     try {
-      const { data: resp } = await axios.post('/api/save_web_config', { action: key })
+      const { data: resp } = await api.post('/save_web_config', { action: key })
       if (resp.status === 'success') {
         showNotification(resp.message ? t('page.settings.msg.toggle_enabled') : t('page.settings.msg.toggle_disabled'), 'success')
         fetchConfig()
@@ -163,7 +163,7 @@ const Settings: React.FC = () => {
     }
     setValidatingAiKey(true)
     try {
-      const { data } = await axios.post('/api/deepseek', {
+      const { data } = await api.post('/deepseek', {
         query: t('page.settings.ai.validate_query'),
         system_prompt: t('page.settings.ai.validate_system_prompt'),
         api_key: aiApiKey,
@@ -231,7 +231,7 @@ const Settings: React.FC = () => {
   const installPim = async () => {
     setPimStatus('installing')
     try {
-      const { data } = await axios.get('/api/install_pim_plugin')
+      const { data } = await api.get('/install_pim_plugin')
       if (data.status === 'success') {
         showNotification(t('page.settings.msg.pim_install_success'), 'success')
         setPimStatus('installed')
@@ -921,7 +921,7 @@ const Settings: React.FC = () => {
                 <button
                   onClick={async () => {
                     if (confirm(t('page.settings.public_chat.history.clear') + '?')) {
-                      await axios.post('/api/chat/clear_messages')
+                      await api.post('/chat/clear_messages')
                       fetchConfig()
                     }
                   }}
