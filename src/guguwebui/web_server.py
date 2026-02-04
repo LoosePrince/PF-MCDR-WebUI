@@ -66,7 +66,7 @@ from .api.plugins import (
     install_plugin, update_plugin, uninstall_plugin,
     task_status, get_plugin_versions_v2, get_plugin_repository,
     check_pim_status, install_pim_plugin, toggle_plugin,
-    reload_plugin, get_online_plugins
+    reload_plugin, get_online_plugins, self_update, get_self_update_info
 )
 
 # 导入配置API模块
@@ -144,6 +144,9 @@ def init_app(server_instance):
     
     # 存储服务器接口
     app.state.server_interface = server_instance
+    
+    # 初始化自更新信息
+    app.state.self_update_info = {"available": False}
     
     # 初始化服务
     auth_service = AuthService(server_instance)
@@ -278,6 +281,60 @@ def get_languages():
         return JSONResponse({"error": str(e)}, status_code=500)
 
 # ============================================================#
+#
+# 认证与页面路由
+
+
+def _clear_login_state(request: Request, response):
+    """
+    清理会话与 token：
+    - 清空 session
+    - 从 user_db 中移除当前 token
+    - 删除常见路径下的 token cookie（独立模式与挂载模式）
+    """
+    # 清理 session
+    request.session["logged_in"] = False
+    request.session.clear()
+
+    # 计算根路径，用于 cookie path
+    root_path = request.scope.get("root_path", "")
+    cookie_path = root_path if root_path else "/"
+
+    # 从 user_db 中移除 token，确保后端登录状态真正失效
+    token = request.cookies.get("token")
+    try:
+        if token and token in user_db.get("token", {}):
+            del user_db["token"][token]
+            user_db.save()
+    except Exception:
+        # 不因清理失败中断整个登出流程
+        pass
+
+    # 删除 token cookie（当前路径）
+    response.set_cookie(
+        "token",
+        value="",
+        path=cookie_path if cookie_path else "/",
+        expires=0,
+        max_age=0,
+        httponly=True,
+        samesite="lax",
+    )
+
+    # 额外尝试清除常见路径，兼容不同挂载/反向代理场景
+    for p in ["/", "/guguwebui", "/guguwebui/"]:
+        response.set_cookie(
+            "token",
+            value="",
+            path=p,
+            expires=0,
+            max_age=0,
+            httponly=True,
+            samesite="lax",
+        )
+
+    return response
+
 
 # redirect to login
 @app.get("/", name="root")
@@ -347,36 +404,27 @@ async def login(
     return await auth_service.login(request, account, password, temp_code, remember)
 
 
-# logout Endpoint
+# logout Endpoints
 @app.get("/logout", response_class=RedirectResponse)
 def logout(request: Request):
-    request.session["logged_in"] = False
-    request.session.clear()  # clear session data
-    
-    # 获取当前应用的根路径，用于处理子应用挂载
-    root_path = request.scope.get("root_path", "")
-    if root_path:
-        # 如果是子应用挂载，需要调整重定向URL和cookie路径
-        redirect_url = get_redirect_url(request, "/login")
-        cookie_path = root_path
-    else:
-        # 独立运行模式
-        redirect_url = "/login"
-        cookie_path = "/"
-    
+    """
+    页面级登出：用于浏览器直接访问 /logout，完成登出并重定向到登录页。
+    """
+    # 计算重定向地址（根路径由 get_redirect_url 处理）
+    redirect_url = get_redirect_url(request, "/login")
     response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
-    
-    # 删除token cookie，确保在不同模式下都能正确删除
-    if root_path:
-        # fastapi_mcdr模式下，删除cookie时需要指定正确的路径
-        response.delete_cookie("token", path=cookie_path)
-        # 同时尝试删除根路径的cookie，确保完全清除
-        response.delete_cookie("token", path="/")
-    else:
-        # 独立模式下，删除根路径的cookie
-        response.delete_cookie("token", path=cookie_path)
-    
-    return response
+    return _clear_login_state(request, response)
+
+
+@app.post("/api/logout")
+async def api_logout(request: Request):
+    """
+    API 形式的登出：
+    - 用于前端通过 /api/logout 主动注销
+    - 在独立模式与挂载模式下均正确清理 session 与 token
+    """
+    response = JSONResponse({"status": "success", "message": "Logged out"})
+    return _clear_login_state(request, response)
 
 
 class SessionTokenSyncMiddleware(BaseHTTPMiddleware):
@@ -1033,6 +1081,17 @@ async def api_install_pim_plugin(request: Request, token_valid: bool = Depends(v
     """将PIM作为独立插件安装（函数已迁移至 api/plugins.py）"""
     server = app.state.server_interface
     return await install_pim_plugin(request, token_valid, server)
+
+@app.post("/api/self_update")
+async def api_self_update(request: Request, token_valid: bool = Depends(verify_token)):
+    """执行 WebUI 自身更新"""
+    server = app.state.server_interface
+    return await self_update(request, token_valid, server)
+
+@app.get("/api/self_update_info")
+async def api_get_self_update_info(request: Request, token_valid: bool = Depends(verify_token)):
+    """获取 WebUI 自身更新信息"""
+    return await get_self_update_info(request, token_valid)
 
 # 添加新的API端点，使用PluginInstaller获取插件版本
 @app.get("/api/pim/plugin_versions_v2")

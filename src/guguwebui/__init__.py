@@ -174,6 +174,9 @@ def on_load(server: PluginServerInterface, old):
     # 初始化应用程序和日志捕获器
     init_app(server)
     
+    # 启动自更新检查
+    start_self_update_checker(server)
+    
     # 初始化聊天消息监听器
     try:
         from .utils.chat_logger import ChatLogger
@@ -439,6 +442,35 @@ def start_plugin_status_checker(server: PluginServerInterface):
     _checker_thread = threading.Thread(target=check_plugin_status, daemon=True)
     _checker_thread.start()
     server.logger.info("已启动插件状态定期检查任务")
+
+def start_self_update_checker(server: PluginServerInterface):
+    """启动 WebUI 自身更新检查任务"""
+    import threading
+    import time
+    from .utils.mc_util import check_self_update
+    from .web_server import app
+
+    def check_task():
+        # 启动后先延迟 10 秒检查一次，确保系统已完全启动
+        time.sleep(10)
+        while True:
+            try:
+                result = check_self_update(server)
+                if result.get("available"):
+                    latest = result.get("latest")
+                    server.logger.info(f"§6[WebUI] 发现新版本: §a{latest}§6，请前往 Web 界面或在终端执行 §b!!MCDR plugin install -U -y guguwebui §6进行更新")
+                    # 存储到 app.state 供前端查询
+                    if hasattr(app, "state"):
+                        app.state.self_update_info = result
+            except Exception as e:
+                server.logger.debug(f"自更新检查任务出错: {e}")
+            
+            # 每 12 小时检查一次
+            time.sleep(12 * 3600)
+
+    thread = threading.Thread(target=check_task, daemon=True)
+    thread.start()
+    server.logger.info("已启动 WebUI 自更新检查任务 (每 12 小时)")
 
 
 def on_unload(server: PluginServerInterface):

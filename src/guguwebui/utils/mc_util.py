@@ -122,6 +122,7 @@ def get_plugins_info(server_interface):
                 def get_server(self): return server_interface
             pim_helper = PIMHelper(server_interface)
             dummy_source = DummySource()
+            # 仅基于 PIM 默认逻辑（官方仓库）获取版本信息
             cata_meta = pim_helper.get_cata_meta(dummy_source)
             plugins = cata_meta.get_plugins()
             return {plugin_id: plugin_data.latest_version for plugin_id, plugin_data in plugins.items()}
@@ -502,3 +503,45 @@ def detect_plugin_format(server) -> str:
             if plugin_path.endswith('.py'): return "single_file"
         return "unknown"
     except Exception: return "unknown"
+
+def check_self_update(server):
+    """检查 WebUI 插件自身是否有更新"""
+    try:
+        from .PIM import PIMHelper
+        from packaging.version import parse as parse_version
+        try:
+            plugins = get_plugins_info(server)
+            current_version = None
+            for p in plugins:
+                if p.get("id") == "guguwebui":
+                    current_version = str(p.get("version") or "1.0.0")
+                    break
+            if not current_version:
+                current_version = get_plugin_version()
+        except Exception:
+            current_version = get_plugin_version()
+
+        class DummySource:
+            def reply(self, message): pass
+            def get_server(self): return server
+
+        pim_helper = PIMHelper(server)
+        source = DummySource()
+
+        # 仅基于 PIM 默认逻辑（官方仓库）检查“最新版本”
+        meta = pim_helper.get_cata_meta(source)
+        plugin_data = meta.get_plugin_data("guguwebui")
+
+        if plugin_data:
+            latest_version = plugin_data.latest_version
+            if parse_version(latest_version) > parse_version(current_version):
+                return {
+                    "available": True,
+                    "current": current_version,
+                    "latest": latest_version
+                }
+
+        return {"available": False, "current": current_version}
+    except Exception as e:
+        server.logger.debug(f"检查自更新时出错: {e}")
+        return {"available": False, "error": str(e)}

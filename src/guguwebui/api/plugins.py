@@ -525,7 +525,7 @@ async def get_plugin_repository(
         configured_repos = [official_repo_url]  # 始终包含官方仓库
 
         # 添加内置的第三方仓库（与前端保持一致）
-        loose_repo_url = "https://looseprince.github.io/Plugin-Catalogue/plugins.json"
+        loose_repo_url = "https://pfingan-code.github.io/PluginCatalogue/plugins.json"
         configured_repos.append(loose_repo_url)
         server.logger.debug(f"api_get_plugin_repository: Added built-in repository URL: {loose_repo_url}")
 
@@ -598,7 +598,7 @@ async def get_plugin_repository(
 
                             # 检查是否是内置仓库
                             if repo_url == loose_repo_url:
-                                repo_name = "树梢的仓库"
+                                repo_name = "PF的仓库"
                             else:
                                 # 尝试从配置中获取仓库名称
                                 if "repositories" in config:
@@ -656,7 +656,19 @@ async def check_pim_status(
     token_valid: bool = Depends(verify_token),
     server=None
 ):
-    """检查PIM插件的安装状态"""
+# ... (existing code) ...
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "error", "message": f"检查PIM状态时出错: {str(e)}"}
+        )
+
+
+async def self_update(
+    request: Request,
+    token_valid: bool = Depends(verify_token),
+    server=None
+):
+    """执行 WebUI 自身更新"""
     if not token_valid:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -670,28 +682,33 @@ async def check_pim_status(
         )
 
     try:
-        # 获取已加载插件列表
-        loaded_plugin_metadata, unloaded_plugin_metadata, loaded_plugin, disabled_plugin = load_plugin_info(server)
-
-        # 检查是否有id为pim_helper的插件
-        if "pim_helper" in loaded_plugin_metadata or "pim_helper" in unloaded_plugin_metadata:
-            status = "installed"
-        else:
-            status = "not_installed"
-
+        command = "!!MCDR plugin install -U -y guguwebui"
+        server.logger.info(f"执行自更新命令: {command}")
+        server.execute_command(command)
+        
         return JSONResponse(
             content={
-                "status": "success",
-                "pim_status": status
+                "success": True,
+                "message": "已发送更新指令到 MCDR，插件将自动重启并完成更新"
             }
         )
     except Exception as e:
-        if server:
-            server.logger.error(f"检查PIM状态时出错: {str(e)}")
+        server.logger.error(f"执行自更新失败: {e}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"status": "error", "message": f"检查PIM状态时出错: {str(e)}"}
+            content={"success": False, "error": f"执行自更新失败: {str(e)}"}
         )
+
+
+async def get_self_update_info(
+    request: Request,
+    token_valid: bool = Depends(verify_token)
+):
+    """获取 WebUI 自身更新信息"""
+    
+    # 使用 request.app 获取正确的 app 实例
+    info = getattr(request.app.state, "self_update_info", {"available": False})
+    return JSONResponse(content={"success": True, "info": info})
 
 
 async def install_pim_plugin(

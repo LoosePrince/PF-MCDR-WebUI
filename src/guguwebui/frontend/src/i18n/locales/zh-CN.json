@@ -154,6 +154,14 @@
     },
     "status": {
       "updatable": "可更新"
+    },
+    "self_update": {
+      "title": "WebUI 更新可用",
+      "message": "发现新版本 {{latest}} (当前版本 {{current}})",
+      "update_now": "立即更新",
+      "updating": "正在更新...",
+      "success": "更新指令已发送，插件将自动重启",
+      "failed": "更新失败"
     }
   },
   "page": {
@@ -499,7 +507,7 @@
         "url": "URL",
         "actions": "操作",
         "official": "官方仓库",
-        "loose_repo": "树梢的仓库",
+        "loose_repo": "PF的仓库",
         "default": "默认仓库",
         "placeholder_name": "仓库名称",
         "placeholder_url": "仓库URL地址",

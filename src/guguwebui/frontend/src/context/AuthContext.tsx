@@ -67,14 +67,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const logout = async () => {
+    const logout = async () => {
     try {
-      await api.get(getBasePath() + '/logout')
-      setIsAuthenticated(false)
-      setUsername(null)
-      window.location.href = getBasePath() + '/login'
+      // 通过后端 API 主动注销，支持独立模式与挂载模式
+      await api.post('/logout')
     } catch (error) {
       console.error('Logout error:', error)
+    } finally {
+      // 无论后端是否成功，前端都先清理本地登录状态并跳转登录页
+      setIsAuthenticated(false)
+      setUsername(null)
+      // 清除所有可能的 cookie (前端尝试)
+      const cookieNames = ['token', 'session'];
+      const domains = [window.location.hostname, ''];
+      const paths = [getBasePath() || '/', '/', '/guguwebui', '/guguwebui/'];
+      
+      cookieNames.forEach(name => {
+        paths.forEach(path => {
+          domains.forEach(domain => {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path};${domain ? ` domain=${domain};` : ''}`;
+          });
+        });
+      });
+
+      window.location.href = getBasePath() + '/login'
     }
   }
 

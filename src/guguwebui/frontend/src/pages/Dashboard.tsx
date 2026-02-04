@@ -17,7 +17,8 @@ import {
   Activity,
   Clock,
   Info,
-  X
+  X,
+  ArrowUpCircle
 } from 'lucide-react'
 import api, { isCancel } from '../utils/api'
 
@@ -30,6 +31,12 @@ interface ServerStatus {
 interface RconStatus {
   rcon_enabled: boolean
   rcon_connected: boolean
+}
+
+interface SelfUpdateInfo {
+  available: boolean
+  current?: string
+  latest?: string
 }
 
 interface PipPackage {
@@ -70,6 +77,9 @@ const Dashboard: React.FC = () => {
 
   const [showRconSetupModal, setShowRconSetupModal] = useState<boolean>(false)
   const [settingUpRcon, setSettingUpRcon] = useState<boolean>(false)
+
+  const [selfUpdateInfo, setSelfUpdateInfo] = useState<SelfUpdateInfo>({ available: false })
+  const [updatingSelf, setUpdatingSelf] = useState<boolean>(false)
 
   const statusFetchingRef = useRef(false)
 
@@ -296,24 +306,48 @@ const Dashboard: React.FC = () => {
 
   const fetchWebVersion = useCallback(async (signal?: AbortSignal) => {
     try {
-      // 使用 plugin_id 精确获取指定插件信息，替代 detail=false 的用法
+      // 使用 plugin_id 精确获取指定插件信息
       const { data } = await api.get('/plugins', { params: { plugin_id: 'guguwebui' }, signal })
       const plugins = Array.isArray(data.plugins) ? data.plugins : []
       const webui = plugins[0]
       if (webui && webui.version) {
         setWebVersion(webui.version)
-        return
+      } else {
+        setWebVersion(t('page.index.unknown'))
       }
-      setWebVersion(t('page.index.unknown'))
+
+      // 获取更新信息
+      const updateResp = await api.get('/self_update_info', { signal })
+      if (updateResp.data.success) {
+        setSelfUpdateInfo(updateResp.data.info)
+      }
     } catch (error: any) {
       // 忽略取消的请求错误
       if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return
       }
-      console.error('Failed to fetch WebUI version:', error)
+      console.error('Failed to fetch WebUI version/update info:', error)
       setWebVersion(t('common.unknown'))
     }
   }, [t])
+
+  const handleSelfUpdate = async () => {
+    if (updatingSelf) return
+    setUpdatingSelf(true)
+    try {
+      const { data } = await api.post('/self_update')
+      if (data.success) {
+        showNotificationMessage(t('plugins.self_update.success'), 'success')
+      } else {
+        showNotificationMessage(data.error || t('plugins.self_update.failed'), 'error')
+      }
+    } catch (error: any) {
+      console.error('Self update error:', error)
+      showNotificationMessage(t('plugins.self_update.failed'), 'error')
+    } finally {
+      setUpdatingSelf(false)
+    }
+  }
 
   useEffect(() => {
     // 创建 AbortController 用于取消请求
@@ -321,7 +355,10 @@ const Dashboard: React.FC = () => {
     const signal = abortController.signal
 
     fetchStatus(signal)
-    const timer = setInterval(() => fetchStatus(signal), 10000)
+    const timer = setInterval(() => {
+      fetchStatus(signal)
+      fetchWebVersion(signal) // 定期检查版本和更新信息
+    }, 10000)
     fetchWebVersion(signal)
     setSystemTime(new Date().toLocaleString())
     const clockTimer = setInterval(() => {
@@ -408,6 +445,54 @@ const Dashboard: React.FC = () => {
         animate="visible"
         className="space-y-8"
       >
+      {/* Self Update Alert */}
+      <AnimatePresence>
+        {selfUpdateInfo.available && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-3xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 dark:bg-amber-800/40 rounded-xl text-amber-600 dark:text-amber-400">
+                  <ArrowUpCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-amber-900 dark:text-amber-100">
+                    {t('plugins.self_update.title')}
+                  </h3>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    {t('plugins.self_update.message', { 
+                      latest: selfUpdateInfo.latest, 
+                      current: selfUpdateInfo.current 
+                    })}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleSelfUpdate}
+                disabled={updatingSelf}
+                className="px-6 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 whitespace-nowrap"
+              >
+                {updatingSelf ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    {t('plugins.self_update.updating')}
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpCircle className="w-4 h-4" />
+                    {t('plugins.self_update.update_now')}
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Welcome Hero */}
       <motion.div 
         variants={itemVariants}

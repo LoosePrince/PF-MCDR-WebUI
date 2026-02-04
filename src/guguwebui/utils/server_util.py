@@ -216,12 +216,23 @@ def patch_asyncio(server: ServerInterface):
 def verify_token(request: Request):
     token = request.cookies.get("token")  # get token from cookie
 
+    # 检查是否为 API 请求
+    # 兼容挂载模式，检查路径是否包含 /api/
+    path = request.url.path
+    is_api = "/api/" in path
+
     if not token:  # token not exists
         request.session.clear()  # 与 db 保持一致：token 无效时清除 session
+        if is_api:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not logged in")
         return RedirectResponse(url=get_redirect_url(request, "/login"), status_code=status.HTTP_302_FOUND)
 
     if token not in user_db['token']:  # check token in user_db (e.g. db.json 被清空或 token 已过期)
         request.session.clear()  # 与 db 保持一致：token 无效时清除 session
+        if is_api:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not logged in")
         return RedirectResponse(url=get_redirect_url(request, "/login"), status_code=status.HTTP_302_FOUND)
 
     return True

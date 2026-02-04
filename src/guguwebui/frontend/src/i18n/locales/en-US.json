@@ -153,6 +153,14 @@
     },
     "status": {
       "updatable": "Update"
+    },
+    "self_update": {
+      "title": "WebUI Update Available",
+      "message": "New version {{latest}} found (current: {{current}})",
+      "update_now": "Update Now",
+      "updating": "Updating...",
+      "success": "Update command sent, plugin will restart",
+      "failed": "Update failed"
     }
   },
   "page": {
@@ -491,7 +499,7 @@
         "url": "URL",
         "actions": "Actions",
         "official": "Official repository",
-        "loose_repo": "LoosePrince's repository",
+        "loose_repo": "PF's repository",
         "default": "Default",
         "placeholder_name": "Repository name",
         "placeholder_url": "Repository URL",
