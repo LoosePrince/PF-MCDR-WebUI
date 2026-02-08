@@ -178,11 +178,11 @@ const OnlinePlugins: React.FC = () => {
       const data = resp.data;
       const repos: Repository[] = [
         { name: t('page.settings.repo.official'), url: data.mcdr_plugins_url || '', repoId: 0 },
-        { name: t('page.settings.repo.loose_repo'), url: 'https://looseprince.github.io/Plugin-Catalogue/plugins.json', repoId: 1 },
+        { name: t('page.settings.repo.loose_repo'), url: 'https://pfingan-code.github.io/PluginCatalogue/plugins.json', repoId: 1 },
       ];
       if (data.repositories) {
         data.repositories.forEach((r: any, index: number) => {
-          if (r.url !== 'https://looseprince.github.io/Plugin-Catalogue/plugins.json') {
+          if (r.url !== 'https://pfingan-code.github.io/PluginCatalogue/plugins.json') {
             repos.push({ name: r.name, url: r.url, repoId: index + 2 });
           }
         });

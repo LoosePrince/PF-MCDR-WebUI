@@ -693,7 +693,7 @@ const Settings: React.FC = () => {
                     <CheckCircle className="w-4 h-4 text-blue-500" />
                     {t('page.settings.repo.loose_repo')}
                   </td>
-                  <td className="px-6 py-4 text-slate-500 truncate max-w-xs">https://looseprince.github.io/Plugin-Catalogue/plugins.json</td>
+                  <td className="px-6 py-4 text-slate-500 truncate max-w-xs">https://pfingan-code.github.io/PluginCatalogue/plugins.json</td>
                   <td className="px-6 py-4 text-right">
                     <span className="text-xs font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
                       {t('page.settings.repo.default')}
