@@ -563,7 +563,10 @@ const OnlinePlugins: React.FC = () => {
 
   const handleRepoChange = (url: string) => {
     const repo = repositories.find(r => r.url === url);
-    if (repo && repo.repoId !== 0 && localStorage.getItem('skipRepoWarning') !== 'true') {
+    const today = new Date().toISOString().slice(0, 10);
+    const storedDate = localStorage.getItem('skipRepoWarningDate');
+    const skipRepoWarningToday = storedDate === today;
+    if (repo && repo.repoId !== 0 && !skipRepoWarningToday) {
       setPendingRepo(url);
       setShowRepoWarningModal(true);
     } else {
@@ -1050,7 +1053,7 @@ const OnlinePlugins: React.FC = () => {
                   setSelectedRepo(pendingRepo);
                   setCurrentPage(1);
                   setShowRepoWarningModal(false);
-                  localStorage.setItem('skipRepoWarning', 'true');
+                  localStorage.setItem('skipRepoWarningDate', new Date().toISOString().slice(0, 10));
                 }
               }}
               className="flex-1 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-all shadow-lg shadow-purple-500/20 font-bold text-sm"

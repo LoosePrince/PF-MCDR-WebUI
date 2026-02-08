@@ -31,6 +31,15 @@ interface LayoutProps {
   children: React.ReactNode
 }
 
+type ServerStatusType = 'online' | 'offline' | 'loading' | 'error'
+
+const statusColors: Record<ServerStatusType, string> = {
+  online: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-100 dark:border-green-900/30',
+  offline: 'bg-slate-50 dark:bg-slate-900/20 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800',
+  loading: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30',
+  error: 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30',
+}
+
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { t, i18n } = useTranslation()
   const { username, logout } = useAuth()
@@ -40,6 +49,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024)
   const [pluginPages, setPluginPages] = useState<{ id: string; path: string }[]>([])
   const [isPluginPagesOpen, setIsPluginPagesOpen] = useState(false)
+  const [serverStatus, setServerStatus] = useState<ServerStatusType>('loading')
+
+  useEffect(() => {
+    const fetchServerStatus = async () => {
+      try {
+        const resp = await api.get('/get_server_status')
+        const status = resp.data?.status === 'online' || resp.data?.status === 'offline' ? resp.data.status : 'error'
+        setServerStatus(status)
+      } catch {
+        setServerStatus('error')
+      }
+    }
+    fetchServerStatus()
+    const interval = setInterval(fetchServerStatus, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     const fetchPluginPages = async () => {
@@ -337,9 +362,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center px-3 py-1 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-full text-xs font-bold border border-green-100 dark:border-green-900/30">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-2 animate-pulse" />
-              {t('nav.server_online')}
+            <div className={`hidden sm:flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusColors[serverStatus]}`}>
+              <span className={`w-1.5 h-1.5 rounded-full mr-2 ${serverStatus === 'online' ? 'bg-green-500 animate-pulse' : serverStatus === 'offline' ? 'bg-slate-400' : serverStatus === 'error' ? 'bg-rose-500' : 'bg-blue-500 animate-pulse'}`} />
+              {t(`nav.status_${serverStatus}`)}
             </div>
             <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative">
               <Bell className="w-5 h-5" />
