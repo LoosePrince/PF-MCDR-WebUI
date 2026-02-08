@@ -5,6 +5,7 @@ from mcdreforged.api.all import PluginServerInterface, LiteralEvent, Literal, Te
 
 # 全局变量声明
 web_server_interface = None
+_mounted_to_fastapi_mcdr = False
 
 #============================================================#
 
@@ -279,10 +280,11 @@ def on_load(server: PluginServerInterface, old):
 
 def mount_to_fastapi_mcdr(server: PluginServerInterface, fastapi_mcdr):
     """挂载 WebUI 到 fastapi_mcdr 插件"""
+    global _mounted_to_fastapi_mcdr
     try:
         from .web_server import app
         fastapi_mcdr.mount("guguwebui", app)
-            
+        _mounted_to_fastapi_mcdr = True
     except Exception as e:
         server.logger.error(f"挂载到 fastapi_mcdr 时发生错误: {e}")
         server.logger.warning("将回退到独立服务器模式")
@@ -478,7 +480,20 @@ def start_self_update_checker(server: PluginServerInterface):
 
 
 def on_unload(server: PluginServerInterface):
+    global _mounted_to_fastapi_mcdr
     server.logger.info("正在卸载 WebUI...")
+
+    # 优先从 fastapi_mcdr 取消挂载（不依赖 config / is_ready，仅根据挂载标志）
+    if _mounted_to_fastapi_mcdr:
+        try:
+            fastapi_mcdr = server.get_plugin_instance('fastapi_mcdr')
+            if fastapi_mcdr is not None:
+                fastapi_mcdr.unmount("guguwebui")
+                server.logger.info("已从 fastapi_mcdr 插件卸载 WebUI")
+        except Exception as e:
+            server.logger.warning(f"从 fastapi_mcdr 卸载时出错: {e}")
+        finally:
+            _mounted_to_fastapi_mcdr = False
     
     # 停止插件状态检查线程
     global _checker_running, _checker_thread
@@ -487,24 +502,6 @@ def on_unload(server: PluginServerInterface):
         if _checker_thread is not None and _checker_thread.is_alive():
             _checker_thread.join(timeout=1)
             server.logger.debug("已停止插件状态检查线程")
-    
-    # 检查是否挂载在 fastapi_mcdr 上，如果是则卸载（仅在非强制独立运行模式下）
-    try:
-        plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
-        force_standalone = plugin_config.get('force_standalone', False)
-
-        if not force_standalone:
-            fastapi_mcdr = server.get_plugin_instance('fastapi_mcdr')
-            if fastapi_mcdr is not None and fastapi_mcdr.is_ready():
-                try:
-                    fastapi_mcdr.unmount("guguwebui")
-                    server.logger.info("已从 fastapi_mcdr 插件卸载 WebUI")
-                except Exception as e:
-                    server.logger.warning(f"从 fastapi_mcdr 卸载时出错: {e}")
-        else:
-            server.logger.debug("强制独立运行模式，跳过fastapi_mcdr卸载检查")
-    except Exception as e:
-        server.logger.debug(f"检查 fastapi_mcdr 状态时出错: {e}")
     
     # 停止日志捕获
     try:
