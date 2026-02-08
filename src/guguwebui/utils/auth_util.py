@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 from ..utils.constant import user_db, pwd_context
+from .server_util import format_host_for_url
 from mcdreforged.api.all import RText, RColor, RTextList
 
 def migrate_old_config():
@@ -77,7 +78,7 @@ def create_account_command(src, ctx, host: str, port: int):
             RText(account, color=RColor.yellow),
             RText(" 创建成功。\n", color=RColor.green),
             RText("guguwebui 地址: ", color=RColor.blue),
-            RText(f"http://{host}:{port}", color=RColor.aqua)
+            RText(f"http://{format_host_for_url(host)}:{port}", color=RColor.aqua)
         )
         src.reply(success_msg)
     else:
@@ -103,7 +104,7 @@ def change_account_command(src, ctx, host: str, port: int):
             RText(account, color=RColor.yellow),
             RText(" 修改成功。\n", color=RColor.green),
             RText("guguwebui 地址: ", color=RColor.blue),
-            RText(f"http://{host}:{port}", color=RColor.aqua)
+            RText(f"http://{format_host_for_url(host)}:{port}", color=RColor.aqua)
         )
         src.reply(success_msg)
     else:
@@ -122,7 +123,7 @@ def get_temp_password_command(src, ctx, host: str, port: int):
         RText(temp_password, color=RColor.gold),
         RText("\n", color=RColor.reset),
         RText("guguwebui 地址: ", color=RColor.blue),
-        RText(f"http://{host}:{port}", color=RColor.aqua)
+        RText(f"http://{format_host_for_url(host)}:{port}", color=RColor.aqua)
     )
     src.reply(temp_msg)
 

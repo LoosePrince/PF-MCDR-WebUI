@@ -3,6 +3,7 @@ import uvicorn
 import threading
 import socket
 import time
+import ipaddress
 from typing import Optional
 
 from fastapi import Request, status
@@ -17,6 +18,18 @@ def get_redirect_url(request, path: str) -> str:
         return f"{root_path}{path}"
     else:
         return path
+
+
+def format_host_for_url(host: str) -> str:
+    """将 host 格式化为 URL 中可用的形式，IPv6 地址需加方括号。"""
+    if not host:
+        return host
+    try:
+        ip = ipaddress.ip_address(host)
+        return f"[{host}]" if ip.version == 6 else host
+    except ValueError:
+        return host
+
 
 from .constant import *
 
@@ -116,9 +129,8 @@ class ThreadedUvicorn:
                     # 作为最后手段，尝试通过创建新连接来关闭旧连接
                     host = self.server.config.host
                     port = self.server.config.port
-                    
-                    # 如果绑定的是0.0.0.0，使用127.0.0.1连接
-                    connect_host = "127.0.0.1" if host == "0.0.0.0" else host
+                    # 若绑定为 0.0.0.0 / ::，连接本机时使用 127.0.0.1 / ::1
+                    connect_host = "::1" if host == "::" else ("127.0.0.1" if host == "0.0.0.0" else host)
                     
                     try:
                         import ssl
@@ -145,14 +157,15 @@ class ThreadedUvicorn:
             try:
                 host = self.server.config.host
                 port = self.server.config.port
-                
-                # 如果绑定的是0.0.0.0，使用127.0.0.1连接
-                connect_host = "127.0.0.1" if host == "0.0.0.0" else host
-                
-                # 创建多个连接尝试触发关闭
+                connect_host = "::1" if host == "::" else ("127.0.0.1" if host == "0.0.0.0" else host)
+                try:
+                    ip = ipaddress.ip_address(connect_host)
+                    family = socket.AF_INET6 if ip.version == 6 else socket.AF_INET
+                except ValueError:
+                    family = socket.AF_INET
                 for _ in range(3):
                     try:
-                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        s = socket.socket(family, socket.SOCK_STREAM)
                         s.settimeout(1)
                         s.connect((connect_host, port))
                         s.close()

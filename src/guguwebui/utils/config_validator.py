@@ -189,22 +189,26 @@ class ConfigValidator:
         if not host:
             return False
         
-        # 检查是否为localhost
+        # 检查是否为 localhost / 常用 IPv4
         if host.lower() in ['localhost', '127.0.0.1', '0.0.0.0']:
+            return True
+        # 检查是否为常用 IPv6 字面量
+        if host.lower() in ['::', '::1']:
             return True
         
         try:
             # 尝试解析IP地址
             ip = ipaddress.ip_address(host)
-            # 检查是否为有效的IPv4地址（排除一些特殊地址）
+            # IPv4：检查是否为有效的 IPv4 地址（排除一些特殊地址）
             if ip.version == 4:
-                # 排除一些无效的IP地址范围
                 if ip.is_loopback or ip.is_unspecified or ip.is_reserved:
-                    return True  # 这些是有效的特殊地址
-                # 检查是否为有效的公网或私网地址
+                    return True
                 if ip.is_private or ip.is_global:
                     return True
                 return False
+            # IPv6：接受有效解析的 IPv6 地址
+            if ip.version == 6:
+                return True
             return False
         except ValueError:
             return False
@@ -218,12 +222,16 @@ class ConfigValidator:
             return False
     
     def _is_port_available(self, host: str, port: int) -> bool:
-        """检查端口是否可用（未被占用）"""
+        """检查端口是否可用（未被占用），支持 IPv4 与 IPv6"""
         try:
-            # 创建socket测试端口可用性
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            # 根据 host 选择 socket 地址族
+            try:
+                ip = ipaddress.ip_address(host)
+                family = socket.AF_INET6 if ip.version == 6 else socket.AF_INET
+            except ValueError:
+                family = socket.AF_INET
+            with socket.socket(family, socket.SOCK_STREAM) as s:
                 s.settimeout(1)
-                # 尝试绑定端口，如果成功说明端口可用
                 s.bind((host, port))
                 return True
         except socket.error as e:

@@ -255,9 +255,11 @@ def on_load(server: PluginServerInterface, old):
         config = uvicorn.Config(**config_params)
         web_server_interface = ThreadedUvicorn(server, config)
 
-        # 显示URL（根据是否启用SSL选择协议）
+        # 显示URL（根据是否启用SSL选择协议；IPv6 地址在 URL 中需加方括号）
         protocol = "https" if ssl_enabled else "http"
-        server.logger.info(f"网页地址: {protocol}://{host}:{port}")
+        from .utils.server_util import format_host_for_url
+        host_display = format_host_for_url(host)
+        server.logger.info(f"网页地址: {protocol}://{host_display}:{port}")
         web_server_interface.start()
     else:
         server.logger.info("WebUI 已挂载到 fastapi_mcdr 插件，无需启动独立服务器")
@@ -377,9 +379,11 @@ def start_standalone_server(server: PluginServerInterface):
         global web_server_interface
         web_server_interface = ThreadedUvicorn(server, config)
 
-        # 显示URL
+        # 显示URL（IPv6 地址在 URL 中需加方括号）
         protocol = "https" if ssl_enabled else "http"
-        server.logger.info(f"独立服务器已启动: {protocol}://{host}:{port}")
+        from .utils.server_util import format_host_for_url
+        host_display = format_host_for_url(host)
+        server.logger.info(f"独立服务器已启动: {protocol}://{host_display}:{port}")
         web_server_interface.start()
         
         # 获取插件信息
