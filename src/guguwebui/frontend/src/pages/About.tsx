@@ -99,7 +99,7 @@ const About: React.FC = () => {
           </p>
           <div className="flex flex-wrap gap-2">
             <a
-              href="https://github.com/LoosePrince/PF-MCDR-WebUI"
+              href="https://github.com/PFingan-Code/PF-MCDR-WebUI"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-200 transition-colors"
@@ -108,7 +108,7 @@ const About: React.FC = () => {
               {t('page.about.github_repo')}
             </a>
             <a
-              href="https://github.com/LoosePrince/PF-MCDR-WebUI/issues"
+              href="https://github.com/PFingan-Code/PF-MCDR-WebUI/issues"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -308,7 +308,7 @@ const About: React.FC = () => {
                     <tr>
                       <td className="px-4 py-2">
                         <a
-                          href="https://github.com/LoosePrince/PF-MCDR-WebUI/graphs/contributors"
+                          href="https://github.com/PFingan-Code/PF-MCDR-WebUI/graphs/contributors"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 hover:underline"

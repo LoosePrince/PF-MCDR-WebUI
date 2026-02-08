@@ -2,12 +2,12 @@
 
 为 MCDR 开发的在线 WebUI 插件
 
-[![仓库大小](https://img.shields.io/github/repo-size/LoosePrince/PF-MCDR-WebUI?style=flat-square&label=仓库占用)](/)
-[![最新版](https://img.shields.io/github/v/release/LoosePrince/PF-MCDR-WebUI?style=flat-square&label=最新版)](https://github.com/LoosePrince/PF-MCDR-WebUI/releases/latest/)
-[![议题](https://img.shields.io/github/issues/LoosePrince/PF-MCDR-WebUI?style=flat-square&label=Issues)](https://github.com/LoosePrince/PF-MCDR-WebUI/issues)
-[![已关闭issues](https://img.shields.io/github/issues-closed/LoosePrince/PF-MCDR-WebUI?style=flat-square&label=已关闭%20Issues)](https://github.com/LoosePrince/PF-MCDR-WebUI/issues?q=is%3Aissue+is%3Aclosed)
-[![下载量](https://img.shields.io/github/downloads/LoosePrince/PF-MCDR-WebUI/total?style=flat-square&label=下载量)](https://github.com/LoosePrince/PF-MCDR-WebUI/releases)
-[![最新发布下载量](https://img.shields.io/github/downloads/LoosePrince/PF-MCDR-WebUI/latest/total?style=flat-square&label=最新版本下载量)](https://github.com/LoosePrince/PF-MCDR-WebUI/releases/latest)
+[![仓库大小](https://img.shields.io/github/repo-size/PFingan-Code/PF-MCDR-WebUI?style=flat-square&label=仓库占用)](/)
+[![最新版](https://img.shields.io/github/v/release/PFingan-Code/PF-MCDR-WebUI?style=flat-square&label=最新版)](https://github.com/PFingan-Code/PF-MCDR-WebUI/releases/latest/)
+[![议题](https://img.shields.io/github/issues/PFingan-Code/PF-MCDR-WebUI?style=flat-square&label=Issues)](https://github.com/PFingan-Code/PF-MCDR-WebUI/issues)
+[![已关闭issues](https://img.shields.io/github/issues-closed/PFingan-Code/PF-MCDR-WebUI?style=flat-square&label=已关闭%20Issues)](https://github.com/PFingan-Code/PF-MCDR-WebUI/issues?q=is%3Aissue+is%3Aclosed)
+[![下载量](https://img.shields.io/github/downloads/PFingan-Code/PF-MCDR-WebUI/total?style=flat-square&label=下载量)](https://github.com/PFingan-Code/PF-MCDR-WebUI/releases)
+[![最新发布下载量](https://img.shields.io/github/downloads/PFingan-Code/PF-MCDR-WebUI/latest/total?style=flat-square&label=最新版本下载量)](https://github.com/PFingan-Code/PF-MCDR-WebUI/releases/latest)
 
 > [!NOTE]
 > 招募有志者加入WebUI项目！<br>
@@ -93,7 +93,7 @@ WebUI 文档：[WebUI 文档](https://pf-doc.pfingan.com/main/#PF-webui/)
 
 ### Python 依赖
 
-在v1.4.0起WebUI将自行处理python依赖，在1.4.0前可参考 [requirements.txt](https://github.com/LoosePrince/PF-MCDR-WebUI/blob/main/requirements.txt) 文件，使用命令 `pip install -r requirements.txt` 进行安装。
+在v1.4.0起WebUI将自行处理python依赖，在1.4.0前可参考 [requirements.txt](https://github.com/PFingan-Code/PF-MCDR-WebUI/blob/main/requirements.txt) 文件，使用命令 `pip install -r requirements.txt` 进行安装。
 
 ### 前置插件
 
@@ -139,22 +139,22 @@ Q: 会支持MC服务器管理的功能吗？如模组管理、玩家管理、白
 A: 并不会深入涉及管理MC服务器，如有这方面的需求请查询MC服务器面板，仅可能会支持很小一部分，例如终端、重启服务器，更多的不在我们的范畴中。
 
 Q: 可以加入开发吗？<br>
-A: 当然可以，您可以提交 [pr](https://github.com/LoosePrince/PF-MCDR-WebUI/pulls) 或者参与交流来参与开发。
+A: 当然可以，您可以提交 [pr](https://github.com/PFingan-Code/PF-MCDR-WebUI/pulls) 或者参与交流来参与开发。
 
 Q: 会支持我的语言吗？<br>
-A: 我只会中文，你要是愿意可以参与，目前已有中文（zh-CN）和英文（en-US），在 [i18n/locales 文件夹](https://github.com/LoosePrince/PF-MCDR-WebUI/tree/main/src/guguwebui/frontend/src/i18n/locales)。
+A: 我只会中文，你要是愿意可以参与，目前已有中文（zh-CN）和英文（en-US），在 [i18n/locales 文件夹](https://github.com/PFingan-Code/PF-MCDR-WebUI/tree/main/src/guguwebui/frontend/src/i18n/locales)。
 
 Q: 为什么有私货（有未使用的插件，如gugubot等）？<br>
 A: 因为这就是为它所开发（虽然GUGUbot的配置一直不完善[doge]）。
 
 Q: 如何获取实时最新版？<br>
-A: 前往 [Releases页面](https://github.com/LoosePrince/PF-MCDR-WebUI/releases?q=beta+build) 下载最新的预发布版本（Pre-release），这些版本会在每次代码更新后自动生成。或者你也可以自己打包`src`中的文件到`zip`，修改后缀为`.mcdr`。
+A: 前往 [Releases页面](https://github.com/PFingan-Code/PF-MCDR-WebUI/releases?q=beta+build) 下载最新的预发布版本（Pre-release），这些版本会在每次代码更新后自动生成。或者你也可以自己打包`src`中的文件到`zip`，修改后缀为`.mcdr`。
 
 Q: 我有个插件，我觉得很适合WebUI，可以作为WebUI的前置吗？<br>
 A: WebUI不打算使用任何插件前置，如果有好的方案我们会考虑直接加入WebUI并在关于页感谢贡献。
 
-Q: [PIM插件](https://github.com/LoosePrince/PF-MCDR-WebUI/tree/main/src/guguwebui/utils/PIM) 是什么？<br>
-A: [PIM插件](https://github.com/LoosePrince/PF-MCDR-WebUI/tree/main/src/guguwebui/utils/PIM) 是WebUI的插件安装管理器，它可以帮助您安装、卸载、更新插件，并且可以查看插件信息。
+Q: [PIM插件](https://github.com/PFingan-Code/PF-MCDR-WebUI/tree/main/src/guguwebui/utils/PIM) 是什么？<br>
+A: [PIM插件](https://github.com/PFingan-Code/PF-MCDR-WebUI/tree/main/src/guguwebui/utils/PIM) 是WebUI的插件安装管理器，它可以帮助您安装、卸载、更新插件，并且可以查看插件信息。
 
 Q: 对于开发者如何提供配置文件以支持多语言（中文、英文等）描述？
 
@@ -194,11 +194,11 @@ AI分析![image](https://github.com/user-attachments/assets/91276765-ec5b-47eb-8
 
 # TODO
 
-- [ ] [[更新] 关于后续（饼）](https://github.com/LoosePrince/PF-MCDR-WebUI/issues/8) #8
+- [ ] [[更新] 关于后续（饼）](https://github.com/PFingan-Code/PF-MCDR-WebUI/issues/8) #8
 
 # 有BUG或是新的IDEA
 
-如果需要更多联动或提交想法和问题请提交 [issues](https://github.com/LoosePrince/PF-MCDR-WebUI/issues) 或 QQ [树梢 (1377820366)](http://wpa.qq.com/msgrd?v=3&uin=1377820366&site=qq&menu=yes) 提交！ <br />
+如果需要更多联动或提交想法和问题请提交 [issues](https://github.com/PFingan-Code/PF-MCDR-WebUI/issues) 或 QQ [树梢 (1377820366)](http://wpa.qq.com/msgrd?v=3&uin=1377820366&site=qq&menu=yes) 提交！ <br />
 如需要帮助或者交流请通过 QQ群 [726741344](https://qm.qq.com/q/TqmRHmTmcU) 进行询问或者交流 <br />
 视情况添加，请勿联系他人。
 
@@ -208,7 +208,7 @@ AI分析![image](https://github.com/user-attachments/assets/91276765-ec5b-47eb-8
 |---|---|
 | [树梢 (LoosePrince)](https://github.com/LoosePrince) | 功能设计、文档编写、Web设计、前端编写 |
 | [雪开 (XueK66)](https://github.com/XueK66) | 代码开发、维护、功能设计 |
-| 见 [贡献者](https://github.com/LoosePrince/PF-MCDR-WebUI/graphs/contributors) | 贡献者 |
+| 见 [贡献者](https://github.com/PFingan-Code/PF-MCDR-WebUI/graphs/contributors) | 贡献者 |
 
 | 贡献项目 | 功能 | 备注 |
 |---|---|---|

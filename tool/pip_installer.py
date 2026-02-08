@@ -9,7 +9,7 @@ PLUGIN_METADATA = {
     'name': 'Pip安装器',
     'description': '通过!!pip install命令在MCDR中安装pip包',
     'author': 'LoosePrince',
-    'link': 'https://github.com/LoosePrince/PF-MCDR-WebUI',
+    'link': 'https://github.com/PFingan-Code/PF-MCDR-WebUI',
     'dependencies': {}
 }
 
