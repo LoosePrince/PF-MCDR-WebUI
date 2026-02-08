@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -25,6 +26,8 @@ import {
 import api from '../utils/api'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
+import { fetchNotice, type NoticeData } from '../utils/notice'
+import { NoticeModalProvider } from '../context/NoticeModalContext'
 import VersionFooter from './VersionFooter'
 
 interface LayoutProps {
@@ -50,6 +53,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [pluginPages, setPluginPages] = useState<{ id: string; path: string }[]>([])
   const [isPluginPagesOpen, setIsPluginPagesOpen] = useState(false)
   const [serverStatus, setServerStatus] = useState<ServerStatusType>('loading')
+  const [noticeData, setNoticeData] = useState<NoticeData | null>(null)
+  const [noticeModalOpen, setNoticeModalOpen] = useState(false)
+
+  useEffect(() => {
+    fetchNotice().then(setNoticeData)
+  }, [])
 
   useEffect(() => {
     const fetchServerStatus = async () => {
@@ -94,6 +103,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     localStorage.setItem('language', code)
   }
 
+  const noticeModalValue = React.useMemo(
+    () => ({ openNoticeModal: () => setNoticeModalOpen(true) }),
+    []
+  )
+
   const navItems = [
     { path: '/index', key: 'nav.dashboard', icon: LayoutDashboard },
     { path: '/mcdr', key: 'nav.mcdr_config', icon: Settings2 },
@@ -114,6 +128,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   } as const
 
   return (
+    <NoticeModalProvider value={noticeModalValue}>
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex transition-colors duration-300">
       {/* Sidebar */}
       <motion.aside
@@ -366,7 +381,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <span className={`w-1.5 h-1.5 rounded-full mr-2 ${serverStatus === 'online' ? 'bg-green-500 animate-pulse' : serverStatus === 'offline' ? 'bg-slate-400' : serverStatus === 'error' ? 'bg-rose-500' : 'bg-blue-500 animate-pulse'}`} />
               {t(`nav.status_${serverStatus}`)}
             </div>
-            <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative">
+            <button
+              onClick={() => setNoticeModalOpen(true)}
+              className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative"
+            >
               <Bell className="w-5 h-5" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full border-2 border-white dark:border-slate-900" />
             </button>
@@ -386,7 +404,61 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </motion.div>
         </main>
       </div>
+
+      {/* Notice Modal */}
+      {noticeModalOpen && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setNoticeModalOpen(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl p-6 md:p-8 max-h-[85vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between mb-4 sticky top-0 bg-white dark:bg-slate-900 z-10 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white line-clamp-1">
+                {noticeData ? noticeData.title : t('page.index.notice')}
+              </h3>
+              <button
+                onClick={() => setNoticeModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {noticeData ? (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{noticeData.text}</p>
+                {noticeData.img && (
+                  <img src={noticeData.img} alt="" className="rounded-xl max-w-full max-h-48 object-contain" />
+                )}
+                {noticeData.fill && (
+                  <a
+                    href={noticeData.fill}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {t('page.index.notice_view_detail')}
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">{t('page.index.no_notice')}</p>
+            )}
+          </motion.div>
+        </div>,
+        document.body
+      )}
     </div>
+    </NoticeModalProvider>
   )
 }
 

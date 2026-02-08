@@ -21,6 +21,8 @@ import {
   ArrowUpCircle
 } from 'lucide-react'
 import api, { isCancel } from '../utils/api'
+import { fetchNotice, type NoticeData } from '../utils/notice'
+import { useNoticeModal } from '../context/NoticeModalContext'
 
 interface ServerStatus {
   status: 'online' | 'offline' | 'loading' | 'error'
@@ -49,6 +51,7 @@ type NotificationType = 'success' | 'error'
 const Dashboard: React.FC = () => {
   const { t } = useTranslation()
   const cache = useCache()
+  const noticeModal = useNoticeModal()
   const [serverStatus, setServerStatus] = useState<ServerStatus>({
     status: 'loading',
     version: '',
@@ -80,6 +83,9 @@ const Dashboard: React.FC = () => {
 
   const [selfUpdateInfo, setSelfUpdateInfo] = useState<SelfUpdateInfo>({ available: false })
   const [updatingSelf, setUpdatingSelf] = useState<boolean>(false)
+
+  const [notice, setNotice] = useState<NoticeData | null>(null)
+  const [noticeLoading, setNoticeLoading] = useState<boolean>(true)
 
   const statusFetchingRef = useRef(false)
 
@@ -373,6 +379,14 @@ const Dashboard: React.FC = () => {
       clearInterval(clockTimer)
     }
   }, [fetchStatus, fetchWebVersion, refreshPipPackages])
+
+  useEffect(() => {
+    setNoticeLoading(true)
+    fetchNotice().then((data) => {
+      setNotice(data)
+      setNoticeLoading(false)
+    }).catch(() => setNoticeLoading(false))
+  }, [])
 
   useEffect(() => {
     if (pipOutput.length > 0) {
@@ -751,6 +765,50 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* 公告（来自 GitHub release tag notice） */}
+            {noticeLoading && (
+              <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t('page.index.notice_loading')}</p>
+              </div>
+            )}
+            {!noticeLoading && notice && (
+              <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => noticeModal?.openNoticeModal()}
+                  className="w-full flex items-start p-3 gap-3 text-left hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
+                    <Info className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                      {t('page.index.notice')}
+                    </p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5 line-clamp-1">
+                      {notice.title}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 whitespace-pre-wrap break-words">
+                      {notice.text}
+                    </p>
+                    <span className="inline-block mt-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {t('page.index.notice_click_expand')}
+                    </span>
+                  </div>
+                </button>
+                {notice.fill && (
+                  <a
+                    href={notice.fill}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block px-3 pb-3 pt-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {t('page.index.notice_view_detail')}
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </motion.div>
 

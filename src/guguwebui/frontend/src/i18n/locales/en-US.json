@@ -218,7 +218,12 @@
       "control_sent_prefix": "Server ",
       "control_sent_suffix": " command has been sent",
       "control_failed_prefix": "Operation failed: ",
-      "control_error": "Server control operation failed"
+      "control_error": "Server control operation failed",
+      "notice": "Notice",
+      "notice_loading": "Loading notice...",
+      "no_notice": "No notice",
+      "notice_view_detail": "View details",
+      "notice_click_expand": "Click to expand"
     },
     "404": {
       "title": "404 - Page Not Found",

@@ -219,7 +219,12 @@
       "control_sent_prefix": "服务器",
       "control_sent_suffix": "命令已发送",
       "control_failed_prefix": "操作失败: ",
-      "control_error": "服务器控制操作失败"
+      "control_error": "服务器控制操作失败",
+      "notice": "公告",
+      "notice_loading": "加载公告中...",
+      "no_notice": "暂无公告",
+      "notice_view_detail": "查看详情",
+      "notice_click_expand": "点击展开"
     },
     "404": {
       "title": "404 - 页面未找到",
