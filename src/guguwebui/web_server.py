@@ -563,9 +563,9 @@ async def global_exception_handler(request: Request, exc: Exception):
         if hasattr(app.state, "server_interface"):
             app.state.server_interface.logger.error(f"{error_message}")
         else:
-            print(f"{error_message}")
-    except:
-        print(f"{error_message}")
+            logging.getLogger(__name__).error(error_message)
+    except Exception:
+        logging.getLogger(__name__).error(error_message)
     
     # 返回友好的错误消息
     return JSONResponse(

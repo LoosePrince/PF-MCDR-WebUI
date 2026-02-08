@@ -1,9 +1,13 @@
+import logging
 import os
 import struct
 import datetime
 import json
 from typing import List, Dict, Optional
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
 
 class ChatLogger:
     """聊天消息记录器，将消息保存到二进制文件中"""
@@ -82,7 +86,7 @@ class ChatLogger:
             with open(self.message_positions_file, 'w', encoding='utf-8') as f:
                 json.dump(self._positions_cache, f, ensure_ascii=False)
         except Exception as e:
-            print(f"保存位置索引失败: {e}")
+            logger.warning(f"保存位置索引失败: {e}")
     
     def _add_position_to_index(self, message_id, file_position):
         """添加消息位置到索引"""
@@ -115,7 +119,7 @@ class ChatLogger:
             self._message_cache = self._get_recent_messages_from_file(self._cache_max_size)
             self._cache_loaded = True
         except Exception as e:
-            print(f"加载缓存失败: {e}")
+            logger.warning(f"加载缓存失败: {e}")
             self._message_cache = []
             self._cache_loaded = True
     
@@ -146,7 +150,7 @@ class ChatLogger:
             return messages[:limit]
             
         except Exception as e:
-            print(f"读取最近消息失败: {e}")
+            logger.warning(f"读取最近消息失败: {e}")
             return []
     
     def _parse_all_messages_from_data(self, data):
@@ -414,7 +418,7 @@ class ChatLogger:
             return result, offset
             
         except (struct.error, UnicodeDecodeError, ValueError) as e:
-            print(f"解析消息失败: {e}")
+            logger.warning(f"解析消息失败: {e}")
             return None, original_offset
     
     def add_message(self, player_id, message, timestamp=None, rtext_data=None, message_type=0, player_uuid=None, server=None):
@@ -584,7 +588,7 @@ class ChatLogger:
             return self._get_messages_with_offset(limit, offset)
             
         except Exception as e:
-            print(f"读取消息失败: {e}")
+            logger.warning(f"读取消息失败: {e}")
             return []
 
     def _get_new_messages_optimized(self, after_id, limit):
@@ -666,7 +670,7 @@ class ChatLogger:
                     offset = new_offset
                     
         except Exception as e:
-            print(f"从文件读取新消息失败: {e}")
+            logger.warning(f"从文件读取新消息失败: {e}")
             
         return messages
 
@@ -690,7 +694,7 @@ class ChatLogger:
                 return historical_messages[:limit]
                 
         except Exception as e:
-            print(f"从文件读取历史消息失败: {e}")
+            logger.warning(f"从文件读取历史消息失败: {e}")
             return []
 
     def _get_messages_with_offset(self, limit, offset):
@@ -721,7 +725,7 @@ class ChatLogger:
             return messages
             
         except Exception as e:
-            print(f"使用offset读取消息失败: {e}")
+            logger.warning(f"使用offset读取消息失败: {e}")
             return []
 
     def _convert_to_serializable(self, message):

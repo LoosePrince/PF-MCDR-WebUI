@@ -4,6 +4,7 @@
 """
 
 import json
+import logging
 import os
 import socket
 import string
@@ -22,6 +23,8 @@ from ..utils.mc_util import get_server_port, find_plugin_config_paths
 from ..utils.chat_logger import ChatLogger
 from ..utils.api_cache import api_cache
 from ..utils.server_util import verify_token
+
+logger = logging.getLogger(__name__)
 
 
 async def list_config_files(
@@ -453,7 +456,7 @@ async def save_config(
                                  "true" if v else "false"
                                  for k, v in plugin_config.items()}
     except Exception as e:
-        print(f"Error loading config file: {e}")
+        logger.error(f"Error loading config file: {e}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
     # ensure type will not change
@@ -479,7 +482,7 @@ async def save_config(
             # 对于YAML和properties文件，保持原有行为，不删除键
             consistent_type_update(data, plugin_config, remove_missing=False)
     except Exception as e:
-        print(f"Error updating config data: {e}")
+        logger.error(f"Error updating config data: {e}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
     try:
@@ -495,7 +498,7 @@ async def save_config(
                 javaproperties.dump(data, f)
         return JSONResponse({"status": "success", "message": "配置文件保存成功"})
     except Exception as e:
-        print(f"Error saving config file: {e}")
+        logger.error(f"Error saving config file: {e}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 

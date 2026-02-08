@@ -3,6 +3,7 @@
 迁移自 web_server.py 中的 /api/pim/ 端点
 """
 
+import logging
 import os
 import datetime
 import zipfile
@@ -1060,5 +1061,5 @@ async def get_online_plugins(
         if server:
             server.logger.error(error_msg)
         else:
-            print(error_msg)
+            logging.getLogger(__name__).error(error_msg)
         return []
