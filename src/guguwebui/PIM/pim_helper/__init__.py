@@ -115,7 +115,7 @@ class PIMHelper:
 
 # --- MCDR 插件入口点 (支持独立运行) ---
 
-def on_load(server: PluginServerInterface, old):
+def on_load(server: PluginServerInterface, _old):
     global _helper_instance
     _helper_instance = PIMHelper(server)
     register_commands(server)

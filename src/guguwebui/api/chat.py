@@ -302,13 +302,12 @@ async def check_chat_session(session_id: str, server: PluginServerInterface = No
             pass
     return result
 
-def chat_user_logout(session_id: str, server: PluginServerInterface) -> Dict[str, Any]:
+def chat_user_logout(session_id: str) -> Dict[str, Any]:
     """
     聊天页用户退出登录
 
     Args:
         session_id: 会话ID
-        server: MCDR服务器接口
 
     Returns:
         Dict: 退出结果
@@ -435,10 +434,9 @@ async def get_new_chat_messages_handler(after_id: int = 0, player_id_heartbeat: 
     # Need to get port from config
     from ..utils.mc_util import get_server_port
     mc_port = get_server_port(server)
-    server_info = await get_java_server_info(mc_port)
 
     # 快速RCON查询
-    if hasattr(server, "is_rcon_running") and server.is_rcon_running():
+    if server.is_rcon_running():
         now_sec = int(time.time())
         if RCON_ONLINE_CACHE["dirty"] or (now_sec - int(RCON_ONLINE_CACHE["ts"]) >= 300):
             try:
@@ -554,7 +552,6 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
         return {"status": "error", "message": "聊天到游戏功能未启用"}
 
     # 获取玩家UUID（如果可用）
-    player_uuid = "未知"  # 默认值
     try:
         player_uuid = await get_player_uuid(player_id, server)
         # 如果仍然没有找到UUID，设置为"未知"
@@ -641,14 +638,14 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
 
 #============================================================#
 # 事件处理功能
-def on_player_joined(server, player: str, info=None):
+def on_player_joined(_server, _player: str, _info=None):
     """处理玩家加入事件"""
     try:
         RCON_ONLINE_CACHE["dirty"] = True
     except Exception:
         pass
 
-def on_player_left(server, player: str):
+def on_player_left(_server, _player: str):
     """处理玩家离开事件"""
     try:
         RCON_ONLINE_CACHE["dirty"] = True

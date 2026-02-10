@@ -24,7 +24,7 @@ chat_logger: Optional[ChatLogger] = None
 #============================================================#
 
 
-def on_load(server: PluginServerInterface, old):
+def on_load(server: PluginServerInterface, _old):
     global web_server_interface
 
     server.logger.info("启动 WebUI 中...")
