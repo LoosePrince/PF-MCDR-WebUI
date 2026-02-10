@@ -507,58 +507,6 @@ class ChatLogger:
 
         return message_id
 
-    def add_plugin_message(self, plugin_id, message, message_type="info", timestamp=None, rtext_data=None, target_players=None, metadata=None):
-        """添加插件消息"""
-        if not isinstance(plugin_id, str) or not isinstance(message, str):
-            raise ValueError("plugin_id 和 message 必须是字符串")
-
-        if not plugin_id.strip() or not message.strip():
-            raise ValueError("plugin_id 和 message 不能为空")
-
-        if timestamp is None:
-            timestamp = datetime.datetime.now(datetime.timezone.utc)
-
-        # 获取下一个消息ID
-        message_id = self._get_next_message_id()
-
-        # 打包消息，插件消息使用特殊的格式（插件消息不需要UUID）
-        packed_message = self._pack_message(message_id, plugin_id, message, timestamp, rtext_data, message_type=2, player_uuid=None)
-
-        # 记录当前文件位置（追加前）
-        current_position = self.chat_messages_file.stat().st_size if self.chat_messages_file.exists() else 0
-
-        # 追加到文件
-        with open(self.chat_messages_file, 'ab') as f:
-            f.write(packed_message)
-
-        # 添加位置索引
-        self._add_position_to_index(message_id, current_position)
-
-        # 更新索引
-        index = self._read_index()
-        index["message_count"] += 1
-        index["next_message_id"] = message_id + 1
-        index["file_size"] = self.chat_messages_file.stat().st_size
-        self._write_index(index)
-
-        # 添加到内存缓存
-        self._add_to_cache({
-            'id': message_id,
-            'player_id': plugin_id,
-            'message': message,
-            'timestamp': int(timestamp.timestamp()),
-            'timestamp_ms': int(timestamp.timestamp() * 1000),
-            'timestamp_str': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-            'is_rtext': rtext_data is not None,
-            'rtext_data': rtext_data,
-            'is_plugin': True,
-            'plugin_id': plugin_id,
-            'uuid': None,
-            'message_source': 'plugin'
-        })
-
-        return message_id
-
     def get_messages(self, limit=50, offset=0, after_id=None, before_id=None):
         """获取消息（优化版本）
 
