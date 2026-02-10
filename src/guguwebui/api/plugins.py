@@ -14,8 +14,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.PIM import create_installer
-from guguwebui.structures import PluginInfo, ToggleConfig
 from guguwebui.constant import DEFALUT_CONFIG
+from guguwebui.structures import PluginInfo, ToggleConfig
 from guguwebui.utils.file_util import __copyFile
 from guguwebui.utils.mc_util import load_plugin_info
 from guguwebui.utils.server_util import verify_token
@@ -137,11 +137,11 @@ async def package_pim_plugin(server, plugins_dir: str) -> str:
 
 
 async def install_plugin(
-    request: Request,
-    plugin_req: dict = Body(...),
-    token_valid: bool = Depends(verify_token),
-    server=None,
-    plugin_installer=None
+        request: Request,
+        plugin_req: dict = Body(...),
+        token_valid: bool = Depends(verify_token),
+        server=None,
+        plugin_installer=None
 ):
     """
     安装指定的插件
@@ -209,11 +209,11 @@ async def install_plugin(
 
 
 async def update_plugin(
-    request: Request,
-    plugin_req: dict = Body(...),
-    token_valid: bool = Depends(verify_token),
-    server=None,
-    plugin_installer=None
+        request: Request,
+        plugin_req: dict = Body(...),
+        token_valid: bool = Depends(verify_token),
+        server=None,
+        plugin_installer=None
 ):
     """
     更新指定的插件到指定版本
@@ -283,11 +283,11 @@ async def update_plugin(
 
 
 async def uninstall_plugin(
-    request: Request,
-    plugin_req: dict = Body(...),
-    token_valid: bool = Depends(verify_token),
-    server=None,
-    plugin_installer=None
+        request: Request,
+        plugin_req: dict = Body(...),
+        token_valid: bool = Depends(verify_token),
+        server=None,
+        plugin_installer=None
 ):
     """
     卸载指定的插件，支持卸载并删除未加载的插件
@@ -341,12 +341,12 @@ async def uninstall_plugin(
 
 
 async def task_status(
-    request: Request,
-    task_id: str = None,
-    plugin_id: str = None,
-    token_valid: bool = Depends(verify_token),
-    server=None,
-    plugin_installer=None
+        request: Request,
+        task_id: str = None,
+        plugin_id: str = None,
+        token_valid: bool = Depends(verify_token),
+        server=None,
+        plugin_installer=None
 ):
     """
     获取任务状态
@@ -411,12 +411,12 @@ async def task_status(
 
 
 async def get_plugin_versions_v2(
-    request: Request,
-    plugin_id: str,
-    repo_url: str = None,
-    token_valid: bool = Depends(verify_token),
-    server=None,
-    plugin_installer=None
+        request: Request,
+        plugin_id: str,
+        repo_url: str = None,
+        token_valid: bool = Depends(verify_token),
+        server=None,
+        plugin_installer=None
 ):
     """
     获取插件的所有可用版本（新版API）
@@ -480,11 +480,11 @@ async def get_plugin_versions_v2(
 
 
 async def get_plugin_repository(
-    request: Request,
-    plugin_id: str,
-    token_valid: bool = Depends(verify_token),
-    server=None,
-    pim_helper=None
+        request: Request,
+        plugin_id: str,
+        token_valid: bool = Depends(verify_token),
+        server=None,
+        pim_helper=None
 ):
     """
     获取插件所属的仓库信息
@@ -524,7 +524,8 @@ async def get_plugin_repository(
         config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
         server.logger.debug(f"api_get_plugin_repository: Raw config: {config}")
 
-        official_repo_url = config.get("mcdr_plugins_url", "https://api.mcdreforged.com/catalogue/everything_slim.json.xz")
+        official_repo_url = config.get("mcdr_plugins_url",
+                                       "https://api.mcdreforged.com/catalogue/everything_slim.json.xz")
         configured_repos = [official_repo_url]  # 始终包含官方仓库
 
         # 添加内置的第三方仓库（与前端保持一致）
@@ -571,7 +572,8 @@ async def get_plugin_repository(
                 # 获取仓库元数据
                 meta_registry = pim_helper.get_cata_meta(source, ignore_ttl=False, repo_url=repo_url)
                 if not meta_registry or not hasattr(meta_registry, 'get_plugin_data'):
-                    server.logger.debug(f"api_get_plugin_repository: Failed to get meta_registry or get_plugin_data for {repo_url}")
+                    server.logger.debug(
+                        f"api_get_plugin_repository: Failed to get meta_registry or get_plugin_data for {repo_url}")
                     continue
 
                 # 查找插件
@@ -655,21 +657,21 @@ async def get_plugin_repository(
 
 
 async def check_pim_status(
-    request: Request,
-    token_valid: bool = Depends(verify_token),
-    server=None
+        request: Request,
+        token_valid: bool = Depends(verify_token),
+        server=None
 ):
-# ... (existing code) ...
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"status": "error", "message": f"检查PIM状态时出错: {str(e)}"}
-        )
+    # ... (existing code) ...
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"status": "error", "message": f"检查PIM状态时出错: {str(e)}"}
+    )
 
 
 async def self_update(
-    request: Request,
-    token_valid: bool = Depends(verify_token),
-    server=None
+        request: Request,
+        token_valid: bool = Depends(verify_token),
+        server=None
 ):
     """执行 WebUI 自身更新"""
     if not token_valid:
@@ -704,8 +706,8 @@ async def self_update(
 
 
 async def get_self_update_info(
-    request: Request,
-    token_valid: bool = Depends(verify_token)
+        request: Request,
+        token_valid: bool = Depends(verify_token)
 ):
     """获取 WebUI 自身更新信息"""
 
@@ -715,9 +717,9 @@ async def get_self_update_info(
 
 
 async def install_pim_plugin(
-    request: Request,
-    token_valid: bool = Depends(verify_token),
-    server=None
+        request: Request,
+        token_valid: bool = Depends(verify_token),
+        server=None
 ):
     """将PIM作为独立插件安装"""
     if not token_valid:
@@ -776,9 +778,9 @@ async def install_pim_plugin(
 
 
 async def toggle_plugin(
-    request: Request,
-    request_body: ToggleConfig,
-    server=None
+        request: Request,
+        request_body: ToggleConfig,
+        server=None
 ):
     """切换插件状态（加载/卸载）"""
     if not server:
@@ -815,9 +817,9 @@ async def toggle_plugin(
 
 
 async def reload_plugin(
-    request: Request,
-    plugin_info: PluginInfo,
-    server=None
+        request: Request,
+        plugin_info: PluginInfo,
+        server=None
 ):
     """重载插件"""
     if not server:
@@ -832,17 +834,17 @@ async def reload_plugin(
 
     server_response = server.reload_plugin(plugin_id)
 
-    if server_response: # success
+    if server_response:  # success
         return JSONResponse({"status": "success"})
 
     return JSONResponse({"status": "error", "message": f"Reload {plugin_id} failed"}, status_code=500)
 
 
 async def get_online_plugins(
-    request: Request,
-    repo_url: str = None,
-    server=None,
-    pim_helper=None
+        request: Request,
+        repo_url: str = None,
+        server=None,
+        pim_helper=None
 ):
     """获取在线插件列表"""
     # 如果没有服务器接口，无法处理请求
@@ -1033,7 +1035,8 @@ async def get_online_plugins(
                             plugin_entry["last_update_time"] = dt.strftime("%Y-%m-%d %H:%M:%S")
                         except Exception as time_error:
                             server.logger.error(f"处理插件 {plugin_id} 的时间信息时出错: {time_error}")
-                            plugin_entry["last_update_time"] = latest_release.created_at if hasattr(latest_release, 'created_at') else ''
+                            plugin_entry["last_update_time"] = latest_release.created_at if hasattr(latest_release,
+                                                                                                    'created_at') else ''
 
                     plugins_data.append(plugin_entry)
                 except Exception as plugin_error:

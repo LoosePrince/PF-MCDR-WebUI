@@ -33,6 +33,7 @@ def format_host_for_url(host: str) -> str:
 
 from guguwebui.constant import *
 
+
 # Github: https://github.com/zauberzeug/nicegui/issues/1956
 class ThreadedUvicorn:
     def __init__(self, server: ServerInterface, config: uvicorn.Config):
@@ -202,6 +203,7 @@ class ThreadedUvicorn:
         except Exception as e:
             self.mcdr_server.logger.error(f"强制终止线程时发生错误: {e}")
 
+
 # 添加一个修复ConnectionResetError的工具函数
 def patch_asyncio(server: ServerInterface):
     """
@@ -224,6 +226,7 @@ def patch_asyncio(server: ServerInterface):
         server.logger.debug("已应用asyncio连接重置错误修复补丁")
     except Exception as e:
         server.logger.error(f"应用asyncio补丁失败: {e}")
+
 
 # token verification
 def verify_token(request: Request):

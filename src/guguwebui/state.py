@@ -11,7 +11,7 @@ WEB_ONLINE_PLAYERS: Dict[str, int] = {}
 # RCON 在线玩家缓存，降低查询频率
 RCON_ONLINE_CACHE: Dict[str, Any] = {
     "names": set(),
-    "ts": 0,      # 上次刷新时间（秒）
+    "ts": 0,  # 上次刷新时间（秒）
     "dirty": False  # 标记需要刷新
 }
 

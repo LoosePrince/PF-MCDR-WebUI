@@ -241,12 +241,12 @@ class ChatLogger:
                 offset += 1
                 if offset + 4 > len(data):
                     return None, original_offset
-                json_len = struct.unpack('I', data[offset:offset+4])[0]
+                json_len = struct.unpack('I', data[offset:offset + 4])[0]
                 offset += 4
                 if offset + json_len > len(data):
                     return None, original_offset
                 try:
-                    payload = json.loads(data[offset:offset+json_len].decode('utf-8'))
+                    payload = json.loads(data[offset:offset + json_len].decode('utf-8'))
                 except (UnicodeDecodeError, json.JSONDecodeError):
                     return None, original_offset
                 offset += json_len
@@ -288,8 +288,8 @@ class ChatLogger:
             player_uuid = None
             if first_byte in [1, 2]:
                 if offset + 9 <= len(data):
-                    potential_msg_id = struct.unpack('Q', data[offset+1:offset+9])[0]
-                    if 0 < potential_msg_id < 10**10:
+                    potential_msg_id = struct.unpack('Q', data[offset + 1:offset + 9])[0]
+                    if 0 < potential_msg_id < 10 ** 10:
                         is_new_format = True
                         offset += 1
 
@@ -297,14 +297,14 @@ class ChatLogger:
             if offset + 8 > len(data):
                 return None, original_offset
 
-            message_id = struct.unpack('Q', data[offset:offset+8])[0]
+            message_id = struct.unpack('Q', data[offset:offset + 8])[0]
             offset += 8
 
             # 读取时间戳 (8字节)
             if offset + 8 > len(data):
                 return None, original_offset
 
-            timestamp_ms = struct.unpack('Q', data[offset:offset+8])[0]
+            timestamp_ms = struct.unpack('Q', data[offset:offset + 8])[0]
             offset += 8
 
             # 读取消息类型 (1字节)
@@ -312,35 +312,35 @@ class ChatLogger:
                 # 旧格式消息，默认为玩家消息
                 message_type = 0
             else:
-                message_type = struct.unpack('B', data[offset:offset+1])[0]
+                message_type = struct.unpack('B', data[offset:offset + 1])[0]
                 offset += 1
 
             # 读取玩家ID长度 (4字节)
             if offset + 4 > len(data):
                 return None, original_offset
 
-            player_id_len = struct.unpack('I', data[offset:offset+4])[0]
+            player_id_len = struct.unpack('I', data[offset:offset + 4])[0]
             offset += 4
 
             # 读取玩家ID
             if offset + player_id_len > len(data):
                 return None, original_offset
 
-            player_id = data[offset:offset+player_id_len].decode('utf-8')
+            player_id = data[offset:offset + player_id_len].decode('utf-8')
             offset += player_id_len
 
             # 读取消息长度 (4字节)
             if offset + 4 > len(data):
                 return None, original_offset
 
-            message_len = struct.unpack('I', data[offset:offset+4])[0]
+            message_len = struct.unpack('I', data[offset:offset + 4])[0]
             offset += 4
 
             # 读取消息内容
             if offset + message_len > len(data):
                 return None, original_offset
 
-            message = data[offset:offset+message_len].decode('utf-8')
+            message = data[offset:offset + message_len].decode('utf-8')
             offset += message_len
 
             # 读取RText数据长度 (4字节)
@@ -348,7 +348,7 @@ class ChatLogger:
                 # 旧格式消息，没有RText数据
                 rtext_data = None
             else:
-                rtext_len = struct.unpack('I', data[offset:offset+4])[0]
+                rtext_len = struct.unpack('I', data[offset:offset + 4])[0]
                 offset += 4
 
                 # 读取RText数据
@@ -357,7 +357,7 @@ class ChatLogger:
                 else:
                     if rtext_len > 0:
                         try:
-                            rtext_json = data[offset:offset+rtext_len].decode('utf-8')
+                            rtext_json = data[offset:offset + rtext_len].decode('utf-8')
                             rtext_data = json.loads(rtext_json)
                         except (UnicodeDecodeError, json.JSONDecodeError):
                             rtext_data = None
@@ -367,14 +367,14 @@ class ChatLogger:
 
             # 读取UUID数据（仅新格式有）
             if is_new_format and offset + 4 <= len(data):
-                uuid_len = struct.unpack('I', data[offset:offset+4])[0]
+                uuid_len = struct.unpack('I', data[offset:offset + 4])[0]
                 offset += 4
 
                 # 读取UUID
                 if offset + uuid_len <= len(data):
                     if uuid_len > 0:
                         try:
-                            player_uuid = data[offset:offset+uuid_len].decode('utf-8')
+                            player_uuid = data[offset:offset + uuid_len].decode('utf-8')
                         except UnicodeDecodeError:
                             player_uuid = None
                     offset += uuid_len
@@ -421,7 +421,8 @@ class ChatLogger:
             logger.warning(f"解析消息失败: {e}")
             return None, original_offset
 
-    def add_message(self, player_id, message, timestamp=None, rtext_data=None, message_type=0, player_uuid=None, server=None):
+    def add_message(self, player_id, message, timestamp=None, rtext_data=None, message_type=0, player_uuid=None,
+                    server=None):
         """添加新消息
 
         Args:
@@ -460,7 +461,8 @@ class ChatLogger:
                     # is usually called from MCDR thread which is sync.
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor() as pool:
-                        player_uuid = pool.submit(lambda: asyncio.run(get_player_uuid(player_id, server))).result(timeout=2.0)
+                        player_uuid = pool.submit(lambda: asyncio.run(get_player_uuid(player_id, server))).result(
+                            timeout=2.0)
                 else:
                     player_uuid = loop.run_until_complete(get_player_uuid(player_id, server))
             except Exception:
@@ -470,7 +472,8 @@ class ChatLogger:
         message_id = self._get_next_message_id()
 
         # 打包消息（包含UUID）
-        packed_message = self._pack_message(message_id, player_id, message, timestamp, rtext_data, message_type, player_uuid)
+        packed_message = self._pack_message(message_id, player_id, message, timestamp, rtext_data, message_type,
+                                            player_uuid)
 
         # 记录当前文件位置（追加前）
         current_position = self.chat_messages_file.stat().st_size if self.chat_messages_file.exists() else 0
@@ -736,7 +739,3 @@ class ChatLogger:
         if self.chat_messages_file.exists():
             return self.chat_messages_file.stat().st_size
         return 0
-
-
-
-

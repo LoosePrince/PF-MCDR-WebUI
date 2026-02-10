@@ -28,6 +28,7 @@ class SafePath:
             return Path(path).resolve()
         raise ValueError(f"Access to path '{path}' is denied (outside of allowed directories)")
 
+
 def get_base_dirs(server) -> List[Path]:
     """
     Get allowed base directories for file operations.

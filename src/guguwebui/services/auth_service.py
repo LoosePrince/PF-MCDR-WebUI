@@ -4,8 +4,8 @@ import secrets
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from guguwebui.utils.auth_util import verify_password
 from guguwebui.constant import DEFALUT_CONFIG, user_db
+from guguwebui.utils.auth_util import verify_password
 
 
 class AuthService:

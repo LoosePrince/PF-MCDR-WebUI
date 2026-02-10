@@ -9,9 +9,11 @@ from .pim_helper.tasks import TaskManager
 def create_installer(server):
     return PIMHelper(server).installer
 
+
 def initialize_pim(server):
     helper = PIMHelper(server)
     return helper, helper.installer
+
 
 __all__ = [
     'PIMHelper',

@@ -25,7 +25,8 @@ class ServerService:
 
         result = {
             "status": server_status,
-            "version": f"Version: {server_message.get('server_version', '')}" if server_message.get('server_version') else "",
+            "version": f"Version: {server_message.get('server_version', '')}" if server_message.get(
+                'server_version') else "",
             "players": player_string,
         }
         api_cache.set(cache_key, result, ttl=5.0)

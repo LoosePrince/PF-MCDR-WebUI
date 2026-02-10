@@ -13,6 +13,7 @@ from .models import ExtendedVersionRequirement, PluginData, ReleaseData
 
 class EmptyMetaRegistry:
     """空元数据注册表"""
+
     def __init__(self):
         self.plugins = {}
 
@@ -25,8 +26,10 @@ class EmptyMetaRegistry:
     def get_plugins(self) -> Dict[str, PluginData]:
         return {}
 
+
 class MetaRegistry:
     """元数据注册表类"""
+
     def __init__(self, data: Dict = None, source_url: str = None):
         self.data = data or {}
         self.source_url = source_url
@@ -41,7 +44,8 @@ class MetaRegistry:
         plugins_count = len(self.plugins)
         plugin_ids = list(self.plugins.keys())
         source_info = f" from {self.source_url}" if self.source_url else ""
-        self.logger.debug(f"已加载 {plugins_count} 个插件{source_info}: {', '.join(plugin_ids[:5])}{'...' if plugins_count > 5 else ''}")
+        self.logger.debug(
+            f"已加载 {plugins_count} 个插件{source_info}: {', '.join(plugin_ids[:5])}{'...' if plugins_count > 5 else ''}")
 
     def get_registry_data(self) -> Dict:
         """获取元数据注册表的原始数据"""
@@ -193,6 +197,7 @@ class MetaRegistry:
                         break
         return result
 
+
 class RegistryManager:
     """元数据注册表管理器"""
     _download_failure_cache = {}
@@ -276,8 +281,10 @@ class RegistryManager:
             self._download_failure_cache[url]['failed_at'] = current_time
             self._download_failure_cache[url]['attempt_count'] += 1
 
+
 class PluginCatalogueAccess:
     """插件目录访问实现"""
+
     @staticmethod
     def filter_sort(plugins: List[PluginData], keyword: str = None) -> List[PluginData]:
         if not keyword:
@@ -287,8 +294,8 @@ class PluginCatalogueAccess:
         result = []
         for plugin in plugins:
             if (keyword in plugin.id.lower() or
-                keyword in plugin.name.lower() or
-                any(keyword in str(desc).lower() for desc in plugin.description.values())):
+                    keyword in plugin.name.lower() or
+                    any(keyword in str(desc).lower() for desc in plugin.description.values())):
                 result.append(plugin)
         return result
 
@@ -306,4 +313,3 @@ class PluginCatalogueAccess:
             desc = plugin.description.get('zh_cn', plugin.description.get('en_us', '无描述'))
             replier.reply(f"{plugin.id} | {plugin.name} | {plugin.version} | {desc}")
         return len(filtered_plugins)
-

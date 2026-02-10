@@ -28,7 +28,8 @@ class PluginInstaller:
 
     def install(self, plugin_id: str, version: str = None, repo_url: str = None) -> str:
         task_id = self.task_manager.create_task('install', plugin_id, version=version, repo_url=repo_url)
-        thread = threading.Thread(target=self._install_thread, args=(task_id, plugin_id, version, repo_url), daemon=True)
+        thread = threading.Thread(target=self._install_thread, args=(task_id, plugin_id, version, repo_url),
+                                  daemon=True)
         thread.start()
         return task_id
 
@@ -104,7 +105,8 @@ class PluginInstaller:
             if current_ver == target_release.version:
                 self.task_manager.update_task(task_id, message=f"{prefix}插件 {plugin_id} 已是最新版本 ({current_ver})")
                 return
-            self.task_manager.update_task(task_id, message=f"{prefix}检测到旧版本: {current_ver} -> 目标版本: {target_release.version}")
+            self.task_manager.update_task(task_id,
+                                          message=f"{prefix}检测到旧版本: {current_ver} -> 目标版本: {target_release.version}")
 
             # 查找依赖于此插件的其他插件
             for pid in self.server.get_plugin_list():
@@ -113,7 +115,8 @@ class PluginInstaller:
                     affected_plugins.append(pid)
 
             if affected_plugins:
-                self.task_manager.update_task(task_id, message=f"{prefix}发现受影响的依赖插件: {', '.join(affected_plugins)}，正在停止...")
+                self.task_manager.update_task(task_id,
+                                              message=f"{prefix}发现受影响的依赖插件: {', '.join(affected_plugins)}，正在停止...")
                 for pid in affected_plugins:
                     if self.server.unload_plugin(pid):
                         self.task_manager.update_task(task_id, message=f"{prefix}已停止依赖插件: {pid}")
@@ -179,12 +182,14 @@ class PluginInstaller:
                         if self.server.load_plugin(pid):
                             self.task_manager.update_task(task_id, message=f"{prefix}已重新启用依赖插件: {pid}")
                         else:
-                            self.task_manager.update_task(task_id, message=f"⚠ {prefix}未能自动重新启用依赖插件: {pid}，请手动加载")
+                            self.task_manager.update_task(task_id,
+                                                          message=f"⚠ {prefix}未能自动重新启用依赖插件: {pid}，请手动加载")
         else:
             if not is_dependency:
                 raise Exception(f"主插件 {plugin_id} 加载失败，请检查控制台日志")
             else:
-                self.task_manager.update_task(task_id, message=f"⚠ {prefix}插件 {plugin_id} 加载失败，可能会影响主插件运行")
+                self.task_manager.update_task(task_id,
+                                              message=f"⚠ {prefix}插件 {plugin_id} 加载失败，可能会影响主插件运行")
 
     def _install_python_requirements(self, task_id: str, plugin_path: str, prefix: str = ""):
         """安装插件包内的 Python 依赖"""
@@ -195,7 +200,8 @@ class PluginInstaller:
             with zipfile.ZipFile(plugin_path, 'r') as z:
                 req_file = next((f for f in z.namelist() if f.endswith('requirements.txt')), None)
                 if req_file:
-                    self.task_manager.update_task(task_id, message=f"{prefix}发现 requirements.txt，准备安装 Python 依赖...")
+                    self.task_manager.update_task(task_id,
+                                                  message=f"{prefix}发现 requirements.txt，准备安装 Python 依赖...")
                     import tempfile
                     with tempfile.NamedTemporaryFile(mode='wb', suffix='req.txt', delete=False) as tmp:
                         tmp.write(z.read(req_file))
@@ -209,7 +215,8 @@ class PluginInstaller:
                         if process.returncode == 0:
                             self.task_manager.update_task(task_id, message=f"{prefix}Python 依赖安装成功")
                         else:
-                            self.task_manager.update_task(task_id, message=f"⚠ {prefix}Python 依赖安装可能存在问题: {process.stderr[:200]}...")
+                            self.task_manager.update_task(task_id,
+                                                          message=f"⚠ {prefix}Python 依赖安装可能存在问题: {process.stderr[:200]}...")
                     finally:
                         if os.path.exists(tmp_path):
                             os.remove(tmp_path)
@@ -243,7 +250,8 @@ class PluginInstaller:
                     is_dep = any(str(d).lower() == plugin_id.lower() for d in deps)
 
                 if is_dep:
-                    self.task_manager.update_task(task_id, message=f"{prefix}发现依赖于 {plugin_id} 的插件: {pid}，正在卸载...")
+                    self.task_manager.update_task(task_id,
+                                                  message=f"{prefix}发现依赖于 {plugin_id} 的插件: {pid}，正在卸载...")
                     # 递归处理依赖插件
                     self._uninstall_logic(task_id, pid, is_dependency=True)
 

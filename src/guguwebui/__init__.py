@@ -6,10 +6,10 @@ from typing import Optional
 from mcdreforged.api.all import Literal, LiteralEvent, PluginServerInterface, Text
 
 from guguwebui.PIM import PluginInstaller, create_installer
+from guguwebui.constant import user_db
 from guguwebui.utils.auth_util import change_account_command, create_account_command, get_temp_password_command, \
     verify_chat_code_command
 from guguwebui.utils.chat_logger import ChatLogger
-from guguwebui.constant import user_db
 from guguwebui.utils.file_util import amount_static_files
 from guguwebui.utils.mc_util import get_minecraft_path
 from guguwebui.utils.mc_util import get_plugins_info
@@ -22,7 +22,7 @@ _mounted_to_fastapi_mcdr = False
 chat_logger: Optional[ChatLogger] = None
 
 
-#============================================================#
+# ============================================================#
 
 
 def on_load(server: PluginServerInterface, _old):

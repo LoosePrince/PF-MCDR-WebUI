@@ -16,10 +16,10 @@ from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
 
+from guguwebui.constant import DEFALUT_CONFIG
 from guguwebui.structures import ConfigData, SaveConfig
 from guguwebui.utils.api_cache import api_cache
 from guguwebui.utils.chat_logger import ChatLogger
-from guguwebui.constant import DEFALUT_CONFIG
 from guguwebui.utils.i18n_util import (build_json_i18n_translations, build_yaml_i18n_translations,
                                        consistent_type_update,
                                        get_comment)
@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 
 
 async def list_config_files(
-    request: Request,
-    plugin_id: str,
-    server=None
+        request: Request,
+        plugin_id: str,
+        server=None
 ) -> JSONResponse:
     """列出插件的配置文件及网页配置信息"""
     config_path_list: List[str] = find_plugin_config_paths(plugin_id)
@@ -67,8 +67,8 @@ async def list_config_files(
 
 
 async def get_web_config(
-    request: Request,
-    server=None
+        request: Request,
+        server=None
 ) -> JSONResponse:
     """获取Web配置"""
     if not server:
@@ -99,7 +99,8 @@ async def get_web_config(
             "ai_api_key_configured": ai_api_key_configured,  # 新增：指示是否已配置
             "ai_model": config.get("ai_model", "deepseek-chat"),
             "ai_api_url": config.get("ai_api_url", "https://api.deepseek.com/chat/completions"),
-            "mcdr_plugins_url": config.get("mcdr_plugins_url", "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"),
+            "mcdr_plugins_url": config.get("mcdr_plugins_url",
+                                           "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"),
             "repositories": config.get("repositories", []),
             "ssl_enabled": config.get("ssl_enabled", False),
             "ssl_certfile": config.get("ssl_certfile", ""),
@@ -127,7 +128,8 @@ async def get_web_config(
             "ai_api_key_configured": ai_api_key_configured,  # 新增：指示是否已配置
             "ai_model": config.get("ai_model", "deepseek-chat"),
             "ai_api_url": config.get("ai_api_url", "https://api.deepseek.com/chat/completions"),
-            "mcdr_plugins_url": config.get("mcdr_plugins_url", "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"),
+            "mcdr_plugins_url": config.get("mcdr_plugins_url",
+                                           "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"),
             "repositories": config.get("repositories", []),
             "ssl_enabled": config.get("ssl_enabled", False),
             "ssl_certfile": config.get("ssl_certfile", ""),
@@ -146,9 +148,9 @@ async def get_web_config(
 
 
 async def save_web_config(
-    request: Request,
-    config: SaveConfig,
-    server=None
+        request: Request,
+        config: SaveConfig,
+        server=None
 ) -> JSONResponse:
     """保存Web配置"""
     if not server:
@@ -266,12 +268,13 @@ async def save_web_config(
 
 from ..utils.path_util import SafePath, get_base_dirs
 
+
 async def load_config(
-    request: Request,
-    path: str,
-    translation: bool = False,
-    type: str = "auto",
-    server=None
+        request: Request,
+        path: str,
+        translation: bool = False,
+        type: str = "auto",
+        server=None
 ) -> JSONResponse:
     """加载配置文件"""
     if not server:
@@ -362,7 +365,7 @@ async def load_config(
         if path_obj.suffix == ".properties":
             path_obj = path_obj.with_suffix(f".json")
 
-    if not path_obj.exists(): # file not exists
+    if not path_obj.exists():  # file not exists
         return JSONResponse({}, status_code=200)
 
     try:
@@ -379,9 +382,9 @@ async def load_config(
                 import javaproperties
                 config = javaproperties.load(f)
                 # convert string "true" "false" to True False
-                config = {k:v if v not in ["true", "false"] else
-                          True if v == "true" else False
-                          for k,v in config.items()}
+                config = {k: v if v not in ["true", "false"] else
+                True if v == "true" else False
+                          for k, v in config.items()}
     except json.JSONDecodeError:
         if path_obj.suffix == ".json":
             config = {}
@@ -417,9 +420,9 @@ async def load_config(
 
 
 async def save_config(
-    request: Request,
-    config_data: ConfigData,
-    server=None
+        request: Request,
+        config_data: ConfigData,
+        server=None
 ) -> JSONResponse:
     """保存配置文件"""
     if not server:
@@ -454,7 +457,7 @@ async def save_config(
                 data = javaproperties.load(f)
                 # convert back the True False to "true" "false"
                 plugin_config = {k: v if not isinstance(v, bool) else
-                                 "true" if v else "false"
+                "true" if v else "false"
                                  for k, v in plugin_config.items()}
     except Exception as e:
         logger.error(f"Error loading config file: {e}")
@@ -540,8 +543,8 @@ def _find_available_port(start_port: int, host: str = "127.0.0.1") -> int:
 
 
 async def setup_rcon_config(
-    request: Request,
-    server=None
+        request: Request,
+        server=None
 ) -> JSONResponse:
     """一键启用RCON配置"""
     if not server:

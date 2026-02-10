@@ -14,8 +14,10 @@ from .tasks import TaskManager
 # 全局实例，供独立插件模式使用
 _helper_instance: Optional['PIMHelper'] = None
 
+
 class PIMHelper:
     """PIM 助手 - 模块协调者"""
+
     def __init__(self, server: PluginServerInterface):
         self.server = server
         self.logger = logging.getLogger('PIM.Helper')
@@ -56,6 +58,7 @@ class PIMHelper:
         # 包装 source 为 replier 兼容接口
         class Replier:
             def __init__(self, s): self.s = s
+
             def reply(self, t): self.s.reply(t)
 
         return PluginCatalogueAccess.list_plugin(meta, Replier(source), keyword)
@@ -93,11 +96,13 @@ class PIMHelper:
                 return os.path.basename(plugin_path)[:-3]
             if zipfile.is_zipfile(plugin_path):
                 with zipfile.ZipFile(plugin_path, 'r') as z:
-                    meta_file = next((f for f in z.namelist() if f.endswith(('mcdr_plugin.json', 'mcdreforged.plugin.json'))), None)
+                    meta_file = next(
+                        (f for f in z.namelist() if f.endswith(('mcdr_plugin.json', 'mcdreforged.plugin.json'))), None)
                     if meta_file:
                         meta = json.loads(z.read(meta_file).decode('utf-8'))
                         return meta.get('id')
-        except: pass
+        except:
+            pass
         return None
 
     # 代理 Installer 的方法
@@ -113,6 +118,7 @@ class PIMHelper:
     def get_all_tasks(self) -> Dict[str, Any]:
         return self.installer.task_manager.get_all_tasks()
 
+
 # --- MCDR 插件入口点 (支持独立运行) ---
 
 def on_load(server: PluginServerInterface, _old):
@@ -120,6 +126,7 @@ def on_load(server: PluginServerInterface, _old):
     _helper_instance = PIMHelper(server)
     register_commands(server)
     server.logger.info("PIM Helper 独立插件模式已就绪")
+
 
 def register_commands(server: PluginServerInterface):
     """注册 !!pim 指令树"""

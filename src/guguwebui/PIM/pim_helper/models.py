@@ -9,11 +9,13 @@ class PluginRequirementSource:
     existing = "existing"
     existing_pinned = "existing_pinned"
 
+
 # 扩展VersionRequirement类，添加check方法
 class ExtendedVersionRequirement(VersionRequirement):
     def check(self, version: str) -> bool:
         """调用accept方法，兼容我们的代码"""
         return self.accept(version)
+
 
 @dataclass
 class PluginRequirement:
@@ -22,6 +24,7 @@ class PluginRequirement:
 
     def satisfied_by(self, plugin_id: str, version: str) -> bool:
         return self.id == plugin_id and self.requirement.accept(version)
+
 
 @dataclass
 class ReleaseData:
@@ -41,6 +44,7 @@ class ReleaseData:
     def version(self) -> str:
         """获取版本号，兼容原始接口"""
         return self.tag_name.lstrip('v') if self.tag_name else ""
+
 
 @dataclass
 class PluginData:

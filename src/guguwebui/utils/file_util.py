@@ -10,20 +10,28 @@ def check_repository_cache(server):
         pim_helper = PIMHelper(server)
         cache_dir = pim_helper.get_temp_dir()
         cache_file = os.path.join(cache_dir, "everything_slim.json")
+
         class CacheCheckSource:
             def __init__(self, server): self.server = server
+
             def reply(self, message): self.server.logger.info(f"[仓库缓存] {message}")
+
             def get_server(self): return self.server
+
         source = CacheCheckSource(server)
         if not os.path.exists(cache_file):
             server.logger.info("插件仓库缓存不存在，尝试下载")
             pim_helper.get_cata_meta(source, ignore_ttl=False)
-            if os.path.exists(cache_file): server.logger.info("插件仓库缓存已成功下载")
+            if os.path.exists(cache_file):
+                server.logger.info("插件仓库缓存已成功下载")
             else:
                 server.logger.warning("插件仓库缓存下载可能失败，但这是正常的，请参考日志了解详情")
                 server.logger.info("WebUI将使用PIM模块的下载失败缓存机制，在15分钟内不会重复尝试下载失败的仓库")
-        else: server.logger.debug("插件仓库缓存已存在")
-    except Exception as e: server.logger.error(f"检查仓库缓存时出错: {e}")
+        else:
+            server.logger.debug("插件仓库缓存已存在")
+    except Exception as e:
+        server.logger.error(f"检查仓库缓存时出错: {e}")
+
 
 def __copyFile(server, path, target_path):
     target_path = Path(target_path)
@@ -35,7 +43,9 @@ def __copyFile(server, path, target_path):
     with open(target_path, 'wb') as f:
         f.write(message)
 
+
 from .mcdr_adapter import MCDRAdapter
+
 
 def __copyFolder(server, folder_path, target_folder):
     target_folder = Path(target_folder)
@@ -78,6 +88,7 @@ def __copyFolder(server, folder_path, target_folder):
         server.logger.error(f"提取插件文件夹 '{folder_path}' 时出错: {e}")
         return False
 
+
 def amount_static_files(server, static_path=None):
     if static_path is None:
         from guguwebui.constant import STATIC_PATH
@@ -100,6 +111,7 @@ def amount_static_files(server, static_path=None):
 
     server.logger.debug("成功复制 static 资源（index.html + assets）")
 
+
 def extract_metadata(plugin_path):
     if os.path.isdir(plugin_path):
         return extract_folder_plugin_metadata(plugin_path)
@@ -110,6 +122,7 @@ def extract_metadata(plugin_path):
     else:
         return None
 
+
 def extract_single_file_plugin_metadata(plugin_file_path):
     import importlib.util
     module_name = os.path.basename(plugin_file_path).replace('.py', '')
@@ -119,12 +132,14 @@ def extract_single_file_plugin_metadata(plugin_file_path):
     metadata = getattr(plugin_module, 'PLUGIN_METADATA', None)
     return metadata if metadata else None
 
+
 def extract_folder_plugin_metadata(plugin_path):
     for root, dirs, files in os.walk(plugin_path):
         for file in files:
             if file == 'mcdreforged.plugin.json':
                 with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
                     return json.load(f)
+
 
 def extract_zip_plugin_metadata(zip_path):
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:

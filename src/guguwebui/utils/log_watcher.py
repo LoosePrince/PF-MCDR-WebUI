@@ -29,6 +29,7 @@ def clean_color_codes(text):
 
     return text
 
+
 class LogHandler(logging.Handler):
     """自定义日志处理器，用于捕获MCDR和服务器日志"""
 
@@ -49,6 +50,7 @@ class LogHandler(logging.Handler):
             )
         except Exception:
             self.handleError(record)
+
 
 class MCServerLogCapture(threading.Thread):
     """专门用于捕获Minecraft服务器日志的线程"""
@@ -83,6 +85,7 @@ class MCServerLogCapture(threading.Thread):
         """线程主循环"""
         while self.running:
             time.sleep(0.1)
+
 
 class StdoutInterceptor:
     """拦截标准输出和标准错误流的类"""
@@ -137,15 +140,16 @@ class StdoutInterceptor:
                         )
                 self.buffer = lines[-1]
 
+
 class LogWatcher:
     # 使用 sys 模块存储共享状态，确保在插件重载时日志不会丢失
     @staticmethod
     def _get_shared_state() -> StateType:
         if not hasattr(sys, '_guguwebui_log_state'):
             sys._guguwebui_log_state = {
-                'logs': [], # 存储原始字典: {timestamp, level, source, message, counter}
+                'logs': [],  # 存储原始字典: {timestamp, level, source, message, counter}
                 'counter': 0,
-                'hashes': set(), # 存储 message 的哈希，用于简单去重
+                'hashes': set(),  # 存储 message 的哈希，用于简单去重
                 'lock': threading.Lock(),
                 'intercepted': False,
                 'original_emit': None

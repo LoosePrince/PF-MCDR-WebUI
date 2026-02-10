@@ -35,13 +35,17 @@ def migrate_old_config():
                 plugin_config_dir.mkdir(parents=True, exist_ok=True)
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(old_config, f, ensure_ascii=False, indent=4)
-    except Exception: pass
+    except Exception:
+        pass
+
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def hash_password(plain_password):
     return pwd_context.hash(plain_password)
+
 
 def create_temp_password() -> str:
     characters = string.ascii_uppercase + string.digits
@@ -50,6 +54,7 @@ def create_temp_password() -> str:
     user_db.save()
     return temp_password
 
+
 def create_user_account(user_name: str, password: str) -> bool:
     if user_name not in user_db['user']:
         user_db['user'][user_name] = pwd_context.hash(password)
@@ -57,12 +62,14 @@ def create_user_account(user_name: str, password: str) -> bool:
         return True
     return False
 
+
 def change_user_account(user_name: str, old_password: str, new_password: str) -> bool:
     if user_name in user_db['user'] and verify_password(old_password, user_db['user'][user_name]):
         user_db['user'][user_name] = pwd_context.hash(new_password)
         user_db.save()
         return True
     return False
+
 
 def create_account_command(src, ctx, host: str, port: int):
     if hasattr(src, 'player') and src.player is not None:
@@ -87,6 +94,7 @@ def create_account_command(src, ctx, host: str, port: int):
     else:
         error_msg = RText("账户已存在！", color=RColor.red)
         src.reply(error_msg)
+
 
 def change_account_command(src, ctx, host: str, port: int):
     if hasattr(src, 'player') and src.player is not None:
@@ -114,6 +122,7 @@ def change_account_command(src, ctx, host: str, port: int):
         error_msg = RText("用户不存在 或 密码错误！", color=RColor.red)
         src.reply(error_msg)
 
+
 def get_temp_password_command(src, ctx, host: str, port: int):
     if hasattr(src, 'player') and src.player is not None:
         error_msg = RText("此命令只能在终端中执行！请在MCDR控制台中使用此命令。", color=RColor.red)
@@ -129,6 +138,7 @@ def get_temp_password_command(src, ctx, host: str, port: int):
         RText(f"http://{format_host_for_url(host)}:{port}", color=RColor.aqua)
     )
     src.reply(temp_msg)
+
 
 def cleanup_chat_verifications():
     try:
@@ -152,6 +162,7 @@ def cleanup_chat_verifications():
             user_db.save()
     except Exception:
         pass
+
 
 def verify_chat_code_command(src, ctx):
     code = ctx['code']

@@ -1,755 +1,755 @@
 {
-  "nav": {
-    "dashboard": "Dashboard",
-    "mcdr_config": "MCDR Config",
-    "mc_config": "MC Server Config",
-    "local_plugins": "Local Plugins",
-    "online_plugins": "Online Plugins",
-    "terminal": "Terminal Logs",
-    "web_settings": "Web Settings",
-    "about": "About",
-    "logout": "Logout",
-    "status_online": "Online",
-    "status_offline": "Offline",
-    "status_loading": "Loading",
-    "status_error": "Error",
-    "user": "User",
-    "lang": "Language",
-    "lang_short": "中",
-    "server_online": "Server Online"
-  },
-  "lang": {
-    "zh-CN": "简体中文",
-    "en-US": "English"
-  },
-  "app": {
-    "name": "MCDR WebUI",
-    "desc": "Server Management Platform"
-  },
-  "common": {
-    "notice_loading": "Loading...",
-    "checking_login": "Checking login status...",
-    "unknown": "Unknown",
-    "save_success": "Saved successfully",
-    "success": "Success",
-    "failed": "Failed",
-    "install": "Install",
-    "installed": "Installed",
-    "confirm": "Confirm",
-    "cancel": "Cancel",
-    "delete": "Delete",
-    "add": "Add",
-    "close": "Close",
-    "save": "Save",
-    "back": "Back",
-    "send": "Send"
-  },
-  "plugins": {
-    "title": "Local Plugins",
-    "search_placeholder": "Search plugins...",
-    "refresh_plugins": "Refresh Plugins",
-    "loading_plugins": "Loading plugins...",
-    "no_plugins_found": "No matching plugins found",
-    "plugin_id": "ID: ",
-    "no_description": "No description available",
-    "version": "v",
-    "unknown_version": "Unknown",
-    "author": "Author: ",
-    "github": "GitHub",
-    "repository": "Repository",
-    "loaded": "Loaded",
-    "disabled": "Disabled",
-    "unloaded": "Unloaded",
-    "enable": "Enable",
-    "disable": "Disable",
-    "all": "All",
-    "plugin_web_pages": "Plugin Web Pages",
-    "config": "Config",
-    "reload": "Reload",
-    "uninstall": "Uninstall",
-    "update": "Update",
-    "versions": "Versions",
-    "msg": {
-      "load_plugins_failed": "Failed to load plugins list",
-      "cannot_toggle_webui": "Cannot toggle WebUI plugin state",
-      "webui_operation_disabled": "Operations on WebUI are disabled in local plugin manager",
-      "enable_success": "Plugin enabled successfully",
-      "disable_success": "Plugin disabled successfully",
-      "enable_failed_prefix": "Failed to enable plugin: {{message}}",
-      "disable_failed_prefix": "Failed to disable plugin: {{message}}",
-      "enable_failed": "Failed to enable plugin",
-      "disable_failed": "Failed to disable plugin",
-      "cannot_reload_webui": "Cannot reload WebUI plugin",
-      "reload_success": "Plugin reloaded successfully",
-      "reload_failed_prefix": "Failed to reload plugin: {{message}}",
-      "reload_failed": "Failed to reload plugin",
-      "cannot_update_webui": "Cannot update WebUI plugin",
-      "update_failed_prefix": "Failed to update plugin: {{message}}",
-      "update_failed": "Failed to update plugin",
-      "cannot_uninstall_webui": "Cannot uninstall WebUI plugin",
-      "uninstall_failed_prefix": "Failed to uninstall plugin: {{message}}",
-      "uninstall_failed": "Failed to uninstall plugin",
-      "uninstall_file_kept": "Plugin {{pluginId}} uninstalled, but files remain on server",
-      "load_config_files_failed": "Failed to fetch config files list",
-      "load_file_failed": "Failed to load config file",
-      "save_failed_prefix": "Save failed: {{message}}",
-      "save_error": "Failed to save config file",
-      "versions_failed": "Failed to fetch versions list",
-      "versions_failed_prefix": "Failed to fetch versions list: {{message}}",
-      "reload_all_success": "Successfully sent reload command to all plugins",
-      "reload_all_failed_prefix": "Bulk reload failed: {{message}}",
-      "reload_all_failed": "Bulk reload error",
-      "operation_success": "Operation on plugin {{pluginId}} completed successfully",
-      "operation_failed_prefix": "Operation on plugin {{pluginId}} failed: {{message}}",
-      "task_query_error_continue": "Failed to query task status, please check the logs later",
-      "cannot_install_webui": "Cannot install WebUI plugin",
-      "install_failed_prefix": "Failed to install plugin: {{message}}",
-      "install_failed": "Failed to install plugin",
-      "load_versions_failed": "Failed to load versions list",
-      "unknown_date": "Unknown date"
+    "nav": {
+        "dashboard": "Dashboard",
+        "mcdr_config": "MCDR Config",
+        "mc_config": "MC Server Config",
+        "local_plugins": "Local Plugins",
+        "online_plugins": "Online Plugins",
+        "terminal": "Terminal Logs",
+        "web_settings": "Web Settings",
+        "about": "About",
+        "logout": "Logout",
+        "status_online": "Online",
+        "status_offline": "Offline",
+        "status_loading": "Loading",
+        "status_error": "Error",
+        "user": "User",
+        "lang": "Language",
+        "lang_short": "中",
+        "server_online": "Server Online"
     },
-    "config_modal": {
-      "title": "Plugin Config",
-      "available_configs": "Available Config Files",
-      "no_config_files": "No config files found",
-      "form_view": "Form View",
-      "code_view": "Code View",
-      "web_view": "Web View",
-      "back_to_list": "Back to List",
-      "edit": "Edit",
-      "save": "Save",
-      "edit_content_placeholder": "Edit configuration content here...",
-      "cannot_edit_form": "This configuration cannot be edited in form view",
-      "try_code_view": "Please switch to code view to edit this file",
-      "html_no_save": "No manual save needed in web mode. This page is managed by the plugin."
+    "lang": {
+        "zh-CN": "简体中文",
+        "en-US": "English"
     },
-    "install_modal": {
-      "install_progress": "Install Progress - ",
-      "update_progress": "Update Progress - ",
-      "uninstall_progress": "Uninstall Progress - ",
-      "processing": "Processing",
-      "completed": "Completed",
-      "waiting_logs": "Waiting for logs...",
-      "processing_logs": "Processing Logs"
+    "app": {
+        "name": "MCDR WebUI",
+        "desc": "Server Management Platform"
     },
-    "confirm_modal": {
-      "title_uninstall": "Uninstall Plugin",
-      "message_uninstall": "Are you sure you want to uninstall plugin {{pluginId}}? This action is irreversible and will permanently delete plugin files.",
-      "uninstall_warning": "This operation cannot be undone. All plugin files will be permanently deleted.",
-      "title_update": "Update Plugin",
-      "message_update": "Are you sure you want to update plugin {{pluginId}}?"
+    "common": {
+        "notice_loading": "Loading...",
+        "checking_login": "Checking login status...",
+        "unknown": "Unknown",
+        "save_success": "Saved successfully",
+        "success": "Success",
+        "failed": "Failed",
+        "install": "Install",
+        "installed": "Installed",
+        "confirm": "Confirm",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "add": "Add",
+        "close": "Close",
+        "save": "Save",
+        "back": "Back",
+        "send": "Send"
     },
-    "version_modal": {
-      "title": "Plugin Versions - ",
-      "loading_versions": "Loading plugin versions...",
-      "no_versions": "No versions found",
-      "current_version": "Current Version: ",
-      "not_installed": "Not Installed",
-      "installed": "Installed",
-      "official": "Official",
-      "prerelease": "Pre-release",
-      "downloads": "Downloads",
-      "source_repository": "Source Repository: "
+    "plugins": {
+        "title": "Local Plugins",
+        "search_placeholder": "Search plugins...",
+        "refresh_plugins": "Refresh Plugins",
+        "loading_plugins": "Loading plugins...",
+        "no_plugins_found": "No matching plugins found",
+        "plugin_id": "ID: ",
+        "no_description": "No description available",
+        "version": "v",
+        "unknown_version": "Unknown",
+        "author": "Author: ",
+        "github": "GitHub",
+        "repository": "Repository",
+        "loaded": "Loaded",
+        "disabled": "Disabled",
+        "unloaded": "Unloaded",
+        "enable": "Enable",
+        "disable": "Disable",
+        "all": "All",
+        "plugin_web_pages": "Plugin Web Pages",
+        "config": "Config",
+        "reload": "Reload",
+        "uninstall": "Uninstall",
+        "update": "Update",
+        "versions": "Versions",
+        "msg": {
+            "load_plugins_failed": "Failed to load plugins list",
+            "cannot_toggle_webui": "Cannot toggle WebUI plugin state",
+            "webui_operation_disabled": "Operations on WebUI are disabled in local plugin manager",
+            "enable_success": "Plugin enabled successfully",
+            "disable_success": "Plugin disabled successfully",
+            "enable_failed_prefix": "Failed to enable plugin: {{message}}",
+            "disable_failed_prefix": "Failed to disable plugin: {{message}}",
+            "enable_failed": "Failed to enable plugin",
+            "disable_failed": "Failed to disable plugin",
+            "cannot_reload_webui": "Cannot reload WebUI plugin",
+            "reload_success": "Plugin reloaded successfully",
+            "reload_failed_prefix": "Failed to reload plugin: {{message}}",
+            "reload_failed": "Failed to reload plugin",
+            "cannot_update_webui": "Cannot update WebUI plugin",
+            "update_failed_prefix": "Failed to update plugin: {{message}}",
+            "update_failed": "Failed to update plugin",
+            "cannot_uninstall_webui": "Cannot uninstall WebUI plugin",
+            "uninstall_failed_prefix": "Failed to uninstall plugin: {{message}}",
+            "uninstall_failed": "Failed to uninstall plugin",
+            "uninstall_file_kept": "Plugin {{pluginId}} uninstalled, but files remain on server",
+            "load_config_files_failed": "Failed to fetch config files list",
+            "load_file_failed": "Failed to load config file",
+            "save_failed_prefix": "Save failed: {{message}}",
+            "save_error": "Failed to save config file",
+            "versions_failed": "Failed to fetch versions list",
+            "versions_failed_prefix": "Failed to fetch versions list: {{message}}",
+            "reload_all_success": "Successfully sent reload command to all plugins",
+            "reload_all_failed_prefix": "Bulk reload failed: {{message}}",
+            "reload_all_failed": "Bulk reload error",
+            "operation_success": "Operation on plugin {{pluginId}} completed successfully",
+            "operation_failed_prefix": "Operation on plugin {{pluginId}} failed: {{message}}",
+            "task_query_error_continue": "Failed to query task status, please check the logs later",
+            "cannot_install_webui": "Cannot install WebUI plugin",
+            "install_failed_prefix": "Failed to install plugin: {{message}}",
+            "install_failed": "Failed to install plugin",
+            "load_versions_failed": "Failed to load versions list",
+            "unknown_date": "Unknown date"
+        },
+        "config_modal": {
+            "title": "Plugin Config",
+            "available_configs": "Available Config Files",
+            "no_config_files": "No config files found",
+            "form_view": "Form View",
+            "code_view": "Code View",
+            "web_view": "Web View",
+            "back_to_list": "Back to List",
+            "edit": "Edit",
+            "save": "Save",
+            "edit_content_placeholder": "Edit configuration content here...",
+            "cannot_edit_form": "This configuration cannot be edited in form view",
+            "try_code_view": "Please switch to code view to edit this file",
+            "html_no_save": "No manual save needed in web mode. This page is managed by the plugin."
+        },
+        "install_modal": {
+            "install_progress": "Install Progress - ",
+            "update_progress": "Update Progress - ",
+            "uninstall_progress": "Uninstall Progress - ",
+            "processing": "Processing",
+            "completed": "Completed",
+            "waiting_logs": "Waiting for logs...",
+            "processing_logs": "Processing Logs"
+        },
+        "confirm_modal": {
+            "title_uninstall": "Uninstall Plugin",
+            "message_uninstall": "Are you sure you want to uninstall plugin {{pluginId}}? This action is irreversible and will permanently delete plugin files.",
+            "uninstall_warning": "This operation cannot be undone. All plugin files will be permanently deleted.",
+            "title_update": "Update Plugin",
+            "message_update": "Are you sure you want to update plugin {{pluginId}}?"
+        },
+        "version_modal": {
+            "title": "Plugin Versions - ",
+            "loading_versions": "Loading plugin versions...",
+            "no_versions": "No versions found",
+            "current_version": "Current Version: ",
+            "not_installed": "Not Installed",
+            "installed": "Installed",
+            "official": "Official",
+            "prerelease": "Pre-release",
+            "downloads": "Downloads",
+            "source_repository": "Source Repository: "
+        },
+        "status": {
+            "updatable": "Update"
+        },
+        "self_update": {
+            "title": "WebUI Update Available",
+            "message": "New version {{latest}} found (current: {{current}})",
+            "update_now": "Update Now",
+            "updating": "Updating...",
+            "success": "Update command sent, plugin will restart",
+            "failed": "Update failed"
+        }
     },
-    "status": {
-      "updatable": "Update"
+    "page": {
+        "index": {
+            "start": "Start",
+            "restart": "Restart",
+            "stop": "Stop",
+            "server": "Server Status",
+            "server_version": "Server Version",
+            "running": "Running",
+            "stopped": "Stopped",
+            "online_players": "Online Players",
+            "webui_version": "WebUI Version",
+            "connection_status": "Connection Status",
+            "quick_nav": "Quick Navigation",
+            "webui_running": "WebUI is running",
+            "plugins_mgmt": "Plugins Management",
+            "plugins_mgmt_desc": "Manage local and online plugins",
+            "mcdr_config": "MCDR Config",
+            "mcdr_config_desc": "Configure MCDR core settings",
+            "mc_config": "MC Config",
+            "mc_config_desc": "Configure Minecraft server",
+            "online_plugins": "Online Plugins",
+            "online_plugins_desc": "Browse and install plugins from online sources",
+            "unknown": "Unknown",
+            "rcon_connected": "Connected",
+            "rcon_disconnected": "Disconnected",
+            "rcon_enabled": "Enabled",
+            "rcon_disabled": "Disabled",
+            "feature_overview": "Feature Overview",
+            "system_info": "System Information",
+            "system_time": "System Time",
+            "security_status": "Security Status",
+            "logged_in": "Logged in",
+            "pip_mgmt": "pip Management",
+            "refresh": "Refresh",
+            "install": "Install",
+            "no_packages": "No pip packages installed",
+            "pkg_name": "Package",
+            "version": "Version",
+            "actions": "Actions",
+            "uninstall": "Uninstall",
+            "install_pip_title": "Install pip package",
+            "install_placeholder": "e.g. requests or requests==2.31.0",
+            "pip_list_failed_prefix": "Failed to fetch pip packages: ",
+            "pip_list_failed": "Failed to fetch pip packages",
+            "pip_op_succeeded": "pip operation completed successfully",
+            "pip_op_failed": "pip operation failed",
+            "get_task_status_failed_prefix": "Failed to get task status: ",
+            "operation_failed_prefix": "Operation failed: ",
+            "pip_output": "pip logs",
+            "action_start": "start",
+            "action_stop": "stop",
+            "action_restart": "restart",
+            "control_sent_prefix": "Server ",
+            "control_sent_suffix": " command has been sent",
+            "control_failed_prefix": "Operation failed: ",
+            "control_error": "Server control operation failed",
+            "notice": "Notice",
+            "notice_loading": "Loading notice...",
+            "no_notice": "No notice",
+            "notice_view_detail": "View details",
+            "notice_click_expand": "Click to expand"
+        },
+        "404": {
+            "title": "404 - Page Not Found",
+            "description": "Sorry, the page you visited does not exist or is unavailable.",
+            "back_home": "Back to Home"
+        },
+        "chat": {
+            "header_title": "Server Chat",
+            "kick_confirm": "Are you sure you want to kick player {{name}} from the server?",
+            "header": {
+                "players_online": "Online"
+            },
+            "room": {
+                "desc": "Welcome to the server chat portal (best experienced in-game!)",
+                "empty": {
+                    "title": "No messages yet",
+                    "hint": "Start the conversation!"
+                },
+                "load_more": "Load historical messages",
+                "input_placeholder_send": "Send message to server...",
+                "input": {
+                    "placeholder": "Type your message...",
+                    "hint": "Press Enter or click Send to relay to the game"
+                },
+                "send": {
+                    "submit": "Send"
+                }
+            },
+            "tabs": {
+                "verify_flow": "Verify Code",
+                "direct_login": "Login",
+                "avatar_source": {
+                    "title": "Avatar Source"
+                },
+                "ui_style": {
+                    "title": "UI Style",
+                    "modern": "Modern",
+                    "minecraft": "Minecraft"
+                },
+                "settings_desc": "Personalize your chat experience",
+                "cooling_down": "COOLING DOWN...",
+                "web_label": "WEB"
+            },
+            "steps": {
+                "get_code": "Get Code",
+                "verify_in_game": "Verify In-Game",
+                "set_password": "Set Password"
+            },
+            "get_code": {
+                "generate": "Generate Code",
+                "desc_before": "Click below to get a 6-digit code, then use ",
+                "desc_after": " command in-game to verify.",
+                "your_code": "Your Code:",
+                "expire_hint": "Expires in 10 minutes"
+            },
+            "verify": {
+                "title": "In-Game Verification",
+                "desc": "Use the following command in-game to verify your identity:",
+                "check": "Check Verification Status"
+            },
+            "set_password": {
+                "submit": "Set Password",
+                "password_label": "Password",
+                "password_placeholder": "Min 6 characters",
+                "confirm_label": "Confirm Password",
+                "confirm_placeholder": "Re-enter password"
+            },
+            "login": {
+                "submit": "Login",
+                "player_id_label": "Player ID",
+                "player_id_placeholder": "Enter your player ID",
+                "password_label": "Password",
+                "password_placeholder": "Enter your password"
+            },
+            "panel": {
+                "online_members": "Online members"
+            },
+            "settings": {
+                "modal_title": "Settings",
+                "display_mode_label": "Display mode",
+                "display_modern": "Modern bubbles",
+                "display_mc": "MC style",
+                "avatar_source_label": "Avatar source",
+                "avatar_mccag": "MCCAG (Minimal)",
+                "avatar_mcheads": "MCHeads (Original)"
+            },
+            "offline": {
+                "just_offline": "Just left",
+                "minutes_ago": "m ago",
+                "minutes_ago_format": "{{count}} m ago",
+                "hours_ago": "h ago",
+                "status_game": "In game",
+                "status_web": "Web"
+            },
+            "msg": {
+                "generate_failed": "Failed to generate code",
+                "network_retry": "Network error, please try again",
+                "verify_failed": "Verification failed. Ensure you used the command in-game.",
+                "password_mismatch": "Passwords do not match",
+                "password_too_short": "Password must be at least 6 characters",
+                "set_password_failed": "Failed to set password",
+                "login_failed": "Login failed",
+                "send_failed": "Failed to send message",
+                "network_send_failed": "Network error, failed to send"
+            }
+        },
+        "about": {
+            "subtitle": "Learn about the background, origins and open source information of GUGU WebUI.",
+            "source_title": "Origins of the WebUI plugin",
+            "source_desc": "GUGU WebUI was originally inspired by the idea that the GUGUbot plugin should have its own WebUI. At that time GUGUbot was still relatively simple, so a dedicated WebUI was not added, but this sparked the idea of building a more general‑purpose WebUI plugin, which eventually became GUGU WebUI, originating from GUGUbot.",
+            "projects": {
+                "gugubot_desc": "The original automation bot and chat features that created the need for web management.",
+                "cq_desc": "Provides QQ‑side message forwarding and integration, extending how the server connects to the outside world.",
+                "web_desc": "An evolution based on the previous two, focusing on a more modern WebUI management experience."
+            },
+            "opensource_title": "Open Source & Contributions",
+            "opensource_desc": "As an open source project, GUGU WebUI welcomes bug reports, pull requests, documentation updates and localization contributions.",
+            "github_repo": "GitHub Repository",
+            "issue_tracker": "Issue Tracker / Feedback",
+            "thanks_title": "Acknowledgements",
+            "thanks_desc": "Thanks to all developers and server admins who contributed code, suggestions and testing to GUGU WebUI. Your support keeps this project evolving.",
+            "contribute": {
+                "title": "Projects & Dependencies",
+                "project": "Project / Component",
+                "desc": "Description",
+                "items": {
+                    "mcdr_repo": "MCDR Plugin Repository",
+                    "mcdr_repo_desc": "Provides a rich MCDR plugin ecosystem, forming the foundation of this project’s features.",
+                    "mc_server_info": "Base implementation for querying Minecraft server status and player information.",
+                    "mcdreforged": "MCDReforged (mcdreforged)",
+                    "mcdreforged_desc": "MCDR core; the runtime platform this plugin depends on.",
+                    "wolfgangfahl": "WolfgangFahl (zauberzeug/nicegui/issues/1956)",
+                    "wolfgangfahl_desc": "Implementation approach for threaded uvicorn was referenced.",
+                    "minecraft_wiki": "Minecraft Wiki (Raw JSON text)",
+                    "minecraft_wiki_desc": "Format specification for the RText parser.",
+                    "mcstatus_desc": "Python library for querying Minecraft Java Edition server status."
+                }
+            },
+            "thanks": {
+                "contributors_title": "Core Contributors",
+                "community_title": "Community & Tools",
+                "contributor": "Contributor",
+                "desc": "Contribution",
+                "items": {
+                    "looseprince_desc": "Feature design, documentation, web design and frontend implementation.",
+                    "xuek66_desc": "Code development, maintenance and feature design.",
+                    "feedbackers": "All users who provided feedback and testing",
+                    "feedbackers_desc": "Filed issues and suggestions during real‑world usage and helped the project improve continuously.",
+                    "cursor": "Significantly improved development efficiency during refactors and iterations.",
+                    "contributors_link": "More contributors",
+                    "contributors_link_desc": "See the full contributor list on GitHub."
+                }
+            }
+        },
+        "settings": {
+            "title": "Web Settings",
+            "header": "WebUI Settings",
+            "msg": {
+                "get_config_failed": "Failed to fetch configuration",
+                "host_required": "Host cannot be empty",
+                "port_invalid": "Port must be a valid number between 1 and 65535",
+                "network_save_success": "Network settings saved successfully",
+                "save_failed_prefix": "Save failed: ",
+                "save_error_prefix": "Save error: ",
+                "account_required": "Super admin account cannot be empty",
+                "account_save_success": "Account settings saved successfully",
+                "toggle_enabled": "Setting enabled",
+                "toggle_disabled": "Setting disabled",
+                "toggle_failed_prefix": "Toggle failed: ",
+                "toggle_error_prefix": "Toggle error: ",
+                "api_key_required": "Please enter API key",
+                "api_key_validating": "Validating API key...",
+                "api_key_validate_success": "API key verified successfully",
+                "api_key_validate_failed_prefix": "API key validation failed: ",
+                "api_key_validate_error_prefix": "Validation error: ",
+                "repo_name_url_required": "Repository name and URL cannot be empty",
+                "url_invalid": "Please enter a valid URL",
+                "repo_url_official_forbidden": "Cannot add the same URL as the official repository",
+                "repo_duplicate": "Repository name or URL already exists",
+                "repo_added_tip": "Repository added. Click the save button to persist the configuration.",
+                "repo_deleted_tip": "Repository deleted. Click the save button to persist the configuration.",
+                "repos_save_success": "Repository configuration saved successfully",
+                "mcdr_url_save_success": "MCDR plugin repository URL saved successfully",
+                "plugin_repo_save_success": "Plugin repository configuration saved successfully",
+                "https_need_both_files": "To enable HTTPS, you need to provide both certificate and key file paths",
+                "https_confirm_text": "Please confirm that you have prepared the SSL certificate and key files, and that the specified paths are correct.\\n\\nIf the files do not exist, the WebUI will fall back to HTTP mode.\\n\\nContinue?",
+                "https_save_success": "HTTPS settings saved successfully. They will take effect after restarting the plugin. If the SSL files do not exist, the system will automatically fall back to HTTP mode.",
+                "pim_install_success": "PIM plugin installed successfully",
+                "pim_install_failed_prefix": "Installation failed: ",
+                "pim_install_error_prefix": "Installation error: ",
+                "ai_save_success": "AI configuration saved successfully",
+                "public_chat_save_success": "Chat page settings saved successfully"
+            },
+            "network": {
+                "title": "Network Settings",
+                "tip": "Configure the WebUI network binding. After changing these settings, you need to restart the plugin to apply them.",
+                "host": "Host",
+                "host_hint": "Use 127.0.0.1 for local access only, use 0.0.0.0 to allow access from other devices",
+                "port": "Port",
+                "port_hint": "Port range: 1-65535. Avoid using ports that are already in use.",
+                "save": "Save Network Settings"
+            },
+            "https": {
+                "title": "HTTPS Settings",
+                "tip": "Configure HTTPS support for WebUI. You need to provide a valid SSL certificate and key files. Changes take effect after restarting the plugin.",
+                "enable": "Enable HTTPS",
+                "enable_desc": "Encrypt WebUI traffic with HTTPS to protect your admin interface",
+                "ssl_tip_title": "SSL File Configuration Notes",
+                "ssl_tip_1": "Make sure the specified certificate and key files actually exist, otherwise the system will automatically fall back to HTTP mode",
+                "ssl_tip_2": "File paths can be absolute (e.g. C:/ssl/cert.pem) or relative (e.g. ./ssl/cert.pem)",
+                "ssl_tip_3": "Relative paths are based on the MCDR root directory",
+                "ssl_tip_4": "Configuration changes take effect only after restarting the plugin",
+                "cert": "SSL certificate file path",
+                "cert_hint": "Full path to the SSL certificate file, e.g. ./ssl/cert.pem",
+                "key": "SSL key file path",
+                "key_hint": "Full path to the SSL key file, e.g. ./ssl/key.pem",
+                "key_pass": "SSL key file password (optional)",
+                "key_pass_hint": "If your SSL key file is password protected, enter the password here",
+                "save": "Save HTTPS Settings",
+                "placeholder_key_pass": "If your key file is password protected, enter the password here"
+            },
+            "account": {
+                "title": "Account Settings",
+                "super_admin": "Super admin account",
+                "super_admin_hint": "QQ account with super admin permission",
+                "save": "Save Account Settings"
+            },
+            "security": {
+                "title": "Security Settings",
+                "disable_admin_web": "Disable admin login via web",
+                "enable_temp_code": "Enable temporary login password"
+            },
+            "ai": {
+                "title": "AI Model Configuration",
+                "api_key": "API Key",
+                "validate": "Validate Key",
+                "validate_query": "Test if the key is valid, please reply \"valid\"",
+                "validate_system_prompt": "You are a simple validation program, just reply \"valid\"",
+                "api_url": "API URL",
+                "api_url_hint": "API endpoint, DeepSeek default: https://api.deepseek.com/chat/completions",
+                "model": "Model Name",
+                "model_hint": "AI model name, DeepSeek default: deepseek-chat",
+                "save": "Save AI Configuration",
+                "placeholder_api_key": "Enter a new API key",
+                "placeholder_api_url": "https://api.deepseek.com/chat/completions",
+                "placeholder_model": "deepseek-chat"
+            },
+            "public_chat": {
+                "title": "Public Chat Page Settings",
+                "tip": "Configure options for the public chat page. These settings affect access and message forwarding behavior.",
+                "enable": "Enable Public Chat Page",
+                "enable_desc": "Allow users to access the public chat page",
+                "enable_to_game": "Send messages to game",
+                "enable_to_game_desc": "Allow users on the public chat page to send messages into the Minecraft game",
+                "save": "Save Chat Page Settings",
+                "verification_expire": {
+                    "title": "Verification code expiry",
+                    "desc": "Set validity period of verification code (minutes)",
+                    "unit_min": "minutes"
+                },
+                "session_expire": {
+                    "title": "Session expiry",
+                    "desc": "Set validity period of user sessions (hours)",
+                    "unit_hour": "hours"
+                },
+                "history": {
+                    "title": "Chat History Management",
+                    "desc": "Manage historical messages of the chat page",
+                    "clear": "Clear chat history",
+                    "count_prefix": "Current records: ",
+                    "count_suffix": " messages"
+                }
+            },
+            "repo": {
+                "title": "MCDR Plugin Repository Configuration",
+                "tip": "Supports multiple repository links. You can add third-party repositories. The official repository cannot be removed and is used as the default data source.",
+                "name": "Name",
+                "url": "URL",
+                "actions": "Actions",
+                "official": "Official repository",
+                "loose_repo": "PF's repository",
+                "default": "Default",
+                "placeholder_name": "Repository name",
+                "placeholder_url": "Repository URL",
+                "save": "Save Repository Configuration"
+            },
+            "pim": {
+                "title": "PIM Standalone Plugin",
+                "install_title": "Install PIM as standalone plugin",
+                "installed_tip": "PIM is installed as a standalone plugin. You can manage it in the plugin management page.",
+                "desc": "Run the WebUI Plugin Installation Manager (PIM) as a standalone plugin to provide installation support for other plugins. If you are not sure what this is, please do not install it."
+            }
+        },
+        "mc": {
+            "title": "MC Server Config",
+            "header": "Server Config",
+            "search": "Search config items...",
+            "save": "Save Config",
+            "saving": "Saving...",
+            "categories": {
+                "all": "All Settings",
+                "basic": "Basic Settings",
+                "game": "Game Rules",
+                "network": "Network Settings",
+                "performance": "Performance Settings",
+                "world": "World Settings",
+                "security": "Security Settings"
+            },
+            "rcon": {
+                "setup_success_msg": "RCON configuration enabled successfully",
+                "setup_failed_prefix": "RCON setup failed: ",
+                "setup_error": "Error setting up RCON",
+                "restart_success": "Server restart command sent",
+                "restart_failed_prefix": "Failed to restart server: ",
+                "restart_error": "Error restarting server"
+            },
+            "msg": {
+                "load_translations_failed": "Failed to load translations",
+                "load_config_failed": "Failed to load config",
+                "save_success": "Config saved successfully",
+                "save_failed_prefix": "Failed to save config: ",
+                "save_error": "Error saving config"
+            }
+        },
+        "mcdr": {
+            "title": "MCDR Config",
+            "msg": {
+                "save_success": "Configuration saved successfully",
+                "save_failed_prefix": "Failed to save configuration: ",
+                "save_error_prefix": "Save error: "
+            },
+            "about": {
+                "title": "Configuration files of MCDReforged",
+                "check": "Check",
+                "doc": "Official Docs",
+                "more": "Learn more",
+                "view_doc": "View official configuration documentation",
+                "site": "Visit MCDReforged website"
+            },
+            "config": {
+                "basic": "Basic MCDR Configuration",
+                "config_yml": "config.yml",
+                "permission_yml": "permission.yml"
+            },
+            "form": {
+                "language": "Language used by MCDR",
+                "language_tip": "Default: en_us. Available: en_us, zh_cn",
+                "language_en": "English (en_us)",
+                "language_zh": "Simplified Chinese (zh_cn)",
+                "working_directory": "Server working directory",
+                "working_directory_tip": "Default: server. Usually you don't need to change this",
+                "start_command": "Console command used to start the server",
+                "start_command_tip": "Paste your start command here (see docs if you need exec mode)",
+                "start_example": "Example (fabric): java -Xmx16G -jar fabric-server-launch.jar nogui",
+                "handler": "Server handler",
+                "handler_tip": "Default: vanilla_handler",
+                "handler_modal_desc": "Choose a handler that matches your server type. If you are not sure, use vanilla_handler or refer to the official documentation.",
+                "handler_option": {
+                    "vanilla": "Vanilla / Vanilla standalone server",
+                    "beta18": "Legacy Beta 1.8 and earlier",
+                    "bukkit": "Bukkit / Spigot / Paper family",
+                    "bukkit14": "Bukkit 1.4 compatible",
+                    "forge": "Forge / Modded server",
+                    "cat_server": "CatServer",
+                    "arclight": "Arclight / Mohist and similar hybrid servers",
+                    "bungeecord": "BungeeCord proxy",
+                    "waterfall": "Waterfall / Travertine proxy",
+                    "velocity": "Velocity proxy",
+                    "basic": "Generic / other console"
+                },
+                "handler_desc": "Different server types have very different outputs and commands. The server handler is the module that adapts MCDR to each server type and is the main entry point for controlling the server.",
+                "handler_detail": {
+                    "vanilla": "For pure vanilla or simple single‑world servers. If you are not sure about your server type, this is usually the safest choice.",
+                    "beta18": "Compatibility handler for very old vanilla servers around Beta 1.8 and earlier, mainly for maintaining legacy worlds.",
+                    "bukkit": "For classic Bukkit‑family servers such as Bukkit / Spigot / Paper and most plugin‑centric servers.",
+                    "bukkit14": "Special compatibility for the historical Bukkit 1.4 branch. Only use this if you explicitly run that old version.",
+                    "forge": "For Forge‑based modded servers, where console output and commands follow the Forge conventions.",
+                    "cat_server": "Dedicated handler for CatServer, a hybrid implementation combining Forge and Bukkit features.",
+                    "arclight": "For Arclight, Mohist and similar hybrid servers that load both mods and Bukkit plugins.",
+                    "bungeecord": "For BungeeCord proxy servers that route traffic to multiple backend servers instead of running worlds directly.",
+                    "waterfall": "For Waterfall / Travertine and similar BungeeCord‑derived proxies. Use this when you run those proxy forks.",
+                    "velocity": "For Velocity proxy servers, a modern high‑performance proxy suitable for multi‑backend clusters.",
+                    "basic": "A generic console handler for servers that do not fit into the above categories or only need minimal command forwarding."
+                },
+                "handler_supported": "Currently supported handlers:",
+                "encoding": "MCDR -> Server (encoding)",
+                "encoding_tip": "Default: utf8",
+                "decoding": "Server -> MCDR (decoding)",
+                "decoding_tip": "Default: utf8",
+                "plugin_directories": "Plugin directories",
+                "plugin_directories_tip": "List of directories where MCDR looks for plugins. Usually you don't need to change this.",
+                "check_update": "Check for updates",
+                "check_update_tip": "Default: true. When enabled, MCDR will check for updates every 24 hours",
+                "advanced_console": "Advanced console",
+                "advanced_console_tip": "Based on prompt-toolkit. If you need to redirect MCDR stdin/stdout, or you simply don't like the advanced console, set this to false to disable it.",
+                "disable_console_thread": "Disable console thread",
+                "disable_console_thread_tip": "Keep the default unless you know exactly what you are doing.",
+                "disable_console_color": "Disable console color",
+                "disable_console_color_tip": "When set to true, MCDR will strip all console style codes before printing messages.",
+                "custom_handlers": "Custom server handler classes",
+                "custom_handlers_tip": "For multiple entries, please edit the configuration file directly.",
+                "advanced_warning": "Keep the default unless you know exactly what you are doing.",
+                "custom_info_reactors": "Custom Info reactor classes",
+                "watchdog": "Watchdog",
+                "watchdog_threshold": "Response time threshold",
+                "watchdog_threshold_tip": "Time interval after which the Watchdog considers the task executor thread as not responding. Set to 0 to disable the Watchdog.",
+                "handler_detection": "Server handler detection logic",
+                "catalogue_meta_cache_ttl": "Cache TTL for fetched plugin catalogue metadata",
+                "catalogue_meta_fetch_timeout": "Timeout for fetching plugin catalogue metadata",
+                "catalogue_meta_url": "Override URL used to fetch plugin catalogue metadata",
+                "plugin_download_url": "Override plugin download URL",
+                "plugin_download_timeout": "Timeout for downloading plugin files",
+                "telemetry": "Telemetry (usage statistics reporting)",
+                "plugin_pip_install_extra_args": "Additional arguments passed to pip when installing plugin Python dependencies",
+                "http_proxy": "http_proxy",
+                "https_proxy": "https_proxy"
+            }
+        },
+        "local_plugins": {
+            "title": "Local Plugins"
+        },
+        "online_plugins": {
+            "title": "Online Plugins",
+            "search": "Search plugins...",
+            "sort_name": "By Name",
+            "sort_time": "By Time",
+            "sort_downloads": "By Downloads",
+            "loading": "Loading plugins...",
+            "empty": "No matching plugins found",
+            "description": "Description",
+            "readme": "README",
+            "readme_doc": "Project Documentation",
+            "catalogue_doc": "Repository Documentation",
+            "github_repo": "GitHub Repository",
+            "details": "Details",
+            "authors": "Authors",
+            "dependencies": "Dependencies",
+            "view_doc": "View Docs",
+            "view_full_doc": "View Full Documentation",
+            "install_confirm_title": "Confirm Installation",
+            "installing_plugin": "You are about to install plugin ",
+            "select_install_method": "Please choose an installation method:",
+            "choose_version": "Choose Version",
+            "install_latest": "Install Latest",
+            "loading_readme": "Loading project documentation...",
+            "loading_catalogue": "Loading repository documentation...",
+            "third_repo_warning_title": "Third-party Repository Warning",
+            "third_repo_warning_lead": "You are accessing a third-party plugin repository.",
+            "note": "Note:",
+            "third_repo_warning_p1": "These plugins may not be reviewed and may have potential security risks.",
+            "third_repo_warning_p2": "Installing these plugins may affect your server's stability and security.",
+            "third_repo_warning_p3": "Before installing, review the code or ensure you trust the repository maintainers.",
+            "third_repo_warning_p4": "Version switching for third-party plugins is supported since 1.4.3. This popup will not show again today after confirmation.",
+            "third_repo_warning_conclusion": "Continuing means you understand and accept these risks.",
+            "repo_continue": "Continue",
+            "msg": {
+                "load_online_plugins_failed": "Failed to load online plugins list",
+                "load_doc_failed": "Failed to load documentation",
+                "versions_failed": "Failed to fetch versions list",
+                "no_readme": "This plugin has no documentation",
+                "no_readme_plain": "This plugin does not provide a Markdown README; only plain text notes or no documentation may be available.",
+                "doc_not_found": "{{docType}} link not found"
+            }
+        },
+        "terminal": {
+            "title": "Terminal Logs",
+            "empty": "No logs available",
+            "placeholder": "Type command...",
+            "suggestions": {
+                "title": "SUGGESTIONS",
+                "hint": "TAB to select"
+            },
+            "selection": {
+                "ask_ai": "Ask AI"
+            },
+            "tooltip": {
+                "auto_scroll": "Auto Scroll",
+                "auto_refresh": "Auto Refresh",
+                "copy_logs": "Copy Logs",
+                "clear_terminal": "Clear Terminal",
+                "ai_settings": "AI Settings"
+            },
+            "msg": {
+                "load_logs_failed": "Failed to load logs",
+                "forbidden_command": "This command is forbidden",
+                "command_sent_prefix": "Command Sent: ",
+                "command_sent": "Command sent successfully",
+                "send_failed": "Failed to send command",
+                "copy_success": "Copied to clipboard",
+                "default_ai_query": "Analyze these logs and provide possible causes and solutions.",
+                "system_prompt": "You are a Minecraft server and MCDR log expert. Please answer in English."
+            },
+            "ai_modal": {
+                "title": "AI Analysis",
+                "settings": "AI Settings",
+                "mode_api": "Deepseek (API)",
+                "mode_free": "Free AI",
+                "api_unconfigured_warning": "API Key not configured. Using it might fail.",
+                "api_configure_now": "Configure Now",
+                "input_placeholder": "Ask a question about the logs, e.g. “What does this error mean?”",
+                "thinking": "Thinking...",
+                "settings_desc": "Configure your DeepSeek API key to enable more powerful log analysis.",
+                "api_key_label": "API Key",
+                "api_key_placeholder": "sk-...",
+                "save_success": "API Key Saved",
+                "save_failed": "Failed to save",
+                "save_error": "Error saving key",
+                "context_title": "Log context preview"
+            }
+        }
     },
-    "self_update": {
-      "title": "WebUI Update Available",
-      "message": "New version {{latest}} found (current: {{current}})",
-      "update_now": "Update Now",
-      "updating": "Updating...",
-      "success": "Update command sent, plugin will restart",
-      "failed": "Update failed"
+    "login": {
+        "username": "Username",
+        "password": "Password",
+        "remember": "Remember me",
+        "login": "Login",
+        "placeholder_username": "Enter username",
+        "placeholder_password": "Enter password",
+        "go_chat": "I'm a player, I need to access the server chat page",
+        "msg": {
+            "login_failed": "Login failed"
+        }
+    },
+    "theme": {
+        "system": "System",
+        "dark": "Dark",
+        "light": "Light"
     }
-  },
-  "page": {
-    "index": {
-      "start": "Start",
-      "restart": "Restart",
-      "stop": "Stop",
-      "server": "Server Status",
-      "server_version": "Server Version",
-      "running": "Running",
-      "stopped": "Stopped",
-      "online_players": "Online Players",
-      "webui_version": "WebUI Version",
-      "connection_status": "Connection Status",
-      "quick_nav": "Quick Navigation",
-      "webui_running": "WebUI is running",
-      "plugins_mgmt": "Plugins Management",
-      "plugins_mgmt_desc": "Manage local and online plugins",
-      "mcdr_config": "MCDR Config",
-      "mcdr_config_desc": "Configure MCDR core settings",
-      "mc_config": "MC Config",
-      "mc_config_desc": "Configure Minecraft server",
-      "online_plugins": "Online Plugins",
-      "online_plugins_desc": "Browse and install plugins from online sources",
-      "unknown": "Unknown",
-      "rcon_connected": "Connected",
-      "rcon_disconnected": "Disconnected",
-      "rcon_enabled": "Enabled",
-      "rcon_disabled": "Disabled",
-      "feature_overview": "Feature Overview",
-      "system_info": "System Information",
-      "system_time": "System Time",
-      "security_status": "Security Status",
-      "logged_in": "Logged in",
-      "pip_mgmt": "pip Management",
-      "refresh": "Refresh",
-      "install": "Install",
-      "no_packages": "No pip packages installed",
-      "pkg_name": "Package",
-      "version": "Version",
-      "actions": "Actions",
-      "uninstall": "Uninstall",
-      "install_pip_title": "Install pip package",
-      "install_placeholder": "e.g. requests or requests==2.31.0",
-      "pip_list_failed_prefix": "Failed to fetch pip packages: ",
-      "pip_list_failed": "Failed to fetch pip packages",
-      "pip_op_succeeded": "pip operation completed successfully",
-      "pip_op_failed": "pip operation failed",
-      "get_task_status_failed_prefix": "Failed to get task status: ",
-      "operation_failed_prefix": "Operation failed: ",
-      "pip_output": "pip logs",
-      "action_start": "start",
-      "action_stop": "stop",
-      "action_restart": "restart",
-      "control_sent_prefix": "Server ",
-      "control_sent_suffix": " command has been sent",
-      "control_failed_prefix": "Operation failed: ",
-      "control_error": "Server control operation failed",
-      "notice": "Notice",
-      "notice_loading": "Loading notice...",
-      "no_notice": "No notice",
-      "notice_view_detail": "View details",
-      "notice_click_expand": "Click to expand"
-    },
-    "404": {
-      "title": "404 - Page Not Found",
-      "description": "Sorry, the page you visited does not exist or is unavailable.",
-      "back_home": "Back to Home"
-    },
-    "chat": {
-      "header_title": "Server Chat",
-      "kick_confirm": "Are you sure you want to kick player {{name}} from the server?",
-      "header": {
-        "players_online": "Online"
-      },
-      "room": {
-        "desc": "Welcome to the server chat portal (best experienced in-game!)",
-        "empty": {
-          "title": "No messages yet",
-          "hint": "Start the conversation!"
-        },
-        "load_more": "Load historical messages",
-        "input_placeholder_send": "Send message to server...",
-        "input": {
-          "placeholder": "Type your message...",
-          "hint": "Press Enter or click Send to relay to the game"
-        },
-        "send": {
-          "submit": "Send"
-        }
-      },
-      "tabs": {
-        "verify_flow": "Verify Code",
-        "direct_login": "Login",
-        "avatar_source": {
-          "title": "Avatar Source"
-        },
-        "ui_style": {
-          "title": "UI Style",
-          "modern": "Modern",
-          "minecraft": "Minecraft"
-        },
-        "settings_desc": "Personalize your chat experience",
-        "cooling_down": "COOLING DOWN...",
-        "web_label": "WEB"
-      },
-      "steps": {
-        "get_code": "Get Code",
-        "verify_in_game": "Verify In-Game",
-        "set_password": "Set Password"
-      },
-      "get_code": {
-        "generate": "Generate Code",
-        "desc_before": "Click below to get a 6-digit code, then use ",
-        "desc_after": " command in-game to verify.",
-        "your_code": "Your Code:",
-        "expire_hint": "Expires in 10 minutes"
-      },
-      "verify": {
-        "title": "In-Game Verification",
-        "desc": "Use the following command in-game to verify your identity:",
-        "check": "Check Verification Status"
-      },
-      "set_password": {
-        "submit": "Set Password",
-        "password_label": "Password",
-        "password_placeholder": "Min 6 characters",
-        "confirm_label": "Confirm Password",
-        "confirm_placeholder": "Re-enter password"
-      },
-      "login": {
-        "submit": "Login",
-        "player_id_label": "Player ID",
-        "player_id_placeholder": "Enter your player ID",
-        "password_label": "Password",
-        "password_placeholder": "Enter your password"
-      },
-      "panel": {
-        "online_members": "Online members"
-      },
-      "settings": {
-        "modal_title": "Settings",
-        "display_mode_label": "Display mode",
-        "display_modern": "Modern bubbles",
-        "display_mc": "MC style",
-        "avatar_source_label": "Avatar source",
-        "avatar_mccag": "MCCAG (Minimal)",
-        "avatar_mcheads": "MCHeads (Original)"
-      },
-      "offline": {
-        "just_offline": "Just left",
-        "minutes_ago": "m ago",
-        "minutes_ago_format": "{{count}} m ago",
-        "hours_ago": "h ago",
-        "status_game": "In game",
-        "status_web": "Web"
-      },
-      "msg": {
-        "generate_failed": "Failed to generate code",
-        "network_retry": "Network error, please try again",
-        "verify_failed": "Verification failed. Ensure you used the command in-game.",
-        "password_mismatch": "Passwords do not match",
-        "password_too_short": "Password must be at least 6 characters",
-        "set_password_failed": "Failed to set password",
-        "login_failed": "Login failed",
-        "send_failed": "Failed to send message",
-        "network_send_failed": "Network error, failed to send"
-      }
-    },
-    "about": {
-      "subtitle": "Learn about the background, origins and open source information of GUGU WebUI.",
-      "source_title": "Origins of the WebUI plugin",
-      "source_desc": "GUGU WebUI was originally inspired by the idea that the GUGUbot plugin should have its own WebUI. At that time GUGUbot was still relatively simple, so a dedicated WebUI was not added, but this sparked the idea of building a more general‑purpose WebUI plugin, which eventually became GUGU WebUI, originating from GUGUbot.",
-      "projects": {
-        "gugubot_desc": "The original automation bot and chat features that created the need for web management.",
-        "cq_desc": "Provides QQ‑side message forwarding and integration, extending how the server connects to the outside world.",
-        "web_desc": "An evolution based on the previous two, focusing on a more modern WebUI management experience."
-      },
-      "opensource_title": "Open Source & Contributions",
-      "opensource_desc": "As an open source project, GUGU WebUI welcomes bug reports, pull requests, documentation updates and localization contributions.",
-      "github_repo": "GitHub Repository",
-      "issue_tracker": "Issue Tracker / Feedback",
-      "thanks_title": "Acknowledgements",
-      "thanks_desc": "Thanks to all developers and server admins who contributed code, suggestions and testing to GUGU WebUI. Your support keeps this project evolving.",
-      "contribute": {
-        "title": "Projects & Dependencies",
-        "project": "Project / Component",
-        "desc": "Description",
-        "items": {
-          "mcdr_repo": "MCDR Plugin Repository",
-          "mcdr_repo_desc": "Provides a rich MCDR plugin ecosystem, forming the foundation of this project’s features.",
-          "mc_server_info": "Base implementation for querying Minecraft server status and player information.",
-          "mcdreforged": "MCDReforged (mcdreforged)",
-          "mcdreforged_desc": "MCDR core; the runtime platform this plugin depends on.",
-          "wolfgangfahl": "WolfgangFahl (zauberzeug/nicegui/issues/1956)",
-          "wolfgangfahl_desc": "Implementation approach for threaded uvicorn was referenced.",
-          "minecraft_wiki": "Minecraft Wiki (Raw JSON text)",
-          "minecraft_wiki_desc": "Format specification for the RText parser.",
-          "mcstatus_desc": "Python library for querying Minecraft Java Edition server status."
-        }
-      },
-      "thanks": {
-        "contributors_title": "Core Contributors",
-        "community_title": "Community & Tools",
-        "contributor": "Contributor",
-        "desc": "Contribution",
-        "items": {
-          "looseprince_desc": "Feature design, documentation, web design and frontend implementation.",
-          "xuek66_desc": "Code development, maintenance and feature design.",
-          "feedbackers": "All users who provided feedback and testing",
-          "feedbackers_desc": "Filed issues and suggestions during real‑world usage and helped the project improve continuously.",
-          "cursor": "Significantly improved development efficiency during refactors and iterations.",
-          "contributors_link": "More contributors",
-          "contributors_link_desc": "See the full contributor list on GitHub."
-        }
-      }
-    },
-    "settings": {
-      "title": "Web Settings",
-      "header": "WebUI Settings",
-      "msg": {
-        "get_config_failed": "Failed to fetch configuration",
-        "host_required": "Host cannot be empty",
-        "port_invalid": "Port must be a valid number between 1 and 65535",
-        "network_save_success": "Network settings saved successfully",
-        "save_failed_prefix": "Save failed: ",
-        "save_error_prefix": "Save error: ",
-        "account_required": "Super admin account cannot be empty",
-        "account_save_success": "Account settings saved successfully",
-        "toggle_enabled": "Setting enabled",
-        "toggle_disabled": "Setting disabled",
-        "toggle_failed_prefix": "Toggle failed: ",
-        "toggle_error_prefix": "Toggle error: ",
-        "api_key_required": "Please enter API key",
-        "api_key_validating": "Validating API key...",
-        "api_key_validate_success": "API key verified successfully",
-        "api_key_validate_failed_prefix": "API key validation failed: ",
-        "api_key_validate_error_prefix": "Validation error: ",
-        "repo_name_url_required": "Repository name and URL cannot be empty",
-        "url_invalid": "Please enter a valid URL",
-        "repo_url_official_forbidden": "Cannot add the same URL as the official repository",
-        "repo_duplicate": "Repository name or URL already exists",
-        "repo_added_tip": "Repository added. Click the save button to persist the configuration.",
-        "repo_deleted_tip": "Repository deleted. Click the save button to persist the configuration.",
-        "repos_save_success": "Repository configuration saved successfully",
-        "mcdr_url_save_success": "MCDR plugin repository URL saved successfully",
-        "plugin_repo_save_success": "Plugin repository configuration saved successfully",
-        "https_need_both_files": "To enable HTTPS, you need to provide both certificate and key file paths",
-        "https_confirm_text": "Please confirm that you have prepared the SSL certificate and key files, and that the specified paths are correct.\\n\\nIf the files do not exist, the WebUI will fall back to HTTP mode.\\n\\nContinue?",
-        "https_save_success": "HTTPS settings saved successfully. They will take effect after restarting the plugin. If the SSL files do not exist, the system will automatically fall back to HTTP mode.",
-        "pim_install_success": "PIM plugin installed successfully",
-        "pim_install_failed_prefix": "Installation failed: ",
-        "pim_install_error_prefix": "Installation error: ",
-        "ai_save_success": "AI configuration saved successfully",
-        "public_chat_save_success": "Chat page settings saved successfully"
-      },
-      "network": {
-        "title": "Network Settings",
-        "tip": "Configure the WebUI network binding. After changing these settings, you need to restart the plugin to apply them.",
-        "host": "Host",
-        "host_hint": "Use 127.0.0.1 for local access only, use 0.0.0.0 to allow access from other devices",
-        "port": "Port",
-        "port_hint": "Port range: 1-65535. Avoid using ports that are already in use.",
-        "save": "Save Network Settings"
-      },
-      "https": {
-        "title": "HTTPS Settings",
-        "tip": "Configure HTTPS support for WebUI. You need to provide a valid SSL certificate and key files. Changes take effect after restarting the plugin.",
-        "enable": "Enable HTTPS",
-        "enable_desc": "Encrypt WebUI traffic with HTTPS to protect your admin interface",
-        "ssl_tip_title": "SSL File Configuration Notes",
-        "ssl_tip_1": "Make sure the specified certificate and key files actually exist, otherwise the system will automatically fall back to HTTP mode",
-        "ssl_tip_2": "File paths can be absolute (e.g. C:/ssl/cert.pem) or relative (e.g. ./ssl/cert.pem)",
-        "ssl_tip_3": "Relative paths are based on the MCDR root directory",
-        "ssl_tip_4": "Configuration changes take effect only after restarting the plugin",
-        "cert": "SSL certificate file path",
-        "cert_hint": "Full path to the SSL certificate file, e.g. ./ssl/cert.pem",
-        "key": "SSL key file path",
-        "key_hint": "Full path to the SSL key file, e.g. ./ssl/key.pem",
-        "key_pass": "SSL key file password (optional)",
-        "key_pass_hint": "If your SSL key file is password protected, enter the password here",
-        "save": "Save HTTPS Settings",
-        "placeholder_key_pass": "If your key file is password protected, enter the password here"
-      },
-      "account": {
-        "title": "Account Settings",
-        "super_admin": "Super admin account",
-        "super_admin_hint": "QQ account with super admin permission",
-        "save": "Save Account Settings"
-      },
-      "security": {
-        "title": "Security Settings",
-        "disable_admin_web": "Disable admin login via web",
-        "enable_temp_code": "Enable temporary login password"
-      },
-      "ai": {
-        "title": "AI Model Configuration",
-        "api_key": "API Key",
-        "validate": "Validate Key",
-        "validate_query": "Test if the key is valid, please reply \"valid\"",
-        "validate_system_prompt": "You are a simple validation program, just reply \"valid\"",
-        "api_url": "API URL",
-        "api_url_hint": "API endpoint, DeepSeek default: https://api.deepseek.com/chat/completions",
-        "model": "Model Name",
-        "model_hint": "AI model name, DeepSeek default: deepseek-chat",
-        "save": "Save AI Configuration",
-        "placeholder_api_key": "Enter a new API key",
-        "placeholder_api_url": "https://api.deepseek.com/chat/completions",
-        "placeholder_model": "deepseek-chat"
-      },
-      "public_chat": {
-        "title": "Public Chat Page Settings",
-        "tip": "Configure options for the public chat page. These settings affect access and message forwarding behavior.",
-        "enable": "Enable Public Chat Page",
-        "enable_desc": "Allow users to access the public chat page",
-        "enable_to_game": "Send messages to game",
-        "enable_to_game_desc": "Allow users on the public chat page to send messages into the Minecraft game",
-        "save": "Save Chat Page Settings",
-        "verification_expire": {
-          "title": "Verification code expiry",
-          "desc": "Set validity period of verification code (minutes)",
-          "unit_min": "minutes"
-        },
-        "session_expire": {
-          "title": "Session expiry",
-          "desc": "Set validity period of user sessions (hours)",
-          "unit_hour": "hours"
-        },
-        "history": {
-          "title": "Chat History Management",
-          "desc": "Manage historical messages of the chat page",
-          "clear": "Clear chat history",
-          "count_prefix": "Current records: ",
-          "count_suffix": " messages"
-        }
-      },
-      "repo": {
-        "title": "MCDR Plugin Repository Configuration",
-        "tip": "Supports multiple repository links. You can add third-party repositories. The official repository cannot be removed and is used as the default data source.",
-        "name": "Name",
-        "url": "URL",
-        "actions": "Actions",
-        "official": "Official repository",
-        "loose_repo": "PF's repository",
-        "default": "Default",
-        "placeholder_name": "Repository name",
-        "placeholder_url": "Repository URL",
-        "save": "Save Repository Configuration"
-      },
-      "pim": {
-        "title": "PIM Standalone Plugin",
-        "install_title": "Install PIM as standalone plugin",
-        "installed_tip": "PIM is installed as a standalone plugin. You can manage it in the plugin management page.",
-        "desc": "Run the WebUI Plugin Installation Manager (PIM) as a standalone plugin to provide installation support for other plugins. If you are not sure what this is, please do not install it."
-      }
-    },
-    "mc": {
-      "title": "MC Server Config",
-      "header": "Server Config",
-      "search": "Search config items...",
-      "save": "Save Config",
-      "saving": "Saving...",
-      "categories": {
-        "all": "All Settings",
-        "basic": "Basic Settings",
-        "game": "Game Rules",
-        "network": "Network Settings",
-        "performance": "Performance Settings",
-        "world": "World Settings",
-        "security": "Security Settings"
-      },
-      "rcon": {
-        "setup_success_msg": "RCON configuration enabled successfully",
-        "setup_failed_prefix": "RCON setup failed: ",
-        "setup_error": "Error setting up RCON",
-        "restart_success": "Server restart command sent",
-        "restart_failed_prefix": "Failed to restart server: ",
-        "restart_error": "Error restarting server"
-      },
-      "msg": {
-        "load_translations_failed": "Failed to load translations",
-        "load_config_failed": "Failed to load config",
-        "save_success": "Config saved successfully",
-        "save_failed_prefix": "Failed to save config: ",
-        "save_error": "Error saving config"
-      }
-    },
-    "mcdr": {
-      "title": "MCDR Config",
-      "msg": {
-        "save_success": "Configuration saved successfully",
-        "save_failed_prefix": "Failed to save configuration: ",
-        "save_error_prefix": "Save error: "
-      },
-      "about": {
-        "title": "Configuration files of MCDReforged",
-        "check": "Check",
-        "doc": "Official Docs",
-        "more": "Learn more",
-        "view_doc": "View official configuration documentation",
-        "site": "Visit MCDReforged website"
-      },
-      "config": {
-        "basic": "Basic MCDR Configuration",
-        "config_yml": "config.yml",
-        "permission_yml": "permission.yml"
-      },
-      "form": {
-        "language": "Language used by MCDR",
-        "language_tip": "Default: en_us. Available: en_us, zh_cn",
-        "language_en": "English (en_us)",
-        "language_zh": "Simplified Chinese (zh_cn)",
-        "working_directory": "Server working directory",
-        "working_directory_tip": "Default: server. Usually you don't need to change this",
-        "start_command": "Console command used to start the server",
-        "start_command_tip": "Paste your start command here (see docs if you need exec mode)",
-        "start_example": "Example (fabric): java -Xmx16G -jar fabric-server-launch.jar nogui",
-        "handler": "Server handler",
-        "handler_tip": "Default: vanilla_handler",
-        "handler_modal_desc": "Choose a handler that matches your server type. If you are not sure, use vanilla_handler or refer to the official documentation.",
-        "handler_option": {
-          "vanilla": "Vanilla / Vanilla standalone server",
-          "beta18": "Legacy Beta 1.8 and earlier",
-          "bukkit": "Bukkit / Spigot / Paper family",
-          "bukkit14": "Bukkit 1.4 compatible",
-          "forge": "Forge / Modded server",
-          "cat_server": "CatServer",
-          "arclight": "Arclight / Mohist and similar hybrid servers",
-          "bungeecord": "BungeeCord proxy",
-          "waterfall": "Waterfall / Travertine proxy",
-          "velocity": "Velocity proxy",
-          "basic": "Generic / other console"
-        },
-        "handler_desc": "Different server types have very different outputs and commands. The server handler is the module that adapts MCDR to each server type and is the main entry point for controlling the server.",
-        "handler_detail": {
-          "vanilla": "For pure vanilla or simple single‑world servers. If you are not sure about your server type, this is usually the safest choice.",
-          "beta18": "Compatibility handler for very old vanilla servers around Beta 1.8 and earlier, mainly for maintaining legacy worlds.",
-          "bukkit": "For classic Bukkit‑family servers such as Bukkit / Spigot / Paper and most plugin‑centric servers.",
-          "bukkit14": "Special compatibility for the historical Bukkit 1.4 branch. Only use this if you explicitly run that old version.",
-          "forge": "For Forge‑based modded servers, where console output and commands follow the Forge conventions.",
-          "cat_server": "Dedicated handler for CatServer, a hybrid implementation combining Forge and Bukkit features.",
-          "arclight": "For Arclight, Mohist and similar hybrid servers that load both mods and Bukkit plugins.",
-          "bungeecord": "For BungeeCord proxy servers that route traffic to multiple backend servers instead of running worlds directly.",
-          "waterfall": "For Waterfall / Travertine and similar BungeeCord‑derived proxies. Use this when you run those proxy forks.",
-          "velocity": "For Velocity proxy servers, a modern high‑performance proxy suitable for multi‑backend clusters.",
-          "basic": "A generic console handler for servers that do not fit into the above categories or only need minimal command forwarding."
-        },
-        "handler_supported": "Currently supported handlers:",
-        "encoding": "MCDR -> Server (encoding)",
-        "encoding_tip": "Default: utf8",
-        "decoding": "Server -> MCDR (decoding)",
-        "decoding_tip": "Default: utf8",
-        "plugin_directories": "Plugin directories",
-        "plugin_directories_tip": "List of directories where MCDR looks for plugins. Usually you don't need to change this.",
-        "check_update": "Check for updates",
-        "check_update_tip": "Default: true. When enabled, MCDR will check for updates every 24 hours",
-        "advanced_console": "Advanced console",
-        "advanced_console_tip": "Based on prompt-toolkit. If you need to redirect MCDR stdin/stdout, or you simply don't like the advanced console, set this to false to disable it.",
-        "disable_console_thread": "Disable console thread",
-        "disable_console_thread_tip": "Keep the default unless you know exactly what you are doing.",
-        "disable_console_color": "Disable console color",
-        "disable_console_color_tip": "When set to true, MCDR will strip all console style codes before printing messages.",
-        "custom_handlers": "Custom server handler classes",
-        "custom_handlers_tip": "For multiple entries, please edit the configuration file directly.",
-        "advanced_warning": "Keep the default unless you know exactly what you are doing.",
-        "custom_info_reactors": "Custom Info reactor classes",
-        "watchdog": "Watchdog",
-        "watchdog_threshold": "Response time threshold",
-        "watchdog_threshold_tip": "Time interval after which the Watchdog considers the task executor thread as not responding. Set to 0 to disable the Watchdog.",
-        "handler_detection": "Server handler detection logic",
-        "catalogue_meta_cache_ttl": "Cache TTL for fetched plugin catalogue metadata",
-        "catalogue_meta_fetch_timeout": "Timeout for fetching plugin catalogue metadata",
-        "catalogue_meta_url": "Override URL used to fetch plugin catalogue metadata",
-        "plugin_download_url": "Override plugin download URL",
-        "plugin_download_timeout": "Timeout for downloading plugin files",
-        "telemetry": "Telemetry (usage statistics reporting)",
-        "plugin_pip_install_extra_args": "Additional arguments passed to pip when installing plugin Python dependencies",
-        "http_proxy": "http_proxy",
-        "https_proxy": "https_proxy"
-      }
-    },
-    "local_plugins": {
-      "title": "Local Plugins"
-    },
-    "online_plugins": {
-      "title": "Online Plugins",
-      "search": "Search plugins...",
-      "sort_name": "By Name",
-      "sort_time": "By Time",
-      "sort_downloads": "By Downloads",
-      "loading": "Loading plugins...",
-      "empty": "No matching plugins found",
-      "description": "Description",
-      "readme": "README",
-      "readme_doc": "Project Documentation",
-      "catalogue_doc": "Repository Documentation",
-      "github_repo": "GitHub Repository",
-      "details": "Details",
-      "authors": "Authors",
-      "dependencies": "Dependencies",
-      "view_doc": "View Docs",
-      "view_full_doc": "View Full Documentation",
-      "install_confirm_title": "Confirm Installation",
-      "installing_plugin": "You are about to install plugin ",
-      "select_install_method": "Please choose an installation method:",
-      "choose_version": "Choose Version",
-      "install_latest": "Install Latest",
-      "loading_readme": "Loading project documentation...",
-      "loading_catalogue": "Loading repository documentation...",
-      "third_repo_warning_title": "Third-party Repository Warning",
-      "third_repo_warning_lead": "You are accessing a third-party plugin repository.",
-      "note": "Note:",
-      "third_repo_warning_p1": "These plugins may not be reviewed and may have potential security risks.",
-      "third_repo_warning_p2": "Installing these plugins may affect your server's stability and security.",
-      "third_repo_warning_p3": "Before installing, review the code or ensure you trust the repository maintainers.",
-      "third_repo_warning_p4": "Version switching for third-party plugins is supported since 1.4.3. This popup will not show again today after confirmation.",
-      "third_repo_warning_conclusion": "Continuing means you understand and accept these risks.",
-      "repo_continue": "Continue",
-      "msg": {
-        "load_online_plugins_failed": "Failed to load online plugins list",
-        "load_doc_failed": "Failed to load documentation",
-        "versions_failed": "Failed to fetch versions list",
-        "no_readme": "This plugin has no documentation",
-        "no_readme_plain": "This plugin does not provide a Markdown README; only plain text notes or no documentation may be available.",
-        "doc_not_found": "{{docType}} link not found"
-      }
-    },
-    "terminal": {
-      "title": "Terminal Logs",
-      "empty": "No logs available",
-      "placeholder": "Type command...",
-      "suggestions": {
-        "title": "SUGGESTIONS",
-        "hint": "TAB to select"
-      },
-      "selection": {
-        "ask_ai": "Ask AI"
-      },
-      "tooltip": {
-        "auto_scroll": "Auto Scroll",
-        "auto_refresh": "Auto Refresh",
-        "copy_logs": "Copy Logs",
-        "clear_terminal": "Clear Terminal",
-        "ai_settings": "AI Settings"
-      },
-      "msg": {
-        "load_logs_failed": "Failed to load logs",
-        "forbidden_command": "This command is forbidden",
-        "command_sent_prefix": "Command Sent: ",
-        "command_sent": "Command sent successfully",
-        "send_failed": "Failed to send command",
-        "copy_success": "Copied to clipboard",
-        "default_ai_query": "Analyze these logs and provide possible causes and solutions.",
-        "system_prompt": "You are a Minecraft server and MCDR log expert. Please answer in English."
-      },
-      "ai_modal": {
-        "title": "AI Analysis",
-        "settings": "AI Settings",
-        "mode_api": "Deepseek (API)",
-        "mode_free": "Free AI",
-        "api_unconfigured_warning": "API Key not configured. Using it might fail.",
-        "api_configure_now": "Configure Now",
-        "input_placeholder": "Ask a question about the logs, e.g. “What does this error mean?”",
-        "thinking": "Thinking...",
-        "settings_desc": "Configure your DeepSeek API key to enable more powerful log analysis.",
-        "api_key_label": "API Key",
-        "api_key_placeholder": "sk-...",
-        "save_success": "API Key Saved",
-        "save_failed": "Failed to save",
-        "save_error": "Error saving key",
-        "context_title": "Log context preview"
-      }
-    }
-  },
-  "login": {
-    "username": "Username",
-    "password": "Password",
-    "remember": "Remember me",
-    "login": "Login",
-    "placeholder_username": "Enter username",
-    "placeholder_password": "Enter password",
-    "go_chat": "I'm a player, I need to access the server chat page",
-    "msg": {
-      "login_failed": "Login failed"
-    }
-  },
-  "theme": {
-    "system": "System",
-    "dark": "Dark",
-    "light": "Light"
-  }
 }

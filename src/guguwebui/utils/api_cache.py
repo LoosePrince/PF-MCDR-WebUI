@@ -109,6 +109,7 @@ def cached(ttl: Optional[float] = None, key_prefix: str = ""):
         async def rcon_status():
             return {"enabled": True}
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -133,6 +134,7 @@ def cached(ttl: Optional[float] = None, key_prefix: str = ""):
             return result
 
         return wrapper
+
     return decorator
 
 

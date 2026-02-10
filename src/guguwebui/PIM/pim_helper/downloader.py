@@ -8,6 +8,7 @@ import requests
 
 class ReleaseDownloader:
     """发布下载器"""
+
     def __init__(self, server=None, pim_helper=None):
         self.server = server
         self.pim_helper = pim_helper
@@ -45,6 +46,8 @@ class ReleaseDownloader:
         except Exception as e:
             self.logger.error(f"下载文件失败: {e}, URL: {url}")
             if 'temp_path' in locals() and os.path.exists(temp_path):
-                try: os.remove(temp_path)
-                except: pass
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
             return False

@@ -12,6 +12,7 @@ from .registry import MetaRegistry
 
 class PluginDependencyResolver:
     """插件依赖解析器"""
+
     def __init__(self, server, pim_helper):
         self.server = server
         self.pim_helper = pim_helper
@@ -46,7 +47,8 @@ class PluginDependencyResolver:
         if downloaded_file and os.path.exists(downloaded_file) and zipfile.is_zipfile(downloaded_file):
             try:
                 with zipfile.ZipFile(downloaded_file, 'r') as z:
-                    meta_file = next((f for f in z.namelist() if f.endswith(('mcdr_plugin.json', 'mcdreforged.plugin.json'))), None)
+                    meta_file = next(
+                        (f for f in z.namelist() if f.endswith(('mcdr_plugin.json', 'mcdreforged.plugin.json'))), None)
                     if meta_file:
                         meta = json.loads(z.read(meta_file).decode('utf-8'))
 

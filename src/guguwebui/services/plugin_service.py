@@ -33,7 +33,8 @@ class PluginService:
                                     target_file = dst_path / filename
                                     __copyFile(plugin_server, src_folder, str(target_file))
                                     return True
-                            except Exception: return False
+                            except Exception:
+                                return False
 
                         for name in items:
                             if name == "__pycache__": continue
@@ -46,8 +47,10 @@ class PluginService:
                                 if not copy_folder_from_package(plugin_server, child_src, child_dst): return False
                         return True
                     except Exception as _e:
-                        try: self.server.logger.error(f"复制目录失败: {src_folder} -> {dst_folder}, 错误: {_e}")
-                        except Exception: pass
+                        try:
+                            self.server.logger.error(f"复制目录失败: {src_folder} -> {dst_folder}, 错误: {_e}")
+                        except Exception:
+                            pass
                         return False
 
                 pim_helper_src = "guguwebui/utils/PIM/pim_helper"
@@ -82,7 +85,8 @@ class PluginService:
             if not (plugin_path.endswith('.py') or plugin_path.endswith('.mcdr')): continue
             metadata = extract_metadata(plugin_path)
             if not metadata: continue
-            if metadata['id'] in unloaded_metadata and metadata['version'] <= unloaded_metadata[metadata["id"]]['version']: continue
+            if metadata['id'] in unloaded_metadata and metadata['version'] <= unloaded_metadata[metadata["id"]][
+                'version']: continue
             metadata['path'] = plugin_path
             unloaded_metadata[metadata["id"]] = metadata
 

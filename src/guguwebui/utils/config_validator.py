@@ -320,7 +320,7 @@ class ConfigValidator:
 
                 elif line.startswith('enable-rcon=') and line.split('=')[1].lower() == 'true':
                     # 查找下一行的rcon.port
-                    for next_line in config_lines[config_lines.index(line)+1:]:
+                    for next_line in config_lines[config_lines.index(line) + 1:]:
                         if next_line.strip().startswith('rcon.port='):
                             try:
                                 rcon_port = int(next_line.split('=')[1])
@@ -332,7 +332,7 @@ class ConfigValidator:
 
                 elif line.startswith('enable-query=') and line.split('=')[1].lower() == 'true':
                     # 查找下一行的query.port
-                    for next_line in config_lines[config_lines.index(line)+1:]:
+                    for next_line in config_lines[config_lines.index(line) + 1:]:
                         if next_line.strip().startswith('query.port='):
                             try:
                                 query_port = int(next_line.split('=')[1])

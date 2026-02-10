@@ -21,7 +21,7 @@ with open(CONFIG_FILE_PATH, "r", encoding='utf-8') as config_file:
     config = yaml.load(config_file)
 SERVER_PATH = Path(config.get('working_directory', 'server'))
 
-SERVER_PROPERTIES_PATH =  SERVER_PATH / "server.properties"
+SERVER_PROPERTIES_PATH = SERVER_PATH / "server.properties"
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -32,7 +32,7 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 # chat_verification: {code: {player_id: None, expire_time: timestamp, used: False}}
 # chat_sessions: {session_id: {player_id: player_id, expire_time: timestamp}}
 DEFALUT_DB = {
-    "token" : {},
+    "token": {},
     "user": {},
     "temp": {},
     "chat_users": {},
