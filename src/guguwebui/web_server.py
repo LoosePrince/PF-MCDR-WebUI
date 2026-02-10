@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 import uuid
 
@@ -1328,7 +1329,7 @@ async def chat_logout(request: Request):
         data = await request.json()
         session_id = data.get("session_id", "")
         server:PluginServerInterface = app.state.server_interface
-        result = chat_user_logout(session_id, server)
+        result = chat_user_logout(session_id)
 
         status_code = 400 if result.get("status") == "error" else 200
         return JSONResponse(result, status_code=status_code)

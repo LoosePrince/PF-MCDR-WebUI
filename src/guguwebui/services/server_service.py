@@ -1,3 +1,4 @@
+from ..utils.api_cache import api_cache
 from ..utils.mc_util import get_java_server_info, get_server_port
 
 
