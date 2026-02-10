@@ -16,10 +16,10 @@ from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
 
-from guguwebui.structures import config_data, saveconfig
+from guguwebui.structures import ConfigData, SaveConfig
 from guguwebui.utils.api_cache import api_cache
 from guguwebui.utils.chat_logger import ChatLogger
-from guguwebui.utils.constant import DEFALUT_CONFIG
+from guguwebui.constant import DEFALUT_CONFIG
 from guguwebui.utils.i18n_util import (build_json_i18n_translations, build_yaml_i18n_translations,
                                        consistent_type_update,
                                        get_comment)
@@ -147,7 +147,7 @@ async def get_web_config(
 
 async def save_web_config(
     request: Request,
-    config: saveconfig,
+    config: SaveConfig,
     server=None
 ) -> JSONResponse:
     """保存Web配置"""
@@ -165,8 +165,8 @@ async def save_web_config(
             web_config["host"] = config.host
         if config.port:
             web_config["port"] = int(config.port)
-        if config.superaccount:
-            web_config["super_admin_account"] = int(config.superaccount)
+        if config.super_account:
+            web_config["super_admin_account"] = int(config.super_account)
         # 更新AI配置 - 处理None值，避免将None保存到配置中
         if config.ai_api_key is not None:
             # JavaScript端undefined会被转为null，处理这种情况
@@ -418,7 +418,7 @@ async def load_config(
 
 async def save_config(
     request: Request,
-    config_data: config_data,
+    config_data: ConfigData,
     server=None
 ) -> JSONResponse:
     """保存配置文件"""
@@ -577,7 +577,7 @@ async def setup_rcon_config(
         mc_config_updated = False
         try:
             # 读取server.properties配置
-            from ..utils.constant import SERVER_PROPERTIES_PATH
+            from guguwebui.constant import SERVER_PROPERTIES_PATH
             if SERVER_PROPERTIES_PATH.exists():
                 import javaproperties
                 with open(SERVER_PROPERTIES_PATH, "r", encoding="UTF-8") as f:

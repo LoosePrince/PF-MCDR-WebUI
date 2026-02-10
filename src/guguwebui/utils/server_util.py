@@ -31,7 +31,7 @@ def format_host_for_url(host: str) -> str:
         return host
 
 
-from .constant import *
+from guguwebui.constant import *
 
 # Github: https://github.com/zauberzeug/nicegui/issues/1956
 class ThreadedUvicorn:

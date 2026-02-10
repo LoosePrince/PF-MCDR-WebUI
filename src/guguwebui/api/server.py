@@ -10,9 +10,9 @@ from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
 
-from guguwebui.structures import server_control
+from guguwebui.structures import ServerControl
 from guguwebui.utils.api_cache import api_cache
-from guguwebui.utils.constant import user_db
+from guguwebui.constant import user_db
 from guguwebui.utils.mc_util import get_java_server_info, get_server_port
 
 
@@ -97,7 +97,7 @@ async def get_server_status(
 
 async def control_server(
     request: Request,
-    control_info: server_control,
+    control_info: ServerControl,
     server=None
 ) -> JSONResponse:
     """控制Minecraft服务器"""

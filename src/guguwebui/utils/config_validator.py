@@ -3,7 +3,7 @@ import logging
 import socket
 from typing import Any, Dict, Tuple
 
-from guguwebui.utils.constant import DEFALUT_CONFIG
+from guguwebui.constant import DEFALUT_CONFIG
 
 
 class ConfigValidator:
@@ -294,7 +294,7 @@ class ConfigValidator:
         """检查端口是否与Minecraft服务器端口冲突"""
         try:
             # 获取Minecraft服务器配置
-            from .constant import SERVER_PROPERTIES_PATH
+            from guguwebui.constant import SERVER_PROPERTIES_PATH
 
             if not SERVER_PROPERTIES_PATH.exists():
                 self.logger.warning("无法找到server.properties文件，跳过Minecraft端口冲突检查")

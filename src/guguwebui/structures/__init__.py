@@ -9,11 +9,12 @@ class LoginData(BaseModel):
     token: Optional[str] = None
     remember: Optional[bool] = False
 
-class saveconfig(BaseModel):
+
+class SaveConfig(BaseModel):
     action: str
     host: Optional[str] = None
     port: Optional[str] = None
-    superaccount: Optional[str] = None
+    super_account: Optional[str] = None
     ai_api_key: Optional[str] = None
     ai_model: Optional[str] = None
     ai_api_url: Optional[str] = None
@@ -30,23 +31,29 @@ class saveconfig(BaseModel):
     force_standalone: Optional[bool] = None
     icp_records: Optional[list] = None
 
-class toggleconfig(BaseModel):
+
+class ToggleConfig(BaseModel):
     plugin_id: str
     status: bool
+
 
 class SaveContent(BaseModel):
     action: str
     content: str
 
-class plugin_info(BaseModel):
+
+class PluginInfo(BaseModel):
     plugin_id: str
 
-class config_data(BaseModel):
-    file_path:str
-    config_data:dict
 
-class server_control(BaseModel):
-    action:str
+class ConfigData(BaseModel):
+    file_path: str
+    config_data: dict
+
+
+class ServerControl(BaseModel):
+    action: str
+
 
 class DeepseekQuery(BaseModel):
     query: str

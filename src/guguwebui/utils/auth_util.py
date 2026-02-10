@@ -7,7 +7,7 @@ from pathlib import Path
 
 from mcdreforged.api.all import RColor, RText, RTextList
 
-from guguwebui.utils.constant import pwd_context, user_db
+from guguwebui.constant import pwd_context, user_db
 from guguwebui.utils.server_util import format_host_for_url
 
 

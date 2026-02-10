@@ -35,10 +35,10 @@ from guguwebui.services.config_service import ConfigService
 from guguwebui.services.plugin_service import PluginService
 from guguwebui.services.server_service import ServerService
 from guguwebui.state import REGISTERED_PLUGIN_PAGES, pip_tasks
-from guguwebui.structures import DeepseekQuery, SaveContent, config_data, plugin_info, saveconfig, server_control, \
-    toggleconfig
+from guguwebui.structures import DeepseekQuery, SaveContent, ConfigData, PluginInfo, SaveConfig, ServerControl, \
+    ToggleConfig
 from guguwebui.utils.auth_util import migrate_old_config
-from guguwebui.utils.constant import *
+from guguwebui.constant import *
 from guguwebui.utils.log_watcher import LogWatcher
 from guguwebui.utils.mc_util import get_plugin_version, get_plugins_info
 from guguwebui.utils.server_util import *
@@ -117,7 +117,7 @@ def init_app(server_instance):
 
     # 确保user_db包含所有必要的键
     try:
-        from .utils.constant import user_db, DEFALUT_DB
+        from guguwebui.constant import user_db, DEFALUT_DB
         # 检查并添加缺失的键
         for key in DEFALUT_DB:
             if key not in user_db:
@@ -585,7 +585,7 @@ async def api_get_online_plugins(request: Request, repo_url: str = None):
 
 # Loading/Unloading pluging
 @app.post("/api/toggle_plugin")
-async def api_toggle_plugin(request: Request, request_body: toggleconfig):
+async def api_toggle_plugin(request: Request, request_body: ToggleConfig):
     """切换插件状态（加载/卸载）（函数已迁移至 api/plugins.py）"""
     server = app.state.server_interface
     return await toggle_plugin(request, request_body, server)
@@ -593,7 +593,7 @@ async def api_toggle_plugin(request: Request, request_body: toggleconfig):
 
 # Reload Plugin
 @app.post("/api/reload_plugin")
-async def api_reload_plugin(request: Request, plugin_info: plugin_info):
+async def api_reload_plugin(request: Request, plugin_info: PluginInfo):
     """重载插件（函数已迁移至 api/plugins.py）"""
     server = app.state.server_interface
     return await reload_plugin(request, plugin_info, server)
@@ -641,7 +641,7 @@ async def api_get_web_config(request: Request):
 
 
 @app.post("/api/save_web_config")
-async def api_save_web_config(request: Request, config: saveconfig):
+async def api_save_web_config(request: Request, config: SaveConfig):
     """保存Web配置（函数已迁移至 api/config.py）"""
     if not request.session.get("logged_in"):
         return JSONResponse(
@@ -663,7 +663,7 @@ async def api_load_config(request: Request, path:str, translation:bool = False, 
 
 
 @app.post("/api/save_config")
-async def api_save_config(request: Request, config_data: config_data):
+async def api_save_config(request: Request, config_data: ConfigData):
     """保存配置文件（函数已迁移至 api/config.py）"""
     if not request.session.get("logged_in"):
         return JSONResponse(
@@ -744,7 +744,7 @@ async def api_get_server_status(request: Request):
 
 # 控制Minecraft服务器
 @app.post("/api/control_server")
-async def api_control_server(request: Request, control_info: server_control):
+async def api_control_server(request: Request, control_info: ServerControl):
     """控制Minecraft服务器（函数已迁移至 api/server.py）"""
     if not request.session.get("logged_in"):
         return JSONResponse(

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from guguwebui.utils.constant import DEFALUT_CONFIG
+from guguwebui.constant import DEFALUT_CONFIG
 
 
 class ConfigService:

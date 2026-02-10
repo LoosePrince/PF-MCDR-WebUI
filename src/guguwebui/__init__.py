@@ -9,7 +9,7 @@ from guguwebui.PIM import PluginInstaller, create_installer
 from guguwebui.utils.auth_util import change_account_command, create_account_command, get_temp_password_command, \
     verify_chat_code_command
 from guguwebui.utils.chat_logger import ChatLogger
-from guguwebui.utils.constant import user_db
+from guguwebui.constant import user_db
 from guguwebui.utils.file_util import amount_static_files
 from guguwebui.utils.mc_util import get_minecraft_path
 from guguwebui.utils.mc_util import get_plugins_info
@@ -293,7 +293,7 @@ def on_plugin_unloaded(server: PluginServerInterface, plugin_id: str):
     """处理插件卸载事件"""
     if plugin_id == "fastapi_mcdr":
         # 检查是否强制独立运行
-        from .utils.constant import DEFALUT_CONFIG
+        from guguwebui.constant import DEFALUT_CONFIG
         plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
         force_standalone = plugin_config.get('force_standalone', False)
 
@@ -315,7 +315,7 @@ def on_plugin_loaded(server: PluginServerInterface, plugin_id: str):
     server.logger.info(f"插件加载事件触发: {plugin_id}")
     if plugin_id == "fastapi_mcdr":
         # 检查是否强制独立运行
-        from .utils.constant import DEFALUT_CONFIG
+        from guguwebui.constant import DEFALUT_CONFIG
         plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
         force_standalone = plugin_config.get('force_standalone', False)
 
@@ -423,7 +423,7 @@ def start_plugin_status_checker(server: PluginServerInterface):
                 fastapi_mcdr = server.get_plugin_instance('fastapi_mcdr')
                 if fastapi_mcdr is None:
                     # 检查是否强制独立运行
-                    from .utils.constant import DEFALUT_CONFIG
+                    from guguwebui.constant import DEFALUT_CONFIG
                     plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
                     force_standalone = plugin_config.get('force_standalone', False)
 
@@ -689,5 +689,5 @@ def register_plugin_page(plugin_id: str, html_path: str):
         plugin_id: 插件ID
         html_path: 网页 HTML 文件的完整路径或相对于 config 目录的路径
     """
-    from .utils.constant import REGISTERED_PLUGIN_PAGES
+    from guguwebui.constant import REGISTERED_PLUGIN_PAGES
     REGISTERED_PLUGIN_PAGES[plugin_id] = html_path

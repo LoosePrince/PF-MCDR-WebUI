@@ -80,7 +80,7 @@ def __copyFolder(server, folder_path, target_folder):
 
 def amount_static_files(server, static_path=None):
     if static_path is None:
-        from .constant import STATIC_PATH
+        from guguwebui.constant import STATIC_PATH
         static_path = STATIC_PATH
     os.makedirs(static_path, exist_ok=True)
     static_target = Path(static_path) / 'static'

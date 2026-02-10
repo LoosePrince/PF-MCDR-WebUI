@@ -14,8 +14,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.PIM import create_installer
-from guguwebui.structures import plugin_info, toggleconfig
-from guguwebui.utils.constant import DEFALUT_CONFIG
+from guguwebui.structures import PluginInfo, ToggleConfig
+from guguwebui.constant import DEFALUT_CONFIG
 from guguwebui.utils.file_util import __copyFile
 from guguwebui.utils.mc_util import load_plugin_info
 from guguwebui.utils.server_util import verify_token
@@ -777,7 +777,7 @@ async def install_pim_plugin(
 
 async def toggle_plugin(
     request: Request,
-    request_body: toggleconfig,
+    request_body: ToggleConfig,
     server=None
 ):
     """切换插件状态（加载/卸载）"""
@@ -816,7 +816,7 @@ async def toggle_plugin(
 
 async def reload_plugin(
     request: Request,
-    plugin_info: plugin_info,
+    plugin_info: PluginInfo,
     server=None
 ):
     """重载插件"""
