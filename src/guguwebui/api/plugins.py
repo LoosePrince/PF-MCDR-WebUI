@@ -3,19 +3,20 @@
 迁移自 web_server.py 中的 /api/pim/ 端点
 """
 
+import datetime
 import logging
 import os
-import datetime
-import zipfile
 import tempfile
-from pathlib import Path
+import zipfile
+
+from fastapi import Body, Depends, status
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from fastapi import status, Body, Depends
-from ..utils.constant import DEFALUT_CONFIG, toggleconfig, plugin_info
+
 from ..utils.PIM import create_installer
+from ..utils.constant import DEFALUT_CONFIG, plugin_info, toggleconfig
+from ..utils.file_util import __copyFile
 from ..utils.mc_util import load_plugin_info
-from ..utils.file_util import __copyFile, __copyFolder
 from ..utils.server_util import verify_token
 
 
@@ -686,7 +687,7 @@ async def self_update(
         command = "!!MCDR plugin install -U -y guguwebui"
         server.logger.info(f"执行自更新命令: {command}")
         server.execute_command(command)
-        
+
         return JSONResponse(
             content={
                 "success": True,
@@ -706,7 +707,7 @@ async def get_self_update_info(
     token_valid: bool = Depends(verify_token)
 ):
     """获取 WebUI 自身更新信息"""
-    
+
     # 使用 request.app 获取正确的 app 实例
     info = getattr(request.app.state, "self_update_info", {"available": False})
     return JSONResponse(content={"success": True, "info": info})
@@ -792,7 +793,7 @@ async def toggle_plugin(
     if plugin_id == "guguwebui":
         server.reload_plugin(plugin_id)
     # loading
-    elif target_status == True:
+    elif target_status:
         _, unloaded_plugin_metadata, unloaded_plugin, disabled_plugin = (
             load_plugin_info(server)
         )
@@ -807,7 +808,7 @@ async def toggle_plugin(
             server.enable_plugin(plugin_path)
         server.load_plugin(plugin_path)
     # unload
-    elif target_status == False:
+    elif not target_status:
         server.unload_plugin(plugin_id)
     return JSONResponse({"status": "success"})
 

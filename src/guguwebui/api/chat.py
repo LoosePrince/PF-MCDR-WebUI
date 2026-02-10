@@ -4,21 +4,21 @@
 """
 
 import datetime
-import secrets
-import time
 import random
+import secrets
 import string
-import concurrent.futures
-from typing import Dict, List, Any, Optional, Tuple
+import time
+from typing import Any, Dict, Optional, Tuple
 
-from mcdreforged.api.all import PluginServerInterface, RText, RTextList, RColor
-from fastapi.responses import JSONResponse
+from mcdreforged.api.all import PluginServerInterface
 
-from ..utils.constant import user_db, DEFALUT_CONFIG
+from ..state import RCON_ONLINE_CACHE, WEB_ONLINE_PLAYERS
+from ..utils.auth_util import cleanup_chat_verifications, hash_password, verify_password
 from ..utils.chat_logger import ChatLogger
-from ..utils.auth_util import verify_password, hash_password, cleanup_chat_verifications
-from ..utils.mc_util import get_player_uuid, create_chat_message_rtext, get_java_server_info, get_bot_list, create_chat_logger_status_rtext
-from ..state import WEB_ONLINE_PLAYERS, RCON_ONLINE_CACHE
+from ..utils.constant import DEFALUT_CONFIG, user_db
+from ..utils.mc_util import create_chat_logger_status_rtext, create_chat_message_rtext, get_bot_list, \
+    get_java_server_info, get_player_uuid
+
 
 #============================================================#
 # 验证码管理功能
@@ -357,27 +357,27 @@ async def get_chat_messages_handler(limit: int = 50, offset: int = 0, after_id: 
     try:
         uuid_cache = {}
         need_uuid_players = set()
-        
+
         # 首先检查哪些消息需要补充UUID
         for m in messages:
             pid = m.get('player_id')
             if pid and not m.get('is_plugin', False):  # 插件消息不需要UUID
                 if m.get('uuid') is None:  # 只有没有UUID的消息才需要查询
                     need_uuid_players.add(pid)
-        
+
         # 只对缺失UUID的玩家进行网络查询
         if need_uuid_players:
             for pid in need_uuid_players:
                 uuid_val = await get_player_uuid(pid, server)
                 uuid_cache[pid] = uuid_val
-        
+
         # 为缺失UUID的消息设置UUID
         for m in messages:
             pid = m.get('player_id')
             if pid and m.get('uuid') is None and not m.get('is_plugin', False):
                 if pid in uuid_cache:
                     m['uuid'] = uuid_cache[pid]
-                
+
     except Exception:
         # 静默失败，不影响消息返回
         pass
@@ -517,7 +517,7 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
     if not is_admin:
         if not session_id:
             return {"status": "error", "message": "会话ID无效"}
-            
+
         if session_id not in user_db["chat_sessions"]:
             return {"status": "error", "message": "会话已过期，请重新登录"}
 

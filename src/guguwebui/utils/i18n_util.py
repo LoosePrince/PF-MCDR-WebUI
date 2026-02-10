@@ -1,6 +1,6 @@
 import re
 from collections import OrderedDict
-from ruamel.yaml.comments import CommentedSeq
+
 
 def consistent_type_update(original, updates, remove_missing=False):
     from ruamel.yaml.comments import CommentedSeq
@@ -176,7 +176,7 @@ def build_json_i18n_translations(json_obj: dict) -> dict:
     def normalize_candidates(lang_code: str) -> list[str]:
         base = _normalize_lang_code(lang_code)
         a, b = (base.split('-', 1) + [""])[:2]
-        return list(set([base, base.lower(), f"{a.lower()}_{b.lower()}", a.lower()]))
+        return list({base, base.lower(), f"{a.lower()}_{b.lower()}", a.lower()})
 
     translations = OrderedDict()
     avail_keys = set(json_obj.keys())
@@ -221,7 +221,7 @@ def extract_comment(comment_object) -> str:
 
 def get_comment(config: dict) -> dict:
     name_map = {}
-    for k, v in config.items(): 
+    for k, v in config.items():
         comment = extract_comment(config.ca.items.get(k))
         if comment: name_map[k] = comment
         if isinstance(v, dict): name_map.update(get_comment(v))

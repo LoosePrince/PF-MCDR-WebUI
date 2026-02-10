@@ -1,13 +1,11 @@
 import os
-import zipfile
 import tempfile
+import zipfile
 from pathlib import Path
-from fastapi.responses import JSONResponse
-from ..utils.constant import DEFALUT_CONFIG, toggleconfig, plugin_info
-from ..utils.file_util import __copyFile, extract_metadata
-from ..utils.mc_util import detect_plugin_format
 
+from ..utils.file_util import extract_metadata
 from ..utils.mcdr_adapter import MCDRAdapter
+
 
 class PluginService:
     def __init__(self, server, pim_helper=None, plugin_installer=None):
@@ -78,7 +76,7 @@ class PluginService:
         loaded_metadata = self.server.get_all_metadata()
         disabled_plugins = self.server.get_disabled_plugin_list()
         unloaded_plugins = self.server.get_unloaded_plugin_list()
-        
+
         unloaded_metadata = {}
         for plugin_path in disabled_plugins + unloaded_plugins:
             if not (plugin_path.endswith('.py') or plugin_path.endswith('.mcdr')): continue
@@ -87,5 +85,5 @@ class PluginService:
             if metadata['id'] in unloaded_metadata and metadata['version'] <= unloaded_metadata[metadata["id"]]['version']: continue
             metadata['path'] = plugin_path
             unloaded_metadata[metadata["id"]] = metadata
-            
+
         return loaded_metadata, unloaded_metadata, unloaded_plugins, disabled_plugins

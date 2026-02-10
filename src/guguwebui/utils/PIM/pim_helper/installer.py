@@ -1,20 +1,18 @@
-import os
-import time
-import threading
-import logging
-import zipfile
-import json
-import shutil
-import subprocess
 import ctypes
+import logging
+import os
+import subprocess
 import sys
-from typing import Optional, List, Dict, Any, Tuple
-from mcdreforged.plugin.meta.version import Version
-from .models import ReleaseData, PluginData
-from .registry import MetaRegistry
+import threading
+import time
+import zipfile
+from typing import Any, Dict, List, Optional, Tuple
+
 from .downloader import ReleaseDownloader
+from .models import PluginData, ReleaseData
 from .resolver import PluginDependencyResolver
 from .tasks import TaskManager
+
 
 class PluginInstaller:
     """插件安装器核心逻辑"""
@@ -55,7 +53,7 @@ class PluginInstaller:
         plugin_data = meta.get_plugin_data(plugin_id)
         if not plugin_data:
             return []
-        
+
         versions = []
         for release in plugin_data.releases:
             versions.append({
@@ -81,10 +79,10 @@ class PluginInstaller:
         """核心安装逻辑，支持递归调用"""
         prefix = "[依赖] " if is_dependency else ""
         self.task_manager.update_task(task_id, message=f"{prefix}正在处理插件: {plugin_id}")
-        
+
         meta = self.pim_helper.get_cata_meta(None, repo_url=repo_url)
         plugin_data = meta.get_plugin_data(plugin_id)
-        
+
         if not plugin_data:
             raise Exception(f"未找到插件: {plugin_id}")
 
@@ -97,10 +95,10 @@ class PluginInstaller:
 
         # 检查已安装版本
         installed_meta = self.server.get_plugin_metadata(plugin_id)
-        
+
         # 记录受影响的依赖插件，以便后续重新启用
         affected_plugins = []
-        
+
         if installed_meta:
             current_ver = str(installed_meta.version)
             if current_ver == target_release.version:
@@ -113,7 +111,7 @@ class PluginInstaller:
                 p_meta = self.server.get_plugin_metadata(pid)
                 if p_meta and plugin_id in p_meta.dependencies:
                     affected_plugins.append(pid)
-            
+
             if affected_plugins:
                 self.task_manager.update_task(task_id, message=f"{prefix}发现受影响的依赖插件: {', '.join(affected_plugins)}，正在停止...")
                 for pid in affected_plugins:
@@ -131,7 +129,7 @@ class PluginInstaller:
         plugin_dir = self.pim_helper.get_plugin_dir()
         file_name = target_release.file_name or f"{plugin_id}.mcdr"
         target_path = os.path.join(plugin_dir, file_name)
-        
+
         self.task_manager.update_task(task_id, message=f"{prefix}正在从 {target_release.browser_download_url} 下载...")
         if not self.downloader.download(target_release.browser_download_url, target_path):
             raise Exception(f"下载插件 {plugin_id} 失败")
@@ -140,7 +138,7 @@ class PluginInstaller:
         # 检查依赖
         self.task_manager.update_task(task_id, message=f"{prefix}正在解析 {plugin_id} 的依赖关系...")
         dep_results = self.resolver.resolve(plugin_id, meta, target_path)
-        
+
         # 处理环境问题
         if dep_results['environment_issues']:
             for issue in dep_results['environment_issues']:
@@ -169,7 +167,7 @@ class PluginInstaller:
         if self.server.load_plugin(target_path):
             self._cleanup_pending_files(plugin_id)
             self.task_manager.update_task(task_id, message=f"✓ {prefix}插件 {plugin_id} 加载成功")
-            
+
             # 重新加载受影响的依赖插件
             if affected_plugins:
                 self.task_manager.update_task(task_id, message=f"{prefix}正在重新启用受影响的依赖插件...")
@@ -202,10 +200,10 @@ class PluginInstaller:
                     with tempfile.NamedTemporaryFile(mode='wb', suffix='req.txt', delete=False) as tmp:
                         tmp.write(z.read(req_file))
                         tmp_path = tmp.name
-                    
+
                     try:
                         process = subprocess.run(
-                            [sys.executable, "-m", "pip", "install", "-r", tmp_path], 
+                            [sys.executable, "-m", "pip", "install", "-r", tmp_path],
                             capture_output=True, text=True, check=False
                         )
                         if process.returncode == 0:
@@ -230,7 +228,7 @@ class PluginInstaller:
     def _uninstall_logic(self, task_id: str, plugin_id: str, is_dependency: bool = False):
         """核心卸载逻辑，支持递归卸载依赖于此插件的其他插件"""
         prefix = "[联动卸载] " if is_dependency else ""
-        
+
         # 1. 查找依赖于此插件的其他插件（联动卸载）
         # 必须在卸载当前插件之前完成，并且要先删除文件，防止 MCDR 自动重载
         all_plugins = self.server.get_plugin_list()
@@ -243,7 +241,7 @@ class PluginInstaller:
                     is_dep = any(str(d).lower() == plugin_id.lower() for d in deps.keys())
                 elif isinstance(deps, list):
                     is_dep = any(str(d).lower() == plugin_id.lower() for d in deps)
-                
+
                 if is_dep:
                     self.task_manager.update_task(task_id, message=f"{prefix}发现依赖于 {plugin_id} 的插件: {pid}，正在卸载...")
                     # 递归处理依赖插件
@@ -262,13 +260,14 @@ class PluginInstaller:
         if self.server.get_plugin_instance(plugin_id):
             self.server.unload_plugin(plugin_id)
             self.task_manager.update_task(task_id, message=f"✓ {prefix}插件 {plugin_id} 已从内存卸载")
-        
+
         self.task_manager.update_task(task_id, message=f"✓ {prefix}插件 {plugin_id} 卸载完成")
 
-    def _find_release(self, plugin_data: PluginData, version: str) -> Optional[ReleaseData]:
+    @staticmethod
+    def _find_release(plugin_data: PluginData, version: str) -> Optional[ReleaseData]:
         if not version:
             return plugin_data.get_latest_release()
-        
+
         v_clean = version.lstrip('v')
         for r in plugin_data.releases:
             if r.version == v_clean or r.tag_name == version:
@@ -282,12 +281,12 @@ class PluginInstaller:
         if plugin:
             path = getattr(plugin, 'file_path', None)
             if path: pending.append(str(path))
-        
+
         local_plugins = self.pim_helper.get_local_plugins()
         for path in local_plugins.get('unloaded', []):
             if self.pim_helper.detect_unloaded_plugin_id(path) == plugin_id:
                 pending.append(path)
-        
+
         if pending:
             self.PENDING_DELETE_FILES[plugin_id] = list(set(pending))
             return True, pending
@@ -304,7 +303,8 @@ class PluginInstaller:
                         self.force_delete_file(path)
             del self.PENDING_DELETE_FILES[plugin_id]
 
-    def force_delete_file(self, file_path: str) -> bool:
+    @staticmethod
+    def force_delete_file(file_path: str) -> bool:
         """强制删除文件 (Windows 特化)"""
         try:
             if os.name == 'nt':

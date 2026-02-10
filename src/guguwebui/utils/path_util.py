@@ -1,6 +1,6 @@
-import os
 from pathlib import Path
-from typing import Union, List
+from typing import List, Union
+
 
 class SafePath:
     @staticmethod
@@ -43,13 +43,13 @@ def get_base_dirs(server) -> List[Path]:
             data_folder = Path(server.get_data_folder()).resolve()
             if data_folder not in base_dirs:
                 base_dirs.append(data_folder)
-            
+
             # Add MC working directory and server.properties
             from .mc_util import get_minecraft_path
             mc_dir = Path(get_minecraft_path(server)).resolve()
             if mc_dir not in base_dirs:
                 base_dirs.append(mc_dir)
-            
+
             # 明确添加 server.properties
             properties_path = mc_dir / "server.properties"
             if properties_path not in base_dirs:
@@ -59,7 +59,7 @@ def get_base_dirs(server) -> List[Path]:
             plugins_dir = Path("./plugins").resolve()
             if plugins_dir not in base_dirs:
                 base_dirs.append(plugins_dir)
-                
+
         except Exception:
             pass
     return base_dirs

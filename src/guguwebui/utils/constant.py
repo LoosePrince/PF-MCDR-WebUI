@@ -1,16 +1,14 @@
-import ruamel.yaml
 from pathlib import Path
-import json
-import os
-
-from passlib.context import CryptContext
-from pydantic import BaseModel
 from typing import Optional
 
-from .table import table
+import ruamel.yaml
+from passlib.context import CryptContext
+from pydantic import BaseModel
+
+from .table import Table
 
 ALGORITHM = "HS256"
-SECRET_KEY = "guguwebui" 
+SECRET_KEY = "guguwebui"
 STATIC_PATH = "./guguwebui_static"
 USER_DB_PATH = Path(STATIC_PATH) / "db.json"
 PATH_DB_PATH = Path("./config") / "guguwebui" / "config_path.json"
@@ -71,7 +69,7 @@ DEFALUT_CONFIG = {
     # ]
 }
 
-user_db = table(USER_DB_PATH, default_content=DEFALUT_DB)
+user_db = Table(USER_DB_PATH, default_content=DEFALUT_DB)
 
 class LoginData(BaseModel):
     username: Optional[str] = None

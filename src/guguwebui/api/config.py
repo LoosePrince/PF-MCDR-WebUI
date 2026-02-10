@@ -3,26 +3,25 @@
 迁移自 web_server.py 中的配置管理端点
 """
 
+import ipaddress
 import json
 import logging
-import os
+import secrets
 import socket
 import string
-import secrets
-import ipaddress
 from pathlib import Path
-from typing import List, Optional
+from typing import List
+
 from fastapi import Request
+from fastapi import status
 from fastapi.responses import JSONResponse
-from fastapi import status, Depends
-from ..utils.constant import DEFALUT_CONFIG, saveconfig, config_data, SERVER_PROPERTIES_PATH
-from ..utils.i18n_util import (
-    build_json_i18n_translations, build_yaml_i18n_translations, get_comment, consistent_type_update
-)
-from ..utils.mc_util import get_server_port, find_plugin_config_paths
-from ..utils.chat_logger import ChatLogger
+
 from ..utils.api_cache import api_cache
-from ..utils.server_util import verify_token
+from ..utils.chat_logger import ChatLogger
+from ..utils.constant import DEFALUT_CONFIG, config_data, saveconfig
+from ..utils.i18n_util import (build_json_i18n_translations, build_yaml_i18n_translations, consistent_type_update,
+                               get_comment)
+from ..utils.mc_util import find_plugin_config_paths, get_server_port
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ async def list_config_files(
 ) -> JSONResponse:
     """列出插件的配置文件及网页配置信息"""
     config_path_list: List[str] = find_plugin_config_paths(plugin_id)
-    
+
     # 查找对应的 main.json 以检测网页配置
     web_mapping = {}
     if config_path_list:
@@ -581,17 +580,17 @@ async def setup_rcon_config(
                 import javaproperties
                 with open(SERVER_PROPERTIES_PATH, "r", encoding="UTF-8") as f:
                     mc_config = javaproperties.load(f)
-                
+
                 # 更新RCON设置
                 mc_config["enable-rcon"] = "true"
                 mc_config["rcon.port"] = str(rcon_port)
                 mc_config["rcon.password"] = rcon_password
                 mc_config["broadcast-rcon-to-ops"] = "false"  # 可选：不广播RCON到OP
-                
+
                 # 保存MC配置
                 with open(SERVER_PROPERTIES_PATH, "w", encoding="UTF-8") as f:
                     javaproperties.dump(mc_config, f)
-                
+
                 mc_config_updated = True
             else:
                 return JSONResponse(
@@ -613,21 +612,21 @@ async def setup_rcon_config(
                 from ..utils.table import yaml
                 with open(config_path, "r", encoding="UTF-8") as f:
                     mcdr_config = yaml.load(f)
-                
+
                 # 确保rcon配置节存在
                 if "rcon" not in mcdr_config:
                     mcdr_config["rcon"] = {}
-                
+
                 # 更新MCDR RCON设置
                 mcdr_config["rcon"]["enable"] = True
                 mcdr_config["rcon"]["address"] = rcon_host
                 mcdr_config["rcon"]["port"] = rcon_port
                 mcdr_config["rcon"]["password"] = rcon_password
-                
+
                 # 保存MCDR配置
                 with open(config_path, "w", encoding="UTF-8") as f:
                     yaml.dump(mcdr_config, f)
-                
+
                 mcdr_config_updated = True
             else:
                 return JSONResponse(

@@ -5,14 +5,14 @@
 
 import datetime
 import traceback
+
 from fastapi import Request
-from fastapi.responses import JSONResponse
 from fastapi import status
-from ..utils.constant import server_control, user_db
-from ..utils.mc_util import get_java_server_info, get_minecraft_path, get_server_port
+from fastapi.responses import JSONResponse
+
 from ..utils.api_cache import api_cache
-import javaproperties
-from ..utils.server_util import verify_token
+from ..utils.constant import server_control, user_db
+from ..utils.mc_util import get_java_server_info, get_server_port
 
 
 async def get_server_status(
@@ -59,7 +59,7 @@ async def get_server_status(
 
     # 缓存未命中，执行实际查询
     server_status = "online" if server.is_server_running() or server.is_server_startup() else "offline"
-    
+
     # 获取MC服务器端口
     mc_port = get_server_port(server)
 
@@ -242,7 +242,7 @@ async def get_rcon_status(
         # 检查是否已登录
         if not request.session.get("logged_in"):
             return JSONResponse(
-                {"status": "error", "message": "User not logged in"}, 
+                {"status": "error", "message": "User not logged in"},
                 status_code=401
             )
 
@@ -257,7 +257,7 @@ async def get_rcon_status(
         rcon_enabled = False
         rcon_connected = False
         rcon_info = {}
-        
+
         # 读取MCDR配置检查RCON是否启用
         try:
             import ruamel.yaml
@@ -275,7 +275,7 @@ async def get_rcon_status(
         # 检查RCON是否正在运行
         if hasattr(server, "is_rcon_running") and server.is_rcon_running():
             rcon_connected = True
-            
+
             # 尝试执行/list命令获取在线玩家信息
             try:
                 feedback = server.rcon_query("list")

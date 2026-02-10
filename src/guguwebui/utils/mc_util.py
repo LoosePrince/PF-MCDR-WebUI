@@ -70,7 +70,7 @@ def find_plugin_config_paths(plugin_id: str) -> list:
     response = []
     config_suffix = [".json", ".yml", ".yaml"]
     single_file_paths = [single_file_path.with_suffix(suffix) for suffix in config_suffix]
-    
+
     if MCDR_plugin_folder.exists():
         response += [file for file in MCDR_plugin_folder.rglob("*") if file.suffix.lower() in config_suffix]
     else:
@@ -78,7 +78,7 @@ def find_plugin_config_paths(plugin_id: str) -> list:
             for item in config_dir.iterdir():
                 if item.is_dir() and item.name.lower() == plugin_id.lower():
                     response += [file for file in item.rglob("*") if file.suffix.lower() in config_suffix]
-    
+
     for file_path in single_file_paths:
         if file_path.exists():
             response.append(file_path)
@@ -88,7 +88,7 @@ def find_plugin_config_paths(plugin_id: str) -> list:
                 for item in parent_dir.iterdir():
                     if item.is_file() and item.stem.lower() == plugin_id.lower() and item.suffix.lower() in config_suffix:
                         response.append(item)
-    
+
     return [str(i) for i in response if not Path(i).stem.lower().endswith("_lang")]
 
 def load_plugin_info(server_interface):
@@ -98,7 +98,7 @@ def load_plugin_info(server_interface):
     disabled_plugins = server_interface.get_disabled_plugin_list()
     unloaded_plugins = server_interface.get_unloaded_plugin_list()
     unloaded_metadata = {}
-    
+
     for plugin_path in disabled_plugins + unloaded_plugins:
         if not (plugin_path.endswith('.py') or plugin_path.endswith('.mcdr')): continue
         metadata = extract_metadata(plugin_path)
@@ -106,7 +106,7 @@ def load_plugin_info(server_interface):
         if metadata['id'] in unloaded_metadata and metadata['version'] <= unloaded_metadata[metadata["id"]]['version']: continue
         metadata['path'] = plugin_path
         unloaded_metadata[metadata["id"]] = metadata
-        
+
     return loaded_metadata, unloaded_metadata, unloaded_plugins, disabled_plugins
 
 def get_plugins_info(server_interface):
@@ -119,14 +119,16 @@ def get_plugins_info(server_interface):
             from .PIM import PIMHelper
             class DummySource:
                 def reply(self, message): pass
-                def get_server(self): return server_interface
+                @staticmethod
+                def get_server(): return server_interface
             pim_helper = PIMHelper(server_interface)
             dummy_source = DummySource()
             # 仅基于 PIM 默认逻辑（官方仓库）获取版本信息
             cata_meta = pim_helper.get_cata_meta(dummy_source)
             plugins = cata_meta.get_plugins()
             return {plugin_id: plugin_data.latest_version for plugin_id, plugin_data in plugins.items()}
-        except Exception: return {}
+        except Exception:
+            return {}
 
     plugin_versions = fetch_plugin_versions()
     respond = []
@@ -255,7 +257,7 @@ def create_rtext_from_data(source: str, rtext_data, player_uuid: str = "未知")
     name_part = RText(f"[{source}]", color=RColor.gray)
     hover_text = f"插件: {source}\n来源: 插件\nUUID: {player_uuid}"
     name_part.h(hover_text)
-    
+
     if isinstance(rtext_data, dict):
         rtext_component = _parse_rtext_component(rtext_data)
         return RTextList(name_part, RText(" "), rtext_component)
@@ -316,7 +318,7 @@ def send_message_to_webui(server_interface, source: str, message, message_type: 
 
         processed_message = message
         rtext_data = None
-        
+
         if is_rtext:
             if hasattr(message, 'to_json_object'):
                 rtext_data = message.to_json_object()
@@ -379,7 +381,7 @@ async def get_minecraft_path_async(server_interface=None, path_type="working_dir
                 if hasattr(mcdr_config, 'working_directory'):
                     working_directory = mcdr_config.working_directory
             except: pass
-        
+
         if not working_directory:
             mcdr_config_path = Path("config.yml")
             if not await anyio.Path(mcdr_config_path).exists():
@@ -390,7 +392,7 @@ async def get_minecraft_path_async(server_interface=None, path_type="working_dir
                     content = await f.read()
                     config = yaml.load(content)
                 working_directory = config.get('working_directory', 'server')
-        
+
         path_map = {
             "working_directory": working_directory,
             "logs": os.path.join(working_directory, "logs"),
@@ -417,7 +419,7 @@ async def get_player_uuid(player_name, server_interface=None, use_api=True):
                         if uuid: return format_uuid(uuid)
         except Exception as e:
             if server_interface: server_interface.logger.debug(f"从usercache.json获取UUID失败: {e}")
-        
+
         if use_api:
             try:
                 api_url = f"https://api.mojang.com/users/profiles/minecraft/{player_name}"

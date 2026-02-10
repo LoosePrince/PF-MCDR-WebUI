@@ -1,15 +1,19 @@
 import datetime
 import secrets
-from fastapi import Request, status
+
+from fastapi import Request
 from fastapi.responses import JSONResponse
-from ..utils.constant import DEFALUT_CONFIG, user_db
+
 from ..utils.auth_util import verify_password
+from ..utils.constant import DEFALUT_CONFIG, user_db
+
 
 class AuthService:
     def __init__(self, server):
         self.server = server
 
-    def login_admin_check(self, account, disable_other_admin, super_admin_account):
+    @staticmethod
+    def login_admin_check(account, disable_other_admin, super_admin_account):
         if disable_other_admin and str(account) != str(super_admin_account):
             return False
         return True
@@ -25,7 +29,7 @@ class AuthService:
             password = password.replace('<', '').replace('>', '')
             disable_other_admin = server_config.get("disable_other_admin", False)
             super_admin_account = str(server_config.get("super_admin_account"))
-            
+
             if not self.login_admin_check(account, disable_other_admin, super_admin_account):
                 return JSONResponse({"status": "error", "message": "只有超级管理才能登录。"}, status_code=403)
 

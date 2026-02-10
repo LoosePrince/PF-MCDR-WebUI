@@ -1,8 +1,8 @@
+import json
 import os
 import zipfile
-import json
 from pathlib import Path
-from mcdreforged.plugin.type.multi_file_plugin import MultiFilePlugin
+
 
 def check_repository_cache(server):
     from .PIM import PIMHelper
@@ -25,7 +25,7 @@ def check_repository_cache(server):
         else: server.logger.debug("插件仓库缓存已存在")
     except Exception as e: server.logger.error(f"检查仓库缓存时出错: {e}")
 
-def __copyFile(server, path, target_path): 
+def __copyFile(server, path, target_path):
     target_path = Path(target_path)
     if "custom" in target_path.parts and target_path.exists() and target_path.name != "server_lang.json":
         return
@@ -40,7 +40,7 @@ from .mcdr_adapter import MCDRAdapter
 def __copyFolder(server, folder_path, target_folder):
     target_folder = Path(target_folder)
     target_folder.mkdir(parents=True, exist_ok=True)
-    
+
     try:
         try:
             with server.open_bundled_file(folder_path) as _:
@@ -53,25 +53,25 @@ def __copyFolder(server, folder_path, target_folder):
             pass
 
         items = MCDRAdapter.list_plugin_directory(server, folder_path)
-        
+
         if not items:
             server.logger.warning(f"无法获取文件夹 '{folder_path}' 的内容列表")
             return False
-            
+
         for item in items:
             if item == "__pycache__" or item == "utils" or item.endswith(".py"):
                 server.logger.debug(f"忽略文件/文件夹: {item}")
                 continue
-                
+
             plugin_item_path = f"{folder_path}/{item}"
             target_item_path = target_folder / item
-            
+
             try:
                 with server.open_bundled_file(plugin_item_path) as _:
                     __copyFile(server, plugin_item_path, target_item_path)
             except Exception:
                 __copyFolder(server, plugin_item_path, target_item_path)
-                
+
         server.logger.debug(f"成功从插件提取文件夹 '{folder_path}' 到 '{target_folder}'")
         return True
     except Exception as e:
@@ -106,7 +106,7 @@ def extract_metadata(plugin_path):
     elif zipfile.is_zipfile(plugin_path):
         return extract_zip_plugin_metadata(plugin_path)
     elif os.path.isfile(plugin_path):
-        return extract_single_file_plugin_metadata(plugin_path) 
+        return extract_single_file_plugin_metadata(plugin_path)
     else:
         return None
 
@@ -122,7 +122,7 @@ def extract_single_file_plugin_metadata(plugin_file_path):
 def extract_folder_plugin_metadata(plugin_path):
     for root, dirs, files in os.walk(plugin_path):
         for file in files:
-            if file == 'mcdreforged.plugin.json': 
+            if file == 'mcdreforged.plugin.json':
                 with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
                     return json.load(f)
 
