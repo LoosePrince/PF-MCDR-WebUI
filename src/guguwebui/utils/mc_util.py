@@ -57,7 +57,7 @@ def get_plugin_version():
     """获取插件的真实版本号"""
     try:
         from mcdreforged.api.types import PluginServerInterface
-        metadata = PluginServerInterface.get_self_metadata()
+        metadata = PluginServerInterface.psi().get_self_metadata()
         return metadata.version
     except Exception:
         return "1.0.0"
