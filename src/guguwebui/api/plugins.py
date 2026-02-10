@@ -14,10 +14,11 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.PIM import create_installer
-from ..utils.constant import DEFALUT_CONFIG, plugin_info, toggleconfig
-from ..utils.file_util import __copyFile
-from ..utils.mc_util import load_plugin_info
-from ..utils.server_util import verify_token
+from guguwebui.structures import plugin_info, toggleconfig
+from guguwebui.utils.constant import DEFALUT_CONFIG
+from guguwebui.utils.file_util import __copyFile
+from guguwebui.utils.mc_util import load_plugin_info
+from guguwebui.utils.server_util import verify_token
 
 
 async def package_pim_plugin(server, plugins_dir: str) -> str:

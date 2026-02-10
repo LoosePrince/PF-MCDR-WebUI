@@ -3,8 +3,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from ..utils.file_util import extract_metadata
-from ..utils.mcdr_adapter import MCDRAdapter
+from guguwebui.utils.file_util import extract_metadata
+from guguwebui.utils.mcdr_adapter import MCDRAdapter
 
 
 class PluginService:

@@ -12,32 +12,36 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-# 导入聊天API模块和全局变量
-from .api.chat import (chat_user_login, chat_user_logout, check_chat_session, check_chat_verification_status,
-                       clear_chat_messages_handler, generate_chat_verification_code, get_chat_messages_handler,
-                       get_new_chat_messages_handler, on_player_joined, on_player_left, send_chat_message_handler,
-                       set_chat_user_password)
-# 导入配置API模块
-from .api.config import (get_web_config, list_config_files, load_config, save_config, save_web_config,
-                         setup_rcon_config)
-# 导入插件API模块
-from .api.plugins import (check_pim_status, get_online_plugins, get_plugin_repository, get_plugin_versions_v2,
-                          get_self_update_info, install_pim_plugin, install_plugin, reload_plugin, self_update,
-                          task_status, toggle_plugin, uninstall_plugin, update_plugin)
-# 导入服务器API模块
-from .api.server import (control_server, get_command_suggestions, get_new_logs, get_rcon_status, get_server_logs,
-                         get_server_status, send_command)
-from .services.auth_service import AuthService
-from .services.config_service import ConfigService
-from .services.plugin_service import PluginService
-from .services.server_service import ServerService
-from .state import REGISTERED_PLUGIN_PAGES, pip_tasks
 from guguwebui.PIM import initialize_pim
-from .utils.auth_util import migrate_old_config
-from .utils.constant import *
-from .utils.log_watcher import LogWatcher
-from .utils.mc_util import get_plugin_version, get_plugins_info
-from .utils.server_util import *
+# 导入聊天API模块和全局变量
+from guguwebui.api.chat import (chat_user_login, chat_user_logout, check_chat_session, check_chat_verification_status,
+                                clear_chat_messages_handler, generate_chat_verification_code, get_chat_messages_handler,
+                                get_new_chat_messages_handler, on_player_joined, on_player_left,
+                                send_chat_message_handler,
+                                set_chat_user_password)
+# 导入配置API模块
+from guguwebui.api.config import (get_web_config, list_config_files, load_config, save_config, save_web_config,
+                                  setup_rcon_config)
+# 导入插件API模块
+from guguwebui.api.plugins import (check_pim_status, get_online_plugins, get_plugin_repository, get_plugin_versions_v2,
+                                   get_self_update_info, install_pim_plugin, install_plugin, reload_plugin, self_update,
+                                   task_status, toggle_plugin, uninstall_plugin, update_plugin)
+# 导入服务器API模块
+from guguwebui.api.server import (control_server, get_command_suggestions, get_new_logs, get_rcon_status,
+                                  get_server_logs,
+                                  get_server_status, send_command)
+from guguwebui.services.auth_service import AuthService
+from guguwebui.services.config_service import ConfigService
+from guguwebui.services.plugin_service import PluginService
+from guguwebui.services.server_service import ServerService
+from guguwebui.state import REGISTERED_PLUGIN_PAGES, pip_tasks
+from guguwebui.structures import DeepseekQuery, SaveContent, config_data, plugin_info, saveconfig, server_control, \
+    toggleconfig
+from guguwebui.utils.auth_util import migrate_old_config
+from guguwebui.utils.constant import *
+from guguwebui.utils.log_watcher import LogWatcher
+from guguwebui.utils.mc_util import get_plugin_version, get_plugins_info
+from guguwebui.utils.server_util import *
 
 # 获取插件真实版本号
 app = FastAPI(

@@ -7,10 +7,10 @@ import aiohttp
 import anyio
 import javaproperties
 from mcdreforged.api.all import RAction, RColor, RText, RTextBase, RTextList
-from mcdreforged.plugin.type.multi_file_plugin import MultiFilePlugin
-from mcdreforged.plugin.type.solo_plugin import SoloPlugin
-from mcdreforged.plugin.type.packed_plugin import PackedPlugin as ZippedPlugin
 from mcdreforged.plugin.type.directory_plugin import DirectoryPlugin
+from mcdreforged.plugin.type.multi_file_plugin import MultiFilePlugin
+from mcdreforged.plugin.type.packed_plugin import PackedPlugin as ZippedPlugin
+from mcdreforged.plugin.type.solo_plugin import SoloPlugin
 from mcstatus import JavaServer
 from ruamel.yaml import YAML
 

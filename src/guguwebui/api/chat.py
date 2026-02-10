@@ -12,11 +12,11 @@ from typing import Any, Dict, Optional, Tuple
 
 from mcdreforged.api.all import PluginServerInterface
 
-from ..state import RCON_ONLINE_CACHE, WEB_ONLINE_PLAYERS
-from ..utils.auth_util import cleanup_chat_verifications, hash_password, verify_password
-from ..utils.chat_logger import ChatLogger
-from ..utils.constant import DEFALUT_CONFIG, user_db
-from ..utils.mc_util import create_chat_logger_status_rtext, create_chat_message_rtext, get_bot_list, \
+from guguwebui.state import RCON_ONLINE_CACHE, WEB_ONLINE_PLAYERS
+from guguwebui.utils.auth_util import cleanup_chat_verifications, hash_password, verify_password
+from guguwebui.utils.chat_logger import ChatLogger
+from guguwebui.utils.constant import DEFALUT_CONFIG, user_db
+from guguwebui.utils.mc_util import create_chat_logger_status_rtext, create_chat_message_rtext, get_bot_list, \
     get_java_server_info, get_player_uuid
 
 

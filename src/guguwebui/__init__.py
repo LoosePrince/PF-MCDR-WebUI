@@ -5,15 +5,16 @@ from typing import Optional
 
 from mcdreforged.api.all import Literal, LiteralEvent, PluginServerInterface, Text
 
+from guguwebui.PIM import PluginInstaller, create_installer
+from guguwebui.utils.auth_util import change_account_command, create_account_command, get_temp_password_command, \
+    verify_chat_code_command
 from guguwebui.utils.chat_logger import ChatLogger
-from guguwebui.utils.file_util import amount_static_files
-from guguwebui.utils.auth_util import create_account_command, change_account_command, get_temp_password_command, verify_chat_code_command
-from guguwebui.utils.mc_util import get_minecraft_path
 from guguwebui.utils.constant import user_db
-from guguwebui.web_server import app, init_app, log_watcher, DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn
+from guguwebui.utils.file_util import amount_static_files
+from guguwebui.utils.mc_util import get_minecraft_path
 from guguwebui.utils.mc_util import get_plugins_info
 from guguwebui.utils.server_util import patch_asyncio
-from guguwebui.PIM import PluginInstaller, create_installer
+from guguwebui.web_server import DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn, app, init_app, log_watcher
 
 # 全局变量声明
 web_server_interface = None

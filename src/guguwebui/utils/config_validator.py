@@ -3,7 +3,7 @@ import logging
 import socket
 from typing import Any, Dict, Tuple
 
-from .constant import DEFALUT_CONFIG
+from guguwebui.utils.constant import DEFALUT_CONFIG
 
 
 class ConfigValidator:

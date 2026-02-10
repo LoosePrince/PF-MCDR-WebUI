@@ -16,12 +16,14 @@ from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
 
-from ..utils.api_cache import api_cache
-from ..utils.chat_logger import ChatLogger
-from ..utils.constant import DEFALUT_CONFIG, config_data, saveconfig
-from ..utils.i18n_util import (build_json_i18n_translations, build_yaml_i18n_translations, consistent_type_update,
-                               get_comment)
-from ..utils.mc_util import find_plugin_config_paths, get_server_port
+from guguwebui.structures import config_data, saveconfig
+from guguwebui.utils.api_cache import api_cache
+from guguwebui.utils.chat_logger import ChatLogger
+from guguwebui.utils.constant import DEFALUT_CONFIG
+from guguwebui.utils.i18n_util import (build_json_i18n_translations, build_yaml_i18n_translations,
+                                       consistent_type_update,
+                                       get_comment)
+from guguwebui.utils.mc_util import find_plugin_config_paths, get_server_port
 
 logger = logging.getLogger(__name__)
 

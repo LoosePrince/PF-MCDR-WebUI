@@ -10,9 +10,10 @@ from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
 
-from ..utils.api_cache import api_cache
-from ..utils.constant import server_control, user_db
-from ..utils.mc_util import get_java_server_info, get_server_port
+from guguwebui.structures import server_control
+from guguwebui.utils.api_cache import api_cache
+from guguwebui.utils.constant import user_db
+from guguwebui.utils.mc_util import get_java_server_info, get_server_port
 
 
 async def get_server_status(
