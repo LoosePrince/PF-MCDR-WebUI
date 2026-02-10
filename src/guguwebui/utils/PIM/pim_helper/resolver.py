@@ -87,18 +87,14 @@ class PluginDependencyResolver:
             except:
                 pass
 
-    def _check_mcdr_version(self, version_req: str, results: Dict):
-        try:
-            from mcdreforged.constants.core_constant import VERSION as MCDR_VERSION
-            if not VersionRequirement(version_req).accept(Version(MCDR_VERSION)):
-                results['environment_issues'].append(f"MCDReforged 版本不符: 需要 {version_req}, 当前 {MCDR_VERSION}")
-        except:
-            pass
+    @staticmethod
+    def _check_mcdr_version(version_req: str, results: Dict):
+        from mcdreforged.constants.core_constant import VERSION as MCDR_VERSION
+        if not VersionRequirement(version_req).accept(Version(MCDR_VERSION)):
+            results['environment_issues'].append(f"MCDReforged 版本不符: 需要 {version_req}, 当前 {MCDR_VERSION}")
 
-    def _check_python_version(self, version_req: str, results: Dict):
+    @staticmethod
+    def _check_python_version(version_req: str, results: Dict):
         py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-        try:
-            if not VersionRequirement(version_req).accept(Version(py_ver)):
-                results['environment_issues'].append(f"Python 版本不符: 需要 {version_req}, 当前 {py_ver}")
-        except:
-            pass
+        if not VersionRequirement(version_req).accept(Version(py_ver)):
+            results['environment_issues'].append(f"Python 版本不符: 需要 {version_req}, 当前 {py_ver}")
