@@ -5,6 +5,7 @@ import uuid
 import aiohttp
 from fastapi import Body, Depends, FastAPI, Form, HTTPException
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse, PlainTextResponse)
+from mcdreforged import PluginServerInterface
 from mcdreforged.api.all import MCDRPluginEvents
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
