@@ -13,7 +13,7 @@ from guguwebui.utils.constant import user_db
 from guguwebui.web_server import app, init_app, log_watcher, DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn
 from guguwebui.utils.mc_util import get_plugins_info
 from guguwebui.utils.server_util import patch_asyncio
-from guguwebui.utils.PIM import PluginInstaller, create_installer
+from guguwebui.PIM import PluginInstaller, create_installer
 
 # 全局变量声明
 web_server_interface = None

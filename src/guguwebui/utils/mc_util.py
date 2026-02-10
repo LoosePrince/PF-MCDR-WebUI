@@ -118,7 +118,7 @@ def get_plugins_info(server_interface):
 
     def fetch_plugin_versions():
         try:
-            from .PIM import PIMHelper
+            from guguwebui.PIM import PIMHelper
             class DummySource:
                 def reply(self, message): pass
                 @staticmethod
@@ -511,7 +511,7 @@ def detect_plugin_format(server) -> str:
 def check_self_update(server):
     """检查 WebUI 插件自身是否有更新"""
     try:
-        from .PIM import PIMHelper
+        from guguwebui.PIM import PIMHelper
         from packaging.version import parse as parse_version
         try:
             plugins = get_plugins_info(server)

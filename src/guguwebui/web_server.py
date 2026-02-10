@@ -31,7 +31,7 @@ from .services.config_service import ConfigService
 from .services.plugin_service import PluginService
 from .services.server_service import ServerService
 from .state import REGISTERED_PLUGIN_PAGES, pip_tasks
-from .utils.PIM import initialize_pim
+from guguwebui.PIM import initialize_pim
 from .utils.auth_util import migrate_old_config
 from .utils.constant import *
 from .utils.log_watcher import LogWatcher

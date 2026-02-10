@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def check_repository_cache(server):
-    from .PIM import PIMHelper
+    from guguwebui.PIM import PIMHelper
     try:
         pim_helper = PIMHelper(server)
         cache_dir = pim_helper.get_temp_dir()

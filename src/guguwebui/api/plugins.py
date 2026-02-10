@@ -13,7 +13,7 @@ from fastapi import Body, Depends, status
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from ..utils.PIM import create_installer
+from guguwebui.PIM import create_installer
 from ..utils.constant import DEFALUT_CONFIG, plugin_info, toggleconfig
 from ..utils.file_util import __copyFile
 from ..utils.mc_util import load_plugin_info
