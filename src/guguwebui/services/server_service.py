@@ -1,5 +1,4 @@
 from ..utils.mc_util import get_java_server_info, get_server_port
-from ..utils.mc_util import get_java_server_info, get_server_port
 
 
 class ServerService:

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
+import asyncio
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 import anyio
-import asyncio
-from pathlib import Path
 from ruamel.yaml import YAML
 
 yaml = YAML()

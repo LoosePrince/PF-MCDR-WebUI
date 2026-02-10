@@ -1,12 +1,15 @@
-import string
-import secrets
 import datetime
 import json
 import os
+import secrets
+import string
 from pathlib import Path
-from ..utils.constant import user_db, pwd_context
+
+from mcdreforged.api.all import RColor, RText, RTextList
+
 from .server_util import format_host_for_url
-from mcdreforged.api.all import RText, RColor, RTextList
+from ..utils.constant import pwd_context, user_db
+
 
 def migrate_old_config():
     try:
@@ -66,7 +69,7 @@ def create_account_command(src, ctx, host: str, port: int):
         error_msg = RText("此命令只能在终端中执行！请在MCDR控制台中使用此命令。", color=RColor.red)
         src.reply(error_msg)
         return
-    
+
     account, password = ctx['account'], ctx['password']
     account = account.replace('<', '').replace('>', '')
     password = password.replace('<', '').replace('>', '')
@@ -90,7 +93,7 @@ def change_account_command(src, ctx, host: str, port: int):
         error_msg = RText("此命令只能在终端中执行！请在MCDR控制台中使用此命令。", color=RColor.red)
         src.reply(error_msg)
         return
-    
+
     account = ctx['account']
     old_password, new_password = ctx['old password'], ctx['new password']
     account = account.replace('<', '').replace('>', '')
@@ -116,7 +119,7 @@ def get_temp_password_command(src, ctx, host: str, port: int):
         error_msg = RText("此命令只能在终端中执行！请在MCDR控制台中使用此命令。", color=RColor.red)
         src.reply(error_msg)
         return
-    
+
     temp_password = create_temp_password()
     temp_msg = RTextList(
         RText("临时密码(15分钟后过期): ", color=RColor.yellow),
@@ -156,10 +159,10 @@ def verify_chat_code_command(src, ctx):
         error_msg = RText("此命令只能由玩家在游戏内使用！", color=RColor.red)
         src.reply(error_msg)
         return
-    
+
     player_id = src.player
     cleanup_chat_verifications()
-    
+
     if code not in user_db['chat_verification']:
         error_msg = RTextList(
             RText("验证码 ", color=RColor.red),
@@ -168,7 +171,7 @@ def verify_chat_code_command(src, ctx):
         )
         src.reply(error_msg)
         return
-    
+
     verification = user_db['chat_verification'][code]
     expire_time = datetime.datetime.fromisoformat(verification['expire_time'].replace('Z', '+00:00'))
     if datetime.datetime.now(datetime.timezone.utc) > expire_time:
@@ -181,7 +184,7 @@ def verify_chat_code_command(src, ctx):
         )
         src.reply(error_msg)
         return
-    
+
     if verification.get('used'):
         error_msg = RTextList(
             RText("验证码 ", color=RColor.red),
@@ -190,7 +193,7 @@ def verify_chat_code_command(src, ctx):
         )
         src.reply(error_msg)
         return
-    
+
     if verification['player_id'] is not None and verification['player_id'] != player_id:
         error_msg = RTextList(
             RText("验证码 ", color=RColor.red),
@@ -201,12 +204,12 @@ def verify_chat_code_command(src, ctx):
         )
         src.reply(error_msg)
         return
-    
+
     verification['player_id'] = player_id
     verification['used'] = True
     verification['verified_time'] = str(datetime.datetime.now(datetime.timezone.utc))
     user_db.save()
-    
+
     success_msg = RTextList(
         RText("验证码 ", color=RColor.green),
         RText(code, color=RColor.yellow),

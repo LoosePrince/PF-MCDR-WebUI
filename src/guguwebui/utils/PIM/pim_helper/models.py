@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from mcdreforged.plugin.meta.version import VersionRequirement
+
 
 # 自定义实现，替代MCDR内部模块
 class PluginRequirementSource:
@@ -17,7 +19,7 @@ class ExtendedVersionRequirement(VersionRequirement):
 class PluginRequirement:
     id: str
     requirement: VersionRequirement
-    
+
     def satisfied_by(self, plugin_id: str, version: str) -> bool:
         return self.id == plugin_id and self.requirement.accept(version)
 
@@ -34,7 +36,7 @@ class ReleaseData:
     download_count: int
     size: int
     file_name: str
-    
+
     @property
     def version(self) -> str:
         """获取版本号，兼容原始接口"""
@@ -54,11 +56,11 @@ class PluginData:
     releases: List[ReleaseData] = field(default_factory=list)
     repos_owner: str = ""
     repos_name: str = ""
-    
+
     def __post_init__(self):
         if self.releases is None:
             self.releases = []
-        
+
         # 尝试从link中解析仓库信息
         if self.link and 'github.com' in self.link:
             try:
@@ -68,17 +70,17 @@ class PluginData:
                     self.repos_name = parts[1]
             except:
                 pass
-    
+
     def get_dependencies(self) -> Dict[str, VersionRequirement]:
         """获取依赖项"""
         return self.dependencies
-    
+
     def get_latest_release(self) -> Optional[ReleaseData]:
         """获取最新版本"""
         if not self.releases:
             return None
         return self.releases[0]
-    
+
     @property
     def latest_version(self) -> Optional[str]:
         """获取最新版本号，兼容原始接口"""

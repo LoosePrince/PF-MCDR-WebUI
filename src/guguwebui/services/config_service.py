@@ -1,6 +1,4 @@
 from pathlib import Path
-from ..utils.constant import DEFALUT_CONFIG
-from pathlib import Path
 
 from ..utils.constant import DEFALUT_CONFIG
 

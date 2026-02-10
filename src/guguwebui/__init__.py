@@ -2,7 +2,7 @@ import asyncio
 import os
 import platform
 
-from mcdreforged.api.all import PluginServerInterface, LiteralEvent, Literal, Text
+from mcdreforged.api.all import Literal, LiteralEvent, PluginServerInterface, Text
 
 # 全局变量声明
 web_server_interface = None

@@ -3,7 +3,7 @@
 统一维护跨模块的全局变量，减少循环引用
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Web在线玩家心跳（基于 /api/chat/get_new_messages 请求），值为最近心跳Unix秒
 WEB_ONLINE_PLAYERS: Dict[str, int] = {}
