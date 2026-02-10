@@ -89,7 +89,7 @@ class PluginDependencyResolver:
 
     def _check_mcdr_version(self, version_req: str, results: Dict):
         try:
-            from mcdreforged.info_repo.info import VERSION as MCDR_VERSION
+            from mcdreforged.constants.core_constant import VERSION as MCDR_VERSION
             if not VersionRequirement(version_req).accept(Version(MCDR_VERSION)):
                 results['environment_issues'].append(f"MCDReforged 版本不符: 需要 {version_req}, 当前 {MCDR_VERSION}")
         except:
