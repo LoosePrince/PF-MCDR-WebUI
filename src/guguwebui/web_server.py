@@ -1218,61 +1218,61 @@ async def api_pip_task_status(
 
 @app.post("/api/chat/generate_code")
 async def chat_generate_code(request: Request):
-	"""生成聊天页验证码"""
-	try:
-		server:PluginServerInterface = app.state.server_interface
-		result = generate_chat_verification_code(server)
-		if isinstance(result, tuple):
-			code, expire_minutes = result
-			return JSONResponse({
-				"status": "success",
-				"code": code,
-				"expire_minutes": expire_minutes
-			})
-		else:
-			# 如果返回的是异常信息
-			return JSONResponse(result, status_code=403)
-	except Exception as e:
-		server:PluginServerInterface = app.state.server_interface
-		if server:
-			server.logger.error(f"生成验证码失败: {e}")
-		return JSONResponse({"status": "error", "message": "生成验证码失败"}, status_code=500)
+    """生成聊天页验证码"""
+    try:
+        server:PluginServerInterface = app.state.server_interface
+        result = generate_chat_verification_code(server)
+        if isinstance(result, tuple):
+            code, expire_minutes = result
+            return JSONResponse({
+                "status": "success",
+                "code": code,
+                "expire_minutes": expire_minutes
+            })
+        else:
+            # 如果返回的是异常信息
+            return JSONResponse(result, status_code=403)
+    except Exception as e:
+        server:PluginServerInterface = app.state.server_interface
+        if server:
+            server.logger.error(f"生成验证码失败: {e}")
+        return JSONResponse({"status": "error", "message": "生成验证码失败"}, status_code=500)
 
 @app.post("/api/chat/check_verification")
 async def chat_check_verification(request: Request):
-	"""检查验证码验证状态"""
-	try:
-		data = await request.json()
-		code = data.get("code", "")
-		result = check_chat_verification_status(code)
+    """检查验证码验证状态"""
+    try:
+        data = await request.json()
+        code = data.get("code", "")
+        result = check_chat_verification_status(code)
 
-		status_code = 400 if result.get("status") == "error" else 200
-		return JSONResponse(result, status_code=status_code)
+        status_code = 400 if result.get("status") == "error" else 200
+        return JSONResponse(result, status_code=status_code)
 
-	except Exception as e:
-		server:PluginServerInterface = app.state.server_interface
-		if server:
-			server.logger.error(f"检查验证状态失败: {e}")
-		return JSONResponse({"status": "error", "message": "检查验证状态失败"}, status_code=500)
+    except Exception as e:
+        server:PluginServerInterface = app.state.server_interface
+        if server:
+            server.logger.error(f"检查验证状态失败: {e}")
+        return JSONResponse({"status": "error", "message": "检查验证状态失败"}, status_code=500)
 
 @app.post("/api/chat/set_password")
 async def chat_set_password(request: Request):
-	"""设置聊天页用户密码"""
-	try:
-		data = await request.json()
-		code = data.get("code", "")
-		password = data.get("password", "")
-		server:PluginServerInterface = app.state.server_interface
-		result = await set_chat_user_password(code, password, server)
+    """设置聊天页用户密码"""
+    try:
+        data = await request.json()
+        code = data.get("code", "")
+        password = data.get("password", "")
+        server:PluginServerInterface = app.state.server_interface
+        result = await set_chat_user_password(code, password, server)
 
-		status_code = 400 if result.get("status") == "error" else 200
-		return JSONResponse(result, status_code=status_code)
+        status_code = 400 if result.get("status") == "error" else 200
+        return JSONResponse(result, status_code=status_code)
 
-	except Exception as e:
-		server:PluginServerInterface = app.state.server_interface
-		if server:
-			server.logger.error(f"设置密码失败: {e}")
-		return JSONResponse({"status": "error", "message": "设置密码失败"}, status_code=500)
+    except Exception as e:
+        server:PluginServerInterface = app.state.server_interface
+        if server:
+            server.logger.error(f"设置密码失败: {e}")
+        return JSONResponse({"status": "error", "message": "设置密码失败"}, status_code=500)
 
 @app.post("/api/chat/login")
 async def chat_login(request: Request):
