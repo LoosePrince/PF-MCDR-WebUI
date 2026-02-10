@@ -7,6 +7,10 @@ import aiohttp
 import anyio
 import javaproperties
 from mcdreforged.api.all import RAction, RColor, RText, RTextBase, RTextList
+from mcdreforged.plugin.type.multi_file_plugin import MultiFilePlugin
+from mcdreforged.plugin.type.solo_plugin import SoloPlugin
+from mcdreforged.plugin.type.packed_plugin import PackedPlugin as ZippedPlugin
+from mcdreforged.plugin.type.directory_plugin import DirectoryPlugin
 from mcstatus import JavaServer
 from ruamel.yaml import YAML
 
@@ -486,20 +490,10 @@ def detect_plugin_format(server) -> str:
     try:
         plugin = MCDRAdapter.get_plugin_object(server)
         if not plugin: return "unknown"
-        try:
-            from mcdreforged.plugin.type.solo_plugin import SoloPlugin
-            if isinstance(plugin, SoloPlugin): return "single_file"
-        except ImportError: pass
-        try:
-            from mcdreforged.plugin.type.multi_file_plugin import MultiFilePlugin
-            if isinstance(plugin, MultiFilePlugin):
-                try:
-                    from mcdreforged.plugin.type.zipped_plugin import ZippedPlugin
-                    from mcdreforged.plugin.type.directory_plugin import DirectoryPlugin
-                    if isinstance(plugin, ZippedPlugin): return "mcdr_file"
-                    if isinstance(plugin, DirectoryPlugin): return "folder"
-                except ImportError: pass
-        except ImportError: pass
+        if isinstance(plugin, SoloPlugin): return "single_file"
+        if isinstance(plugin, MultiFilePlugin):
+            if isinstance(plugin, ZippedPlugin): return "mcdr_file"
+            if isinstance(plugin, DirectoryPlugin): return "folder"
         plugin_path = getattr(plugin, 'file_path', None)
         if plugin_path:
             if os.path.isdir(plugin_path): return "folder"
