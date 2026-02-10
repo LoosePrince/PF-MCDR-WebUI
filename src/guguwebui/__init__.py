@@ -1,12 +1,25 @@
 import asyncio
 import os
 import platform
+from typing import Optional
 
 from mcdreforged.api.all import Literal, LiteralEvent, PluginServerInterface, Text
+
+from guguwebui.utils.chat_logger import ChatLogger
+from guguwebui.utils.file_util import amount_static_files
+from guguwebui.utils.auth_util import create_account_command, change_account_command, get_temp_password_command, verify_chat_code_command
+from guguwebui.utils.mc_util import get_minecraft_path
+from guguwebui.utils.constant import user_db
+from guguwebui.web_server import app, init_app, log_watcher, DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn
+from guguwebui.utils.mc_util import get_plugins_info
+from guguwebui.utils.server_util import patch_asyncio
+from guguwebui.utils.PIM import PluginInstaller, create_installer
 
 # 全局变量声明
 web_server_interface = None
 _mounted_to_fastapi_mcdr = False
+chat_logger: Optional[ChatLogger] = None
+
 
 #============================================================#
 
@@ -44,24 +57,6 @@ def on_load(server: PluginServerInterface, old):
         import uvicorn
         # 导入其他模块 - 明确导入需要的内容
         from fastapi.staticfiles import StaticFiles
-        from .utils.file_util import amount_static_files
-        from .utils.auth_util import (
-            create_account_command,
-            change_account_command,
-            get_temp_password_command,
-            verify_chat_code_command
-        )
-        from .utils.mc_util import get_minecraft_path
-        from .utils.constant import user_db
-        from .web_server import (
-            app, init_app, log_watcher,
-            DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn
-        )
-        from .utils.mc_util import get_plugins_info
-        from .utils.server_util import patch_asyncio
-        from .utils.PIM import PluginInstaller, create_installer
-
-        __all__ = ['PluginInstaller', 'create_installer']
 
         server.logger.info("所有模块导入成功")
 
@@ -159,9 +154,9 @@ def on_load(server: PluginServerInterface, old):
 
     host = plugin_config['host']
     port = plugin_config['port']
-    register_command(server, host, port) # register MCDR command
+    register_command(server, host, port)  # register MCDR command
 
-    amount_static_files(server) # move static resource
+    amount_static_files(server)  # move static resource
     # app.mount("/src", StaticFiles(directory=f"{STATIC_PATH}/src"), name="src")
     # app.mount("/js", StaticFiles(directory=f"{STATIC_PATH}/js"), name="js")
     # app.mount("/css", StaticFiles(directory=f"{STATIC_PATH}/css"), name="css")
@@ -268,7 +263,8 @@ def on_load(server: PluginServerInterface, old):
         # 尝试获取 fastapi_mcdr 的端口信息
         try:
             # 使用插件自己的方案读取 fastapi_mcdr 配置
-            fastapi_config = server.load_config_simple("fastapi_mcdr_config.json", {"host": "0.0.0.0", "port": 8080}, echo_in_console=False)
+            fastapi_config = server.load_config_simple("fastapi_mcdr_config.json", {"host": "0.0.0.0", "port": 8080},
+                                                       echo_in_console=False)
             fastapi_port = fastapi_config.get('port', 8080)
             server.logger.info(f"WebUI 访问地址: http://localhost:{fastapi_port}/guguwebui")
             server.logger.info(f"API 文档地址: http://localhost:{fastapi_port}/guguwebui/docs")
@@ -401,6 +397,7 @@ def start_standalone_server(server: PluginServerInterface):
 _checker_thread = None
 _checker_running = False
 
+
 def start_plugin_status_checker(server: PluginServerInterface):
     """启动定期检查插件状态的任务"""
     global _checker_thread, _checker_running
@@ -450,6 +447,7 @@ def start_plugin_status_checker(server: PluginServerInterface):
     _checker_thread.start()
     server.logger.info("已启动插件状态定期检查任务")
 
+
 def start_self_update_checker(server: PluginServerInterface):
     """启动 WebUI 自身更新检查任务"""
     import threading
@@ -465,7 +463,8 @@ def start_self_update_checker(server: PluginServerInterface):
                 result = check_self_update(server)
                 if result.get("available"):
                     latest = result.get("latest")
-                    server.logger.info(f"§6[WebUI] 发现新版本: §a{latest}§6，请前往 Web 界面或在终端执行 §b!!MCDR plugin install -U -y guguwebui §6进行更新")
+                    server.logger.info(
+                        f"§6[WebUI] 发现新版本: §a{latest}§6，请前往 Web 界面或在终端执行 §b!!MCDR plugin install -U -y guguwebui §6进行更新")
                     # 存储到 app.state 供前端查询
                     if hasattr(app, "state"):
                         app.state.self_update_info = result
@@ -557,7 +556,7 @@ def on_unload(server: PluginServerInterface):
         # 获取当前事件循环
         try:
             loop = asyncio.get_event_loop()
-            if  loop.is_closed():
+            if loop.is_closed():
                 return
 
             server.logger.debug("关闭asyncio事件循环")
@@ -580,7 +579,6 @@ def on_unload(server: PluginServerInterface):
     except Exception as e:
         server.logger.warning(f"清理asyncio资源时出错: {e}")
 
-
     # 强制清理环境
     try:
         import gc
@@ -592,8 +590,9 @@ def on_unload(server: PluginServerInterface):
     server.logger.info("WebUI 已卸载")
 
 
-def register_command(server:PluginServerInterface, host:str, port:int):
-    from .utils.auth_util import get_temp_password_command, create_account_command, change_account_command, verify_chat_code_command  # 在函数内部导入所有需要的命令函数
+def register_command(server: PluginServerInterface, host: str, port: int):
+    from .utils.auth_util import get_temp_password_command, create_account_command, change_account_command, \
+        verify_chat_code_command  # 在函数内部导入所有需要的命令函数
 
     # 注册指令
     server.register_command(
@@ -640,12 +639,14 @@ def register_command(server:PluginServerInterface, host:str, port:int):
 
     server.register_help_message("!!webui", "GUGUWebUI 相关指令", 3)
 
+
 def __get_help_message():
     help_message = "!!webui create <account> <password>: 注册 guguwebui 账户\n"
     help_message += "!!webui change <account> <old password> <new password>: 修改 guguwebui 账户密码\n"
     help_message += "!!webui temp: 获取 guguwebui 临时密码\n"
     help_message += "!!webui verify <code>: 验证聊天页验证码\n"
     return help_message
+
 
 def on_user_info(server: PluginServerInterface, info):
     """监听玩家聊天消息并记录到聊天日志"""
@@ -663,14 +664,17 @@ def on_user_info(server: PluginServerInterface, info):
                     # 记录聊天消息
                     chat_logger.add_message(player_name.strip(), message_content.strip(), server=server)
                     from .utils.mc_util import create_chat_logger_status_rtext
-                    status_msg = create_chat_logger_status_rtext('record', True, player_name.strip(), message_content.strip())
+                    status_msg = create_chat_logger_status_rtext('record', True, player_name.strip(),
+                                                                 message_content.strip())
                     server.logger.debug(status_msg)
                 else:
                     server.logger.debug(f"跳过无效的聊天消息: player={player_name}, content={message_content}")
     except Exception as e:
         server.logger.error(f"记录聊天消息时出错: {e}")
 
-def send_message_to_webui(server_interface, source: str, message, message_type: str = "info", target_players: list = None, metadata: dict = None, is_rtext: bool = False):
+
+def send_message_to_webui(server_interface, source: str, message, message_type: str = "info",
+                          target_players: list = None, metadata: dict = None, is_rtext: bool = False):
     """供其他插件调用的函数，用于发送消息到WebUI并同步到游戏"""
     from .utils.mc_util import send_message_to_webui as _send_message_to_webui
     return _send_message_to_webui(server_interface, source, message, message_type, target_players, metadata, is_rtext)
@@ -686,4 +690,3 @@ def register_plugin_page(plugin_id: str, html_path: str):
     """
     from .utils.constant import REGISTERED_PLUGIN_PAGES
     REGISTERED_PLUGIN_PAGES[plugin_id] = html_path
-
