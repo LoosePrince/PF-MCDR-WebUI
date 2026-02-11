@@ -26,18 +26,50 @@ class PluginInstaller:
         self.task_manager = TaskManager(server)
         self.downloader = ReleaseDownloader(server, pim_helper)
 
-    def install(self, plugin_id: str, version: str = None, repo_url: str = None) -> str:
+    async def install(self, plugin_id: str, version: str = None, repo_url: str = None) -> str:
         task_id = self.task_manager.create_task('install', plugin_id, version=version, repo_url=repo_url)
-        thread = threading.Thread(target=self._install_thread, args=(task_id, plugin_id, version, repo_url),
-                                  daemon=True)
-        thread.start()
+        # 使用 anyio.to_thread 在后台线程运行阻塞逻辑
+        import anyio
+        async def run_install():
+            try:
+                await anyio.to_thread.run_sync(self._install_logic, task_id, plugin_id, version, repo_url)
+                self.task_manager.update_task(task_id, progress=1.0, status='completed', message=f"任务完成")
+            except Exception as e:
+                self.logger.error(f"安装失败: {e}")
+                self.task_manager.update_task(task_id, status='failed', message=f"错误: {str(e)}", end_time=time.time())
+        
+        from guguwebui.state import app
+        if app:
+            import asyncio
+            asyncio.create_task(run_install())
+        else:
+            # 回退到线程
+            thread = threading.Thread(target=self._install_thread, args=(task_id, plugin_id, version, repo_url),
+                                      daemon=True)
+            thread.start()
         return task_id
 
-    def uninstall(self, plugin_id: str) -> str:
+    async def uninstall(self, plugin_id: str) -> str:
         task_id = self.task_manager.create_task('uninstall', plugin_id)
         self.logger.debug(f"创建卸载任务: {task_id} for {plugin_id}")
-        thread = threading.Thread(target=self._uninstall_thread, args=(task_id, plugin_id), daemon=True)
-        thread.start()
+        
+        import anyio
+        async def run_uninstall():
+            try:
+                await anyio.to_thread.run_sync(self._uninstall_logic, task_id, plugin_id)
+                self.task_manager.update_task(task_id, progress=1.0, status='completed', message=f"任务完成")
+            except Exception as e:
+                self.logger.error(f"卸载失败: {e}", exc_info=True)
+                self.task_manager.update_task(task_id, status='failed', message=f"卸载失败: {str(e)}", end_time=time.time())
+
+        from guguwebui.state import app
+        if app:
+            import asyncio
+            asyncio.create_task(run_uninstall())
+        else:
+            # 回退到线程
+            thread = threading.Thread(target=self._uninstall_thread, args=(task_id, plugin_id), daemon=True)
+            thread.start()
         return task_id
 
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:

@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import json
 import logging
@@ -37,12 +38,11 @@ from guguwebui.services.config_service import ConfigService
 from guguwebui.services.plugin_service import PluginService
 from guguwebui.services.server_service import ServerService
 from guguwebui.state import REGISTERED_PLUGIN_PAGES, pip_tasks
-from guguwebui.structures import ConfigData, DeepseekQuery, PipPackageRequest, PluginInfo, SaveConfig, SaveContent, \
-    ServerControl, \
-    ToggleConfig
+from guguwebui.structures import (ConfigData, DeepseekQuery, PipPackageRequest, PluginInfo, SaveConfig, SaveContent,
+                                  ServerControl, ToggleConfig, BusinessException)
 from guguwebui.utils.auth_util import migrate_old_config
 from guguwebui.utils.log_watcher import LogWatcher
-from guguwebui.utils.mc_util import get_plugin_version, get_plugins_info
+from guguwebui.utils.mc_util import get_plugin_version
 from guguwebui.utils.server_util import *
 
 # 获取插件真实版本号
@@ -56,7 +56,7 @@ app = FastAPI(
 )
 
 # 导出 get_plugins_info 供 __init__.py 使用
-__all__ = ['app', 'init_app', 'get_plugins_info', 'log_watcher', 'DEFALUT_CONFIG', 'STATIC_PATH', 'ThreadedUvicorn']
+__all__ = ['app', 'init_app', 'log_watcher', 'DEFALUT_CONFIG', 'STATIC_PATH', 'ThreadedUvicorn']
 
 # URL路径处理函数已移至 utils.py
 
@@ -93,11 +93,6 @@ def serve_spa_index(request: Request) -> HTMLResponse:
 # 全局LogWatcher实例
 log_watcher = LogWatcher()
 
-# 全局服务实例
-auth_service: Optional[AuthService] = None
-plugin_service: Optional[PluginService] = None
-config_service: Optional[ConfigService] = None
-server_service: Optional[ServerService] = None
 
 # 尝试迁移旧配置
 migrate_old_config()
@@ -106,18 +101,13 @@ migrate_old_config()
 # 初始化函数，在应用程序启动时调用
 def init_app(server_instance):
     """初始化应用程序，注册事件监听器"""
-    global log_watcher, auth_service, plugin_service, config_service, server_service
+    global log_watcher
 
     # 存储服务器接口
     app.state.server_interface = server_instance
 
     # 初始化自更新信息
     app.state.self_update_info = {"available": False}
-
-    # 初始化服务
-    auth_service = AuthService(server_instance)
-    config_service = ConfigService(server_instance)
-    server_service = ServerService(server_instance, log_watcher)
 
     # 确保user_db包含所有必要的键
     try:
@@ -143,14 +133,17 @@ def init_app(server_instance):
     log_watcher._setup_log_capture()
 
     # 注册MCDR事件监听器，每种事件只注册一次
-    # 修正：GENERAL_INFO应该映射到on_mcdr_info，处理MCDR和服务器的常规信息
-    # USER_INFO应该映射到on_server_output，处理用户输入的命令
     server_instance.register_event_listener(MCDRPluginEvents.GENERAL_INFO, on_mcdr_info)
     server_instance.register_event_listener(MCDRPluginEvents.USER_INFO, on_server_output)
     # 注册玩家进出事件，刷新RCON在线缓存
     server_instance.register_event_listener(MCDRPluginEvents.PLAYER_JOINED, on_player_joined)
     server_instance.register_event_listener(MCDRPluginEvents.PLAYER_LEFT, on_player_left)
 
+    # 初始化服务
+    app.state.auth_service = AuthService(server_instance)
+    app.state.config_service = ConfigService(server_instance)
+    app.state.server_service = ServerService(server_instance, log_watcher)
+    
     # 初始化PIM模块
     try:
         server_instance.logger.debug("正在初始化内置PIM模块...")
@@ -160,7 +153,12 @@ def init_app(server_instance):
         app.state.plugin_installer = plugin_installer
 
         # 初始化插件服务
-        plugin_service = PluginService(server_instance, pim_helper, plugin_installer)
+        app.state.plugin_service = PluginService(server_instance, pim_helper, plugin_installer)
+        
+        # 注入服务依赖
+        app.state.auth_service.config_service = app.state.config_service
+        app.state.plugin_service.config_service = app.state.config_service
+        app.state.server_service.config_service = app.state.config_service
 
         if pim_helper and plugin_installer:
             server_instance.logger.info("内置PIM模块初始化成功")
@@ -254,57 +252,6 @@ def get_languages():
 # 认证与页面路由
 
 
-def _clear_login_state(request: Request, response):
-    """
-    清理会话与 token：
-    - 清空 session
-    - 从 user_db 中移除当前 token
-    - 删除常见路径下的 token cookie（独立模式与挂载模式）
-    """
-    # 清理 session
-    request.session["logged_in"] = False
-    request.session.clear()
-
-    # 计算根路径，用于 cookie path
-    root_path = request.scope.get("root_path", "")
-    cookie_path = root_path if root_path else "/"
-
-    # 从 user_db 中移除 token，确保后端登录状态真正失效
-    token = request.cookies.get("token")
-    try:
-        if token and token in user_db.get("token", {}):
-            del user_db["token"][token]
-            user_db.save()
-    except Exception:
-        # 不因清理失败中断整个登出流程
-        pass
-
-    # 删除 token cookie（当前路径）
-    response.set_cookie(
-        "token",
-        value="",
-        path=cookie_path if cookie_path else "/",
-        expires=0,
-        max_age=0,
-        httponly=True,
-        samesite="lax",
-    )
-
-    # 额外尝试清除常见路径，兼容不同挂载/反向代理场景
-    for p in ["/", "/guguwebui", "/guguwebui/"]:
-        response.set_cookie(
-            "token",
-            value="",
-            path=p,
-            expires=0,
-            max_age=0,
-            httponly=True,
-            samesite="lax",
-        )
-
-    return response
-
-
 # redirect to log in
 @app.get("/", name="root")
 def read_root(request: Request):
@@ -369,20 +316,21 @@ async def login(
         temp_code: str = Form(""),
         remember: bool = Form(False),
 ):
-    global auth_service
+    auth_service = request.app.state.auth_service
     return await auth_service.login(request, account, password, temp_code, remember)
 
 
 # logout Endpoints
 @app.get("/logout", response_class=RedirectResponse)
-def logout(request: Request):
+async def logout(request: Request):
     """
     页面级登出：用于浏览器直接访问 /logout，完成登出并重定向到登录页。
     """
     # 计算重定向地址（根路径由 get_redirect_url 处理）
     redirect_url = get_redirect_url(request, "/login")
     response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
-    return _clear_login_state(request, response)
+    auth_service: AuthService = request.app.state.auth_service
+    return await auth_service.logout(request, response)
 
 
 @app.post("/api/logout")
@@ -393,7 +341,8 @@ async def api_logout(request: Request):
     - 在独立模式与挂载模式下均正确清理 session 与 token
     """
     response = JSONResponse({"status": "success", "message": "Logged out"})
-    return _clear_login_state(request, response)
+    auth_service: AuthService = request.app.state.auth_service
+    return await auth_service.logout(request, response)
 
 
 class SessionTokenSyncMiddleware(BaseHTTPMiddleware):
@@ -529,6 +478,19 @@ async def connection_reset_handler(request: Request, exc: ConnectionResetError):
     )
 
 
+@app.exception_handler(BusinessException)
+async def business_exception_handler(request: Request, exc: BusinessException):
+    """处理业务异常"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "status": "error",
+            "message": exc.message,
+            "data": exc.data
+        }
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     # 记录所有未处理的异常
@@ -568,7 +530,8 @@ async def check_login_status(request: Request):
 # Return plugins' metadata
 @app.get("/api/plugins")
 async def get_plugins(request: Request, plugin_id: str = None):
-    plugins = get_plugins_info(app.state.server_interface)
+    plugin_service = request.app.state.plugin_service
+    plugins = plugin_service.get_plugins_list()
 
     # 如果指定了 plugin_id，则只返回对应插件（如果存在）
     if plugin_id:
@@ -593,16 +556,15 @@ async def get_plugins(request: Request, plugin_id: str = None):
 # 从 everything_slim.json 获取在线插件列表，免登录
 @app.get("/api/online-plugins")
 async def api_get_online_plugins(request: Request, repo_url: str = None):
-    """获取在线插件列表（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    pim_helper = getattr(app.state, "pim_helper", None)
-    return await get_online_plugins(request, repo_url, server, pim_helper)
+    """获取在线插件列表"""
+    plugin_service = request.app.state.plugin_service
+    return await plugin_service.get_online_plugins(repo_url)
 
 
 # Loading/Unloading pluging
 @app.post("/api/toggle_plugin")
 async def api_toggle_plugin(request: Request, request_body: ToggleConfig):
-    """切换插件状态（加载/卸载）（函数已迁移至 api/plugins.py）"""
+    """切换插件状态（加载/卸载）"""
     server = app.state.server_interface
     return await toggle_plugin(request, request_body, server)
 
@@ -610,7 +572,7 @@ async def api_toggle_plugin(request: Request, request_body: ToggleConfig):
 # Reload Plugin
 @app.post("/api/reload_plugin")
 async def api_reload_plugin(request: Request, plugin_info: PluginInfo):
-    """重载插件（函数已迁移至 api/plugins.py）"""
+    """重载插件"""
     server = app.state.server_interface
     return await reload_plugin(request, plugin_info, server)
 
@@ -618,7 +580,7 @@ async def api_reload_plugin(request: Request, plugin_info: PluginInfo):
 # List all config files for a plugin
 @app.get("/api/list_config_files")
 async def api_list_config_files(request: Request, plugin_id: str):
-    """列出插件的配置文件（函数已迁移至 api/config.py）"""
+    """列出插件的配置文件"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
@@ -649,46 +611,42 @@ async def api_get_icp_records(request: Request):
 
 @app.get("/api/get_web_config")
 async def api_get_web_config(request: Request):
-    """获取Web配置（函数已迁移至 api/config.py）"""
+    """获取Web配置"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    return await get_web_config(request, server)
+    return await get_web_config(request)
 
 
 @app.post("/api/save_web_config")
 async def api_save_web_config(request: Request, config: SaveConfig):
-    """保存Web配置（函数已迁移至 api/config.py）"""
+    """保存Web配置"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    return await save_web_config(request, config, server)
+    return await save_web_config(request, config)
 
 
 @app.get("/api/load_config")
 async def api_load_config(request: Request, path: str, translation: bool = False, type: str = "auto"):
-    """加载配置文件（函数已迁移至 api/config.py）"""
+    """加载配置文件"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    return await load_config(request, path, translation, type, server)
+    return await load_config(request, path, translation, type)
 
 
 @app.post("/api/save_config")
 async def api_save_config(request: Request, config_data: ConfigData):
-    """保存配置文件（函数已迁移至 api/config.py）"""
+    """保存配置文件"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    return await save_config(request, config_data, server)
+    return await save_config(request, config_data)
 
 
 @app.post("/api/setup_rcon")
@@ -698,8 +656,7 @@ async def api_setup_rcon(request: Request):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    return await setup_rcon_config(request, server)
+    return await setup_rcon_config(request)
 
 
 # load overall.js / overall.css
@@ -758,47 +715,41 @@ async def save_config_file(request: Request, data: SaveContent):
 # read MC server status
 @app.get("/api/get_server_status")
 async def api_get_server_status(request: Request):
-    """获取服务器状态（函数已迁移至 api/server.py）"""
-    server = app.state.server_interface
-    return await get_server_status(request, server)
+    """获取服务器状态"""
+    return await get_server_status(request)
 
 
 # 控制Minecraft服务器
 @app.post("/api/control_server")
 async def api_control_server(request: Request, control_info: ServerControl):
-    """控制Minecraft服务器（函数已迁移至 api/server.py）"""
+    """控制Minecraft服务器"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    return await control_server(request, control_info, server)
+    return await control_server(request, control_info)
 
 
 # 获取服务器日志
 @app.get("/api/server_logs")
 async def api_get_server_logs(request: Request, start_line: int = 0, max_lines: int = 100):
-    """获取服务器日志（函数已迁移至 api/server.py）"""
+    """获取服务器日志"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    global log_watcher
-    return await get_server_logs(request, start_line, max_lines, server, log_watcher)
+    return await get_server_logs(request, max_lines)
 
 
 # 获取新增日志（基于计数器）
 @app.get("/api/new_logs")
 async def api_get_new_logs(request: Request, last_counter: int = 0, max_lines: int = 100):
-    """获取新增日志（函数已迁移至 api/server.py）"""
+    """获取新增日志"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    global log_watcher
-    return await get_new_logs(request, last_counter, max_lines, server, log_watcher)
+    return await get_new_logs(request, last_counter, max_lines)
 
 
 @app.get("/terminal")
@@ -822,34 +773,31 @@ async def terminal_page(request: Request):
 # 获取命令补全建议
 @app.get("/api/command_suggestions")
 async def api_get_command_suggestions(request: Request, input: str = ""):
-    """获取MCDR命令补全建议（函数已迁移至 api/server.py）"""
+    """获取MCDR命令补全建议"""
     if not request.session.get("logged_in"):
         return JSONResponse({"status": "error", "message": "User not logged in"}, status_code=401)
-    server = app.state.server_interface
-    return await get_command_suggestions(request, input, server)
+    return await get_command_suggestions(request, input)
 
 
 @app.post("/api/send_command")
 async def api_send_command(request: Request):
-    """发送命令到MCDR终端（函数已迁移至 api/server.py）"""
+    """发送命令到MCDR终端"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    return await send_command(request, server)
+    return await send_command(request)
 
 
 # 获取RCON状态
 @app.get("/api/get_rcon_status")
 async def api_get_rcon_status(request: Request):
-    """获取RCON连接状态（函数已迁移至 api/server.py）"""
+    """获取RCON连接状态"""
     if not request.session.get("logged_in"):
         return JSONResponse(
             {"status": "error", "message": "User not logged in"}, status_code=401
         )
-    server = app.state.server_interface
-    return await get_rcon_status(request, server)
+    return await get_rcon_status(request)
 
 
 @app.get("/api/plugins/web_pages")
@@ -1017,7 +965,6 @@ class TaskStatusRequest:
         self.task_id = task_id
 
 
-# ============================================================#
 # PIM API 接口
 @app.post("/api/pim/install_plugin")
 async def api_install_plugin(
@@ -1025,10 +972,23 @@ async def api_install_plugin(
         plugin_req: dict = Body(...),
         token_valid: bool = Depends(verify_token)
 ):
-    """安装指定的插件（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    plugin_installer = getattr(app.state, "plugin_installer", None)
-    return await install_plugin(request, plugin_req, token_valid, server, plugin_installer)
+    """安装指定的插件"""
+    if not token_valid:
+        return JSONResponse(status_code=401, content={"success": False, "error": "未登录或会话已过期"})
+    
+    plugin_service = request.app.state.plugin_service
+    plugin_id = plugin_req.get("plugin_id")
+    version = plugin_req.get("version")
+    repo_url = plugin_req.get("repo_url")
+    
+    if not plugin_id:
+        return JSONResponse(status_code=400, content={"success": False, "error": "缺少插件ID"})
+        
+    try:
+        task_id = await plugin_service.install_plugin(plugin_id, version, repo_url)
+        return JSONResponse(content={"success": True, "task_id": task_id, "message": f"开始安装插件 {plugin_id}"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 @app.post("/api/pim/update_plugin")
@@ -1037,10 +997,8 @@ async def api_update_plugin(
         plugin_req: dict = Body(...),
         token_valid: bool = Depends(verify_token)
 ):
-    """更新指定的插件（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    plugin_installer = getattr(app.state, "plugin_installer", None)
-    return await update_plugin(request, plugin_req, token_valid, server, plugin_installer)
+    """更新指定的插件"""
+    return await api_install_plugin(request, plugin_req, token_valid)
 
 
 @app.post("/api/pim/uninstall_plugin")
@@ -1049,10 +1007,20 @@ async def api_uninstall_plugin(
         plugin_req: dict = Body(...),
         token_valid: bool = Depends(verify_token)
 ):
-    """卸载指定的插件（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    plugin_installer = getattr(app.state, "plugin_installer", None)
-    return await uninstall_plugin(request, plugin_req, token_valid, server, plugin_installer)
+    """卸载指定的插件"""
+    if not token_valid:
+        return JSONResponse(status_code=401, content={"success": False, "error": "未登录或会话已过期"})
+        
+    plugin_service = request.app.state.plugin_service
+    plugin_id = plugin_req.get("plugin_id")
+    if not plugin_id:
+        return JSONResponse(status_code=400, content={"success": False, "error": "缺少插件ID"})
+        
+    try:
+        task_id = await plugin_service.uninstall_plugin(plugin_id)
+        return JSONResponse(content={"success": True, "task_id": task_id, "message": f"开始卸载插件 {plugin_id}"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 @app.get("/api/pim/task_status")
@@ -1062,22 +1030,28 @@ async def api_task_status(
         plugin_id: str = None,
         token_valid: bool = Depends(verify_token)
 ):
-    """获取任务状态（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    plugin_installer = getattr(app.state, "plugin_installer", None)
-    return await task_status(request, task_id, plugin_id, token_valid, server, plugin_installer)
+    """获取任务状态"""
+    if not token_valid:
+        return JSONResponse(status_code=401, content={"success": False, "error": "未登录或会话已过期"})
+        
+    plugin_service = request.app.state.plugin_service
+    status = plugin_service.get_task_status(task_id, plugin_id)
+    if status is None and task_id:
+        return JSONResponse(status_code=404, content={"success": False, "error": f"找不到任务 {task_id}"})
+    
+    return JSONResponse(content={"success": True, "task_info" if task_id else "tasks": status})
 
 
 @app.get("/api/check_pim_status")
 async def api_check_pim_status(request: Request, token_valid: bool = Depends(verify_token)):
-    """检查PIM插件的安装状态（函数已迁移至 api/plugins.py）"""
+    """检查PIM插件的安装状态"""
     server = app.state.server_interface
     return await check_pim_status(request, token_valid, server)
 
 
 @app.get("/api/install_pim_plugin")
 async def api_install_pim_plugin(request: Request, token_valid: bool = Depends(verify_token)):
-    """将PIM作为独立插件安装（函数已迁移至 api/plugins.py）"""
+    """将PIM作为独立插件安装"""
     server = app.state.server_interface
     return await install_pim_plugin(request, token_valid, server)
 
@@ -1103,7 +1077,7 @@ async def api_get_plugin_versions_v2(
         repo_url: str = None,
         token_valid: bool = Depends(verify_token)
 ):
-    """获取插件的所有可用版本（函数已迁移至 api/plugins.py）"""
+    """获取插件的所有可用版本"""
     server = app.state.server_interface
     plugin_installer = getattr(app.state, "plugin_installer", None)
     return await get_plugin_versions_v2(request, plugin_id, repo_url, token_valid, server, plugin_installer)
@@ -1116,7 +1090,7 @@ async def api_get_plugin_repository(
         plugin_id: str,
         token_valid: bool = Depends(verify_token)
 ):
-    """获取插件所属的仓库信息（函数已迁移至 api/plugins.py）"""
+    """获取插件所属的仓库信息"""
     server = app.state.server_interface
     pim_helper = getattr(app.state, "pim_helper", None)
     return await get_plugin_repository(request, plugin_id, token_valid, server, pim_helper)

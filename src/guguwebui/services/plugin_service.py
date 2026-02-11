@@ -3,15 +3,17 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from guguwebui.utils.file_util import extract_metadata
+from guguwebui.utils.file_util import extract_metadata, __copyFile
 from guguwebui.utils.mcdr_adapter import MCDRAdapter
+from guguwebui.utils.mc_util import load_plugin_info, get_plugins_info
 
 
 class PluginService:
-    def __init__(self, server, pim_helper=None, plugin_installer=None):
+    def __init__(self, server, pim_helper=None, plugin_installer=None, config_service=None):
         self.server = server
         self.pim_helper = pim_helper
         self.plugin_installer = plugin_installer
+        self.config_service = config_service
 
     async def package_pim_plugin(self, plugins_dir: str) -> str:
         try:
@@ -76,18 +78,38 @@ class PluginService:
             raise
 
     def get_local_plugins_info(self):
-        loaded_metadata = self.server.get_all_metadata()
-        disabled_plugins = self.server.get_disabled_plugin_list()
-        unloaded_plugins = self.server.get_unloaded_plugin_list()
-
-        unloaded_metadata = {}
-        for plugin_path in disabled_plugins + unloaded_plugins:
-            if not (plugin_path.endswith('.py') or plugin_path.endswith('.mcdr')): continue
-            metadata = extract_metadata(plugin_path)
-            if not metadata: continue
-            if metadata['id'] in unloaded_metadata and metadata['version'] <= unloaded_metadata[metadata["id"]][
-                'version']: continue
-            metadata['path'] = plugin_path
-            unloaded_metadata[metadata["id"]] = metadata
-
+        loaded_metadata, unloaded_metadata, unloaded_plugins, disabled_plugins = load_plugin_info(self.server)
         return loaded_metadata, unloaded_metadata, unloaded_plugins, disabled_plugins
+
+    def get_plugins_list(self):
+        """获取插件列表及其元数据（供 API 使用）"""
+        return get_plugins_info(self.server)
+
+    async def get_online_plugins(self, repo_url: str = None):
+        """获取在线插件列表"""
+        # 这里的逻辑可以从 api/plugins.py 迁移过来
+        from guguwebui.api.plugins import get_online_plugins as api_get_online_plugins
+        # 注意：这里为了避免循环引用，可能需要将逻辑真正移动到 Service
+        return await api_get_online_plugins(None, repo_url, self.server, self.pim_helper)
+
+    async def install_plugin(self, plugin_id: str, version: str = None, repo_url: str = None):
+        if not self.plugin_installer:
+            from guguwebui.PIM import create_installer
+            self.plugin_installer = create_installer(self.server)
+        return await self.plugin_installer.install(plugin_id, version, repo_url)
+
+    async def uninstall_plugin(self, plugin_id: str):
+        if not self.plugin_installer:
+            from guguwebui.PIM import create_installer
+            self.plugin_installer = create_installer(self.server)
+        return await self.plugin_installer.uninstall(plugin_id)
+
+    def get_task_status(self, task_id: str = None, plugin_id: str = None):
+        if not self.plugin_installer:
+            return None
+        if task_id:
+            return self.plugin_installer.get_task_status(task_id)
+        elif plugin_id:
+            all_tasks = self.plugin_installer.get_all_tasks()
+            return {tid: t for tid, t in all_tasks.items() if t.get('plugin_id') == plugin_id}
+        return self.plugin_installer.get_all_tasks()
