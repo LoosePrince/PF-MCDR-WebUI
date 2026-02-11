@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import uuid
+from typing import Optional
 
 import aiohttp
 from fastapi import Body, Depends, FastAPI, Form, HTTPException
@@ -93,10 +94,10 @@ def serve_spa_index(request: Request) -> HTMLResponse:
 log_watcher = LogWatcher()
 
 # 全局服务实例
-auth_service: AuthService = None
-plugin_service: PluginService = None
-config_service: ConfigService = None
-server_service: ServerService = None
+auth_service: Optional[AuthService] = None
+plugin_service: Optional[PluginService] = None
+config_service: Optional[ConfigService] = None
+server_service: Optional[ServerService] = None
 
 # 尝试迁移旧配置
 migrate_old_config()
@@ -304,7 +305,7 @@ def _clear_login_state(request: Request, response):
     return response
 
 
-# redirect to login
+# redirect to log in
 @app.get("/", name="root")
 def read_root(request: Request):
     return RedirectResponse(url=get_redirect_url(request, "/login"))
@@ -628,8 +629,9 @@ async def api_list_config_files(request: Request, plugin_id: str):
 @app.get("/api/config/icp-records")
 async def api_get_icp_records(request: Request):
     """获取ICP备案信息"""
+
+    server = app.state.server_interface
     try:
-        server = app.state.server_interface
         plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
         icp_records = plugin_config.get('icp_records', [])
 
