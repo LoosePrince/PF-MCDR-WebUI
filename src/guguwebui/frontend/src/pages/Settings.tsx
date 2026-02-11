@@ -371,7 +371,7 @@ const Settings: React.FC = () => {
               <button
                 onClick={() =>
                   handleSave('config', {
-                    superaccount: String(config.super_admin_account)
+                    super_account: String(config.super_admin_account)
                   })
                 }
                 disabled={saving === 'account'}
