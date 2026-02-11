@@ -1,6 +1,7 @@
 import importlib.util
 import subprocess
 import sys
+
 from mcdreforged.api.all import PluginServerInterface
 
 # 插件依赖包列表
@@ -44,7 +45,7 @@ def install_package(package: str) -> bool:
     try:
         # 构造pip安装命令
         cmd = [sys.executable, '-m', 'pip', 'install', package, '--quiet', '--no-warn-script-location']
-        
+
         # 执行安装命令
         result = subprocess.run(
             cmd,
@@ -52,7 +53,7 @@ def install_package(package: str) -> bool:
             text=True,
             timeout=300  # 5分钟超时
         )
-        
+
         if result.returncode == 0:
             return True
         else:
@@ -67,7 +68,7 @@ def install_package(package: str) -> bool:
                         text=True,
                         timeout=60
                     )
-                    
+
                     if upgrade_result.returncode == 0:
                         # pip升级成功，重试安装包
                         retry_result = subprocess.run(
@@ -79,9 +80,9 @@ def install_package(package: str) -> bool:
                         return retry_result.returncode == 0
                 except Exception:
                     pass
-            
+
             return False
-        
+
     except subprocess.TimeoutExpired:
         return False
     except Exception:
@@ -94,7 +95,7 @@ def check_and_install_dependencies(server: PluginServerInterface):
     """
     server.logger.info("正在检查插件依赖...")
     missing_packages = []
-    
+
     # 包名映射表，用于处理pip包名与导入名不一致的情况
     package_import_mapping = {
         'requests': 'requests',
@@ -114,45 +115,45 @@ def check_and_install_dependencies(server: PluginServerInterface):
         'aiohttp': 'aiohttp',
         'mcstatus': 'mcstatus'
     }
-    
+
     for package_spec in REQUIRED_PACKAGES:
         # 提取包名（去除版本限制）
         package_name = package_spec.split('>=')[0].split('==')[0].split('[')[0].lower()
-        
+
         # 获取实际的导入名
         import_name = package_import_mapping.get(package_name, package_name)
-        
+
         # 检查包是否已安装
         if not is_package_installed(import_name):
             missing_packages.append(package_spec)
             server.logger.warning(f"缺少依赖包: {package_spec}")
-    
+
     if missing_packages:
         server.logger.info(f"发现 {len(missing_packages)} 个缺失的依赖包，正在自动安装...")
-        
+
         success_count = 0
         failed_packages = []
-        
+
         for package in missing_packages:
             try:
                 server.logger.info(f"正在安装: {package}")
                 result = install_package(package)
-                
+
                 if result:
                     success_count += 1
                     server.logger.info(f"成功安装: {package}")
                 else:
                     failed_packages.append(package)
                     server.logger.error(f"安装失败: {package}")
-                    
+
             except Exception as e:
                 failed_packages.append(package)
                 server.logger.error(f"安装 {package} 时发生异常: {e}")
-        
+
         # 安装结果总结
         if success_count > 0:
             server.logger.info(f"成功安装 {success_count} 个依赖包")
-        
+
         if failed_packages:
             server.logger.error(f"{len(failed_packages)} 个包安装失败:")
             for pkg in failed_packages:
@@ -162,4 +163,4 @@ def check_and_install_dependencies(server: PluginServerInterface):
         else:
             server.logger.info("所有依赖包检查完成")
     else:
-        server.logger.info("所有必需的依赖包都已安装") 
+        server.logger.info("所有必需的依赖包都已安装")

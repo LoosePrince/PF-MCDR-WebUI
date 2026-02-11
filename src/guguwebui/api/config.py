@@ -3,38 +3,39 @@
 迁移自 web_server.py 中的配置管理端点
 """
 
+import ipaddress
 import json
 import logging
-import os
+import secrets
 import socket
 import string
-import secrets
-import ipaddress
 from pathlib import Path
-from typing import List, Optional
+from typing import List
+
 from fastapi import Request
+from fastapi import status
 from fastapi.responses import JSONResponse
-from fastapi import status, Depends
-from ..utils.constant import DEFALUT_CONFIG, saveconfig, config_data, SERVER_PROPERTIES_PATH
-from ..utils.i18n_util import (
-    build_json_i18n_translations, build_yaml_i18n_translations, get_comment, consistent_type_update
-)
-from ..utils.mc_util import get_server_port, find_plugin_config_paths
-from ..utils.chat_logger import ChatLogger
-from ..utils.api_cache import api_cache
-from ..utils.server_util import verify_token
+
+from guguwebui.constant import DEFALUT_CONFIG
+from guguwebui.structures import ConfigData, SaveConfig
+from guguwebui.utils.api_cache import api_cache
+from guguwebui.utils.chat_logger import ChatLogger
+from guguwebui.utils.i18n_util import (build_json_i18n_translations, build_yaml_i18n_translations,
+                                       consistent_type_update,
+                                       get_comment)
+from guguwebui.utils.mc_util import find_plugin_config_paths, get_server_port
 
 logger = logging.getLogger(__name__)
 
 
 async def list_config_files(
-    request: Request,
-    plugin_id: str,
-    server=None
+        request: Request,
+        plugin_id: str,
+        server=None
 ) -> JSONResponse:
     """列出插件的配置文件及网页配置信息"""
     config_path_list: List[str] = find_plugin_config_paths(plugin_id)
-    
+
     # 查找对应的 main.json 以检测网页配置
     web_mapping = {}
     if config_path_list:
@@ -66,8 +67,8 @@ async def list_config_files(
 
 
 async def get_web_config(
-    request: Request,
-    server=None
+        request: Request,
+        server=None
 ) -> JSONResponse:
     """获取Web配置"""
     if not server:
@@ -98,7 +99,8 @@ async def get_web_config(
             "ai_api_key_configured": ai_api_key_configured,  # 新增：指示是否已配置
             "ai_model": config.get("ai_model", "deepseek-chat"),
             "ai_api_url": config.get("ai_api_url", "https://api.deepseek.com/chat/completions"),
-            "mcdr_plugins_url": config.get("mcdr_plugins_url", "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"),
+            "mcdr_plugins_url": config.get("mcdr_plugins_url",
+                                           "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"),
             "repositories": config.get("repositories", []),
             "ssl_enabled": config.get("ssl_enabled", False),
             "ssl_certfile": config.get("ssl_certfile", ""),
@@ -126,7 +128,8 @@ async def get_web_config(
             "ai_api_key_configured": ai_api_key_configured,  # 新增：指示是否已配置
             "ai_model": config.get("ai_model", "deepseek-chat"),
             "ai_api_url": config.get("ai_api_url", "https://api.deepseek.com/chat/completions"),
-            "mcdr_plugins_url": config.get("mcdr_plugins_url", "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"),
+            "mcdr_plugins_url": config.get("mcdr_plugins_url",
+                                           "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"),
             "repositories": config.get("repositories", []),
             "ssl_enabled": config.get("ssl_enabled", False),
             "ssl_certfile": config.get("ssl_certfile", ""),
@@ -145,9 +148,9 @@ async def get_web_config(
 
 
 async def save_web_config(
-    request: Request,
-    config: saveconfig,
-    server=None
+        request: Request,
+        config: SaveConfig,
+        server=None
 ) -> JSONResponse:
     """保存Web配置"""
     if not server:
@@ -164,8 +167,8 @@ async def save_web_config(
             web_config["host"] = config.host
         if config.port:
             web_config["port"] = int(config.port)
-        if config.superaccount:
-            web_config["super_admin_account"] = int(config.superaccount)
+        if config.super_account:
+            web_config["super_admin_account"] = int(config.super_account)
         # 更新AI配置 - 处理None值，避免将None保存到配置中
         if config.ai_api_key is not None:
             # JavaScript端undefined会被转为null，处理这种情况
@@ -265,12 +268,13 @@ async def save_web_config(
 
 from ..utils.path_util import SafePath, get_base_dirs
 
+
 async def load_config(
-    request: Request,
-    path: str,
-    translation: bool = False,
-    type: str = "auto",
-    server=None
+        request: Request,
+        path: str,
+        translation: bool = False,
+        type: str = "auto",
+        server=None
 ) -> JSONResponse:
     """加载配置文件"""
     if not server:
@@ -361,7 +365,7 @@ async def load_config(
         if path_obj.suffix == ".properties":
             path_obj = path_obj.with_suffix(f".json")
 
-    if not path_obj.exists(): # file not exists
+    if not path_obj.exists():  # file not exists
         return JSONResponse({}, status_code=200)
 
     try:
@@ -378,9 +382,9 @@ async def load_config(
                 import javaproperties
                 config = javaproperties.load(f)
                 # convert string "true" "false" to True False
-                config = {k:v if v not in ["true", "false"] else
-                          True if v == "true" else False
-                          for k,v in config.items()}
+                config = {k: v if v not in ["true", "false"] else
+                True if v == "true" else False
+                          for k, v in config.items()}
     except json.JSONDecodeError:
         if path_obj.suffix == ".json":
             config = {}
@@ -416,9 +420,9 @@ async def load_config(
 
 
 async def save_config(
-    request: Request,
-    config_data: config_data,
-    server=None
+        request: Request,
+        config_data: ConfigData,
+        server=None
 ) -> JSONResponse:
     """保存配置文件"""
     if not server:
@@ -453,7 +457,7 @@ async def save_config(
                 data = javaproperties.load(f)
                 # convert back the True False to "true" "false"
                 plugin_config = {k: v if not isinstance(v, bool) else
-                                 "true" if v else "false"
+                "true" if v else "false"
                                  for k, v in plugin_config.items()}
     except Exception as e:
         logger.error(f"Error loading config file: {e}")
@@ -539,8 +543,8 @@ def _find_available_port(start_port: int, host: str = "127.0.0.1") -> int:
 
 
 async def setup_rcon_config(
-    request: Request,
-    server=None
+        request: Request,
+        server=None
 ) -> JSONResponse:
     """一键启用RCON配置"""
     if not server:
@@ -576,22 +580,22 @@ async def setup_rcon_config(
         mc_config_updated = False
         try:
             # 读取server.properties配置
-            from ..utils.constant import SERVER_PROPERTIES_PATH
+            from guguwebui.constant import SERVER_PROPERTIES_PATH
             if SERVER_PROPERTIES_PATH.exists():
                 import javaproperties
                 with open(SERVER_PROPERTIES_PATH, "r", encoding="UTF-8") as f:
                     mc_config = javaproperties.load(f)
-                
+
                 # 更新RCON设置
                 mc_config["enable-rcon"] = "true"
                 mc_config["rcon.port"] = str(rcon_port)
                 mc_config["rcon.password"] = rcon_password
                 mc_config["broadcast-rcon-to-ops"] = "false"  # 可选：不广播RCON到OP
-                
+
                 # 保存MC配置
                 with open(SERVER_PROPERTIES_PATH, "w", encoding="UTF-8") as f:
                     javaproperties.dump(mc_config, f)
-                
+
                 mc_config_updated = True
             else:
                 return JSONResponse(
@@ -613,21 +617,21 @@ async def setup_rcon_config(
                 from ..utils.table import yaml
                 with open(config_path, "r", encoding="UTF-8") as f:
                     mcdr_config = yaml.load(f)
-                
+
                 # 确保rcon配置节存在
                 if "rcon" not in mcdr_config:
                     mcdr_config["rcon"] = {}
-                
+
                 # 更新MCDR RCON设置
                 mcdr_config["rcon"]["enable"] = True
                 mcdr_config["rcon"]["address"] = rcon_host
                 mcdr_config["rcon"]["port"] = rcon_port
                 mcdr_config["rcon"]["password"] = rcon_password
-                
+
                 # 保存MCDR配置
                 with open(config_path, "w", encoding="UTF-8") as f:
                     yaml.dump(mcdr_config, f)
-                
+
                 mcdr_config_updated = True
             else:
                 return JSONResponse(

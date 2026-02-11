@@ -1,15 +1,15 @@
 {
-	"id": "guguwebui",
-	"version": "1.7.6",
-	"name": "GUGU WebUI",
-	"description": {
-		"en_us": "WebUI for managing all plugins, MCDR configurations, online installation, terminals, and more.",
-		"zh_cn": "通过webui来管理所有插件、MCDR配置、在线安装、终端等多种功能"
-	},
-	"author": [
-		"LoosePrince",
-		"XueK__"
-	],
-	"link": "https://github.com/PFingan-Code/PF-MCDR-WebUI",
-	"dependencies": {}
+    "id": "guguwebui",
+    "version": "1.7.6",
+    "name": "GUGU WebUI",
+    "description": {
+        "en_us": "WebUI for managing all plugins, MCDR configurations, online installation, terminals, and more.",
+        "zh_cn": "通过webui来管理所有插件、MCDR配置、在线安装、终端等多种功能"
+    },
+    "author": [
+        "LoosePrince",
+        "XueK__"
+    ],
+    "link": "https://github.com/PFingan-Code/PF-MCDR-WebUI",
+    "dependencies": {}
 }

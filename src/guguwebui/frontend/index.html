@@ -1,26 +1,26 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="color-scheme" content="dark light" />
-    <link rel="icon" type="image/svg+xml" href="vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="color-scheme" content="dark light"/>
+    <link rel="icon" type="image/svg+xml" href="vite.svg"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>GUGU WebUI</title>
     <script>
-      ;(() => {
-        const key = 'guguwebui-theme'
-        const saved = localStorage.getItem(key)
-        const mode = saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system'
-        const prefersDark =
-          window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-        const isDark = mode === 'dark' || (mode === 'system' && prefersDark)
-        document.documentElement.classList.toggle('dark', isDark)
-        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
-      })()
+        ;(() => {
+          const key = 'guguwebui-theme'
+          const saved = localStorage.getItem(key)
+          const mode = saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system'
+          const prefersDark =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+          const isDark = mode === 'dark' || (mode === 'system' && prefersDark)
+          document.documentElement.classList.toggle('dark', isDark)
+          document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
+        })()
     </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="src/main.tsx"></script>
-  </body>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="src/main.tsx"></script>
+</body>
 </html>

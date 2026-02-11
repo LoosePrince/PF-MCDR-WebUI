@@ -1,6 +1,6 @@
-from fastapi.responses import JSONResponse
-from ..utils.mc_util import get_java_server_info, get_server_port
-from ..utils.api_cache import api_cache
+from guguwebui.utils.api_cache import api_cache
+from guguwebui.utils.mc_util import get_java_server_info, get_server_port
+
 
 class ServerService:
     def __init__(self, server, log_watcher=None):
@@ -13,7 +13,7 @@ class ServerService:
         if cached_result is not None: return cached_result
 
         server_status = "online" if self.server.is_server_running() or self.server.is_server_startup() else "offline"
-        
+
         # 获取MC服务器端口
         mc_port = get_server_port(self.server)
 
@@ -22,10 +22,11 @@ class ServerService:
         max_player = server_message.get("server_maxinum_player_count")
 
         player_string = f"{player_count if player_count is not None else 0}/{max_player}" if max_player is not None else ""
-        
+
         result = {
             "status": server_status,
-            "version": f"Version: {server_message.get('server_version', '')}" if server_message.get('server_version') else "",
+            "version": f"Version: {server_message.get('server_version', '')}" if server_message.get(
+                'server_version') else "",
             "players": player_string,
         }
         api_cache.set(cache_key, result, ttl=5.0)

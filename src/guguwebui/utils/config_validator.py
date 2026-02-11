@@ -1,79 +1,81 @@
-import socket
 import ipaddress
 import logging
-from typing import Dict, Any, Tuple, List
-from .constant import DEFALUT_CONFIG
+import socket
+from typing import Any, Dict, Tuple
+
+from guguwebui.constant import DEFALUT_CONFIG
+
 
 class ConfigValidator:
     """配置验证器，用于验证配置项的类型、格式和值范围"""
-    
+
     def __init__(self, logger=None):
         self.logger = logger or logging.getLogger(__name__)
         self.validation_errors = []
         self.warnings = []
-    
+
     def validate_config(self, config: Dict[str, Any]) -> Tuple[bool, Dict[str, Any], bool]:
         """
         验证配置并返回验证结果、修正后的配置和是否有关键错误
-        
+
         Args:
             config: 要验证的配置字典
-            
+
         Returns:
-            (is_valid, corrected_config, has_critical_error): 
+            (is_valid, corrected_config, has_critical_error):
             - is_valid: 整体验证是否通过
             - corrected_config: 修正后的配置
             - has_critical_error: 是否有关键错误（IP/端口错误）
         """
         self.validation_errors = []
         self.warnings = []
-        
+
         # 创建配置副本进行验证
         validated_config = config.copy()
-        
+
         # 先验证所有配置项
         self._validate_other_configs(config, validated_config)
-        
+
         # 验证IP和端口（关键配置）
         has_critical_error = not self._validate_host_port(config, validated_config)
-        
+
         # 如果有严重错误，返回False
         if self.validation_errors:
             return False, validated_config, has_critical_error
-        
+
         # 输出警告信息
         for warning in self.warnings:
             self.logger.warning(warning)
-        
+
         return True, validated_config, has_critical_error
-    
+
     def _validate_host_port(self, config: Dict[str, Any], validated_config: Dict[str, Any]) -> bool:
         """验证IP地址和端口配置"""
         host = config.get('host', '')
         port = config.get('port', 0)
-        
+
         # 验证IP地址
         if not self._is_valid_ip(host):
             self.validation_errors.append(f"无效的IP地址: {host}")
             return False
-        
+
         # 验证端口
         if not self._is_valid_port(port):
             self.validation_errors.append(f"无效的端口号: {port}")
             return False
-        
+
         # 检查是否与Minecraft服务器端口冲突
         if not self._check_minecraft_port_conflict(port):
             self.validation_errors.append(f"端口 {port} 与Minecraft服务器端口冲突，无法启动Web服务")
             return False
-        
+
         # 验证端口是否可用
         if not self._is_port_available(host, port):
             self.validation_errors.append(f"端口 {port} 在 {host} 上不可用")
             return False
-        
+
         return True
-    
+
     def _validate_other_configs(self, config: Dict[str, Any], validated_config: Dict[str, Any]):
         """验证其他配置项"""
         # 验证super_admin_account
@@ -84,7 +86,7 @@ class ConfigValidator:
         elif isinstance(super_account, str) and not super_account.isdigit():
             self.warnings.append(f"super_admin_account 格式错误: {super_account}")
             validated_config['super_admin_account'] = DEFALUT_CONFIG['super_admin_account']
-        
+
         # 验证布尔值配置
         bool_configs = [
             'disable_other_admin', 'allow_temp_password', 'force_standalone',
@@ -95,7 +97,7 @@ class ConfigValidator:
             if not isinstance(value, bool):
                 self.warnings.append(f"{key} 类型错误，期望 bool，实际: {type(value)}")
                 validated_config[key] = DEFALUT_CONFIG[key]
-        
+
         # 验证字符串配置
         string_configs = [
             'ai_api_key', 'ai_model', 'ai_api_url', 'mcdr_plugins_url',
@@ -106,7 +108,7 @@ class ConfigValidator:
             if not isinstance(value, str):
                 self.warnings.append(f"{key} 类型错误，期望 str，实际: {type(value)}")
                 validated_config[key] = DEFALUT_CONFIG[key]
-        
+
         # 验证列表配置
         repositories = config.get('repositories')
         if not isinstance(repositories, list):
@@ -150,7 +152,7 @@ class ConfigValidator:
                 validated_icp_records.append({'icp': icp, 'url': url})
 
             validated_config['icp_records'] = validated_icp_records
-        
+
         # 验证整数配置
         int_configs = [
             'chat_verification_expire_minutes', 'chat_session_expire_hours'
@@ -163,39 +165,40 @@ class ConfigValidator:
             elif value <= 0:
                 self.warnings.append(f"{key} 值超出范围，期望 > 0，实际: {value}")
                 validated_config[key] = DEFALUT_CONFIG[key]
-        
+
         # 验证AI模型配置
         ai_model = config.get('ai_model')
         if ai_model and not isinstance(ai_model, str):
             self.warnings.append(f"ai_model 类型错误，期望 str，实际: {type(ai_model)}")
             validated_config['ai_model'] = DEFALUT_CONFIG['ai_model']
-        
+
         # 验证AI API URL格式
         ai_api_url = config.get('ai_api_url')
         if ai_api_url and isinstance(ai_api_url, str):
             if not ai_api_url.startswith(('http://', 'https://')):
                 self.warnings.append(f"ai_api_url 格式错误，期望以 http:// 或 https:// 开头: {ai_api_url}")
                 validated_config['ai_api_url'] = DEFALUT_CONFIG['ai_api_url']
-        
+
         # 验证MCDR插件URL格式
         mcdr_plugins_url = config.get('mcdr_plugins_url')
         if mcdr_plugins_url and isinstance(mcdr_plugins_url, str):
             if not mcdr_plugins_url.startswith(('http://', 'https://')):
                 self.warnings.append(f"mcdr_plugins_url 格式错误，期望以 http:// 或 https:// 开头: {mcdr_plugins_url}")
                 validated_config['mcdr_plugins_url'] = DEFALUT_CONFIG['mcdr_plugins_url']
-    
-    def _is_valid_ip(self, host: str) -> bool:
+
+    @staticmethod
+    def _is_valid_ip(host: str) -> bool:
         """验证IP地址是否有效"""
         if not host:
             return False
-        
+
         # 检查是否为 localhost / 常用 IPv4
         if host.lower() in ['localhost', '127.0.0.1', '0.0.0.0']:
             return True
         # 检查是否为常用 IPv6 字面量
         if host.lower() in ['::', '::1']:
             return True
-        
+
         try:
             # 尝试解析IP地址
             ip = ipaddress.ip_address(host)
@@ -212,15 +215,16 @@ class ConfigValidator:
             return False
         except ValueError:
             return False
-    
-    def _is_valid_port(self, port) -> bool:
+
+    @staticmethod
+    def _is_valid_port(port) -> bool:
         """验证端口号是否有效"""
         try:
             port_int = int(port)
             return 1 <= port_int <= 65535
         except (ValueError, TypeError):
             return False
-    
+
     def _is_port_available(self, host: str, port: int) -> bool:
         """检查端口是否可用（未被占用），支持 IPv4 与 IPv6"""
         try:
@@ -237,7 +241,7 @@ class ConfigValidator:
         except socket.error as e:
             error_msg = str(e)
             error_code = getattr(e, 'winerror', None) or getattr(e, 'errno', None)
-            
+
             # Windows错误代码
             if error_code == 10048:  # WSAEADDRINUSE - 地址已被使用
                 self.logger.error(f"端口 {port} 已被占用，无法启动Web服务")
@@ -285,25 +289,25 @@ class ConfigValidator:
             self.logger.warning(f"检查端口 {port} 可用性时发生未知错误: {e}")
             # 如果检查失败，假设端口可用
             return True
-    
+
     def _check_minecraft_port_conflict(self, port: int) -> bool:
         """检查端口是否与Minecraft服务器端口冲突"""
         try:
             # 获取Minecraft服务器配置
-            from .constant import SERVER_PROPERTIES_PATH
-            
+            from guguwebui.constant import SERVER_PROPERTIES_PATH
+
             if not SERVER_PROPERTIES_PATH.exists():
                 self.logger.warning("无法找到server.properties文件，跳过Minecraft端口冲突检查")
                 return True
-            
+
             # 读取server.properties文件
             with open(SERVER_PROPERTIES_PATH, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
+
             # 解析配置项
             config_lines = content.split('\n')
             minecraft_ports = set()
-            
+
             for line in config_lines:
                 line = line.strip()
                 if line.startswith('server-port='):
@@ -313,10 +317,10 @@ class ConfigValidator:
                         self.logger.debug(f"检测到Minecraft服务器端口: {server_port}")
                     except (ValueError, IndexError):
                         pass
-                
+
                 elif line.startswith('enable-rcon=') and line.split('=')[1].lower() == 'true':
                     # 查找下一行的rcon.port
-                    for next_line in config_lines[config_lines.index(line)+1:]:
+                    for next_line in config_lines[config_lines.index(line) + 1:]:
                         if next_line.strip().startswith('rcon.port='):
                             try:
                                 rcon_port = int(next_line.split('=')[1])
@@ -325,10 +329,10 @@ class ConfigValidator:
                             except (ValueError, IndexError):
                                 pass
                             break
-                
+
                 elif line.startswith('enable-query=') and line.split('=')[1].lower() == 'true':
                     # 查找下一行的query.port
-                    for next_line in config_lines[config_lines.index(line)+1:]:
+                    for next_line in config_lines[config_lines.index(line) + 1:]:
                         if next_line.strip().startswith('query.port='):
                             try:
                                 query_port = int(next_line.split('=')[1])
@@ -337,27 +341,27 @@ class ConfigValidator:
                             except (ValueError, IndexError):
                                 pass
                             break
-            
+
             # 检查端口冲突
             if port in minecraft_ports:
                 self.logger.error(f"端口 {port} 与Minecraft服务器端口冲突: {minecraft_ports}")
                 return False
-            
+
             if minecraft_ports:
                 self.logger.info(f"Minecraft服务器使用的端口: {minecraft_ports}")
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.warning(f"检查Minecraft端口冲突时出错: {e}")
             # 如果检查失败，假设没有冲突
             return True
-    
+
     def get_validation_summary(self) -> str:
         """获取验证结果摘要"""
         if not self.validation_errors and not self.warnings:
             return "配置验证通过，所有配置项都有效"
-        
+
         summary = []
         if self.validation_errors:
             summary.append("配置验证失败:")
@@ -369,12 +373,12 @@ class ConfigValidator:
             summary.append("  2. 确保端口未被其他服务占用")
             summary.append("  3. 确保端口不与Minecraft服务器端口冲突")
             summary.append("  4. 检查IP地址格式是否正确")
-        
+
         if self.warnings:
             summary.append("配置警告:")
             for warning in self.warnings:
                 summary.append(f"  ⚠️  {warning}")
             summary.append("")
             summary.append("注意: 警告不会阻止插件启动，但建议修复这些问题")
-        
+
         return "\n".join(summary)

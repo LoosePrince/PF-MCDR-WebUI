@@ -1,15 +1,18 @@
-import os
-import zipfile
 import json
 import logging
+import os
 import sys
-from typing import List, Dict, Tuple, Optional, Any
+import zipfile
+from typing import Any, Dict
+
 from mcdreforged.plugin.meta.version import Version, VersionRequirement
-from .models import PluginData
+
 from .registry import MetaRegistry
+
 
 class PluginDependencyResolver:
     """插件依赖解析器"""
+
     def __init__(self, server, pim_helper):
         self.server = server
         self.pim_helper = pim_helper
@@ -27,14 +30,14 @@ class PluginDependencyResolver:
         """
         plugin_data = cata_meta.get_plugin_data(plugin_id)
         installed_plugins = {pid: self.server.get_plugin_instance(pid) for pid in self.server.get_plugin_list()}
-        
+
         results = {
             'missing_plugins': [],
             'outdated_plugins': {},
             'python_requirements': [],
             'environment_issues': []
         }
-        
+
         # 1. 检查元数据中的插件依赖
         if plugin_data and plugin_data.dependencies:
             for dep_id, version_req in plugin_data.dependencies.items():
@@ -44,10 +47,11 @@ class PluginDependencyResolver:
         if downloaded_file and os.path.exists(downloaded_file) and zipfile.is_zipfile(downloaded_file):
             try:
                 with zipfile.ZipFile(downloaded_file, 'r') as z:
-                    meta_file = next((f for f in z.namelist() if f.endswith(('mcdr_plugin.json', 'mcdreforged.plugin.json'))), None)
+                    meta_file = next(
+                        (f for f in z.namelist() if f.endswith(('mcdr_plugin.json', 'mcdreforged.plugin.json'))), None)
                     if meta_file:
                         meta = json.loads(z.read(meta_file).decode('utf-8'))
-                        
+
                         # 检查插件依赖
                         deps = meta.get('dependencies', {})
                         for dep_id, version_req in deps.items():
@@ -57,7 +61,7 @@ class PluginDependencyResolver:
                                 self._check_python_version(str(version_req), results)
                             else:
                                 self._check_plugin_dep(dep_id, str(version_req), installed_plugins, results)
-                        
+
                         # 检查 Python 包依赖 (requirements.txt 等)
                         # 某些插件可能在元数据中直接声明，或者我们需要扫描包内文件
                         # 这里先处理元数据中可能的自定义字段，或者记录需要扫描
@@ -85,18 +89,14 @@ class PluginDependencyResolver:
             except:
                 pass
 
-    def _check_mcdr_version(self, version_req: str, results: Dict):
-        try:
-            from mcdreforged.info_repo.info import VERSION as MCDR_VERSION
-            if not VersionRequirement(version_req).accept(Version(MCDR_VERSION)):
-                results['environment_issues'].append(f"MCDReforged 版本不符: 需要 {version_req}, 当前 {MCDR_VERSION}")
-        except:
-            pass
+    @staticmethod
+    def _check_mcdr_version(version_req: str, results: Dict):
+        from mcdreforged.constants.core_constant import VERSION as MCDR_VERSION
+        if not VersionRequirement(version_req).accept(Version(MCDR_VERSION)):
+            results['environment_issues'].append(f"MCDReforged 版本不符: 需要 {version_req}, 当前 {MCDR_VERSION}")
 
-    def _check_python_version(self, version_req: str, results: Dict):
+    @staticmethod
+    def _check_python_version(version_req: str, results: Dict):
         py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-        try:
-            if not VersionRequirement(version_req).accept(Version(py_ver)):
-                results['environment_issues'].append(f"Python 版本不符: 需要 {version_req}, 当前 {py_ver}")
-        except:
-            pass
+        if not VersionRequirement(version_req).accept(Version(py_ver)):
+            results['environment_issues'].append(f"Python 版本不符: 需要 {version_req}, 当前 {py_ver}")
