@@ -12,31 +12,28 @@ from guguwebui.utils.server_util import format_host_for_url
 
 
 def migrate_old_config():
-    try:
-        plugin_config_dir = Path("./config") / "guguwebui"
-        config_path = plugin_config_dir / "config.json"
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                old_config = json.load(f)
-            need_save = False
-            if "deepseek_api_key" in old_config and old_config["deepseek_api_key"] and not old_config.get("ai_api_key"):
-                old_config["ai_api_key"] = old_config["deepseek_api_key"]
-                need_save = True
-            if "deepseek_model" in old_config and old_config["deepseek_model"] and not old_config.get("ai_model"):
-                old_config["ai_model"] = old_config["deepseek_model"]
-                need_save = True
-            if "deepseek_api_key" in old_config:
-                del old_config["deepseek_api_key"]
-                need_save = True
-            if "deepseek_model" in old_config:
-                del old_config["deepseek_model"]
-                need_save = True
-            if need_save:
-                plugin_config_dir.mkdir(parents=True, exist_ok=True)
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(old_config, f, ensure_ascii=False, indent=4)
-    except Exception:
-        pass
+    plugin_config_dir = Path("./config") / "guguwebui"
+    config_path = plugin_config_dir / "config.json"
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            old_config = json.load(f)
+        need_save = False
+        if "deepseek_api_key" in old_config and old_config["deepseek_api_key"] and not old_config.get("ai_api_key"):
+            old_config["ai_api_key"] = old_config["deepseek_api_key"]
+            need_save = True
+        if "deepseek_model" in old_config and old_config["deepseek_model"] and not old_config.get("ai_model"):
+            old_config["ai_model"] = old_config["deepseek_model"]
+            need_save = True
+        if "deepseek_api_key" in old_config:
+            del old_config["deepseek_api_key"]
+            need_save = True
+        if "deepseek_model" in old_config:
+            del old_config["deepseek_model"]
+            need_save = True
+        if need_save:
+            plugin_config_dir.mkdir(parents=True, exist_ok=True)
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(old_config, f, ensure_ascii=False, indent=4)
 
 
 def verify_password(plain_password, hashed_password):
