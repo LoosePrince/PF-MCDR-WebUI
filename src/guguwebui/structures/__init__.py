@@ -32,6 +32,11 @@ class SaveConfig(BaseModel):
     icp_records: Optional[list] = None
 
 
+# Pip包管理相关模型
+class PipPackageRequest(BaseModel):
+    package: str
+
+
 class ToggleConfig(BaseModel):
     plugin_id: str
     status: bool

@@ -9,7 +9,6 @@ from fastapi import Body, Depends, FastAPI, Form, HTTPException
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse, PlainTextResponse)
 from mcdreforged import PluginServerInterface
 from mcdreforged.api.all import MCDRPluginEvents
-from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -38,7 +37,8 @@ from guguwebui.services.config_service import ConfigService
 from guguwebui.services.plugin_service import PluginService
 from guguwebui.services.server_service import ServerService
 from guguwebui.state import REGISTERED_PLUGIN_PAGES, pip_tasks
-from guguwebui.structures import ConfigData, DeepseekQuery, PluginInfo, SaveConfig, SaveContent, ServerControl, \
+from guguwebui.structures import ConfigData, DeepseekQuery, PipPackageRequest, PluginInfo, SaveConfig, SaveContent, \
+    ServerControl, \
     ToggleConfig
 from guguwebui.utils.auth_util import migrate_old_config
 from guguwebui.utils.log_watcher import LogWatcher
@@ -1120,11 +1120,6 @@ async def api_get_plugin_repository(
     server = app.state.server_interface
     pim_helper = getattr(app.state, "pim_helper", None)
     return await get_plugin_repository(request, plugin_id, token_valid, server, pim_helper)
-
-
-# Pip包管理相关模型
-class PipPackageRequest(BaseModel):
-    package: str
 
 
 # Pip 包管理函数已移至 utils.py
