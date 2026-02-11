@@ -137,11 +137,11 @@ async def package_pim_plugin(server, plugins_dir: str) -> str:
 
 
 async def install_plugin(
-        request: Request,
-        plugin_req: dict = Body(...),
-        token_valid: bool = Depends(verify_token),
-        server=None,
-        plugin_installer=None
+    request: Request,
+    plugin_req: dict = Body(...),
+    token_valid: bool = Depends(verify_token),
+    server=None,
+    plugin_installer=None
 ):
     """
     安装指定的插件
@@ -209,11 +209,11 @@ async def install_plugin(
 
 
 async def update_plugin(
-        request: Request,
-        plugin_req: dict = Body(...),
-        token_valid: bool = Depends(verify_token),
-        server=None,
-        plugin_installer=None
+    request: Request,
+    plugin_req: dict = Body(...),
+    token_valid: bool = Depends(verify_token),
+    server=None,
+    plugin_installer=None
 ):
     """
     更新指定的插件到指定版本
@@ -283,11 +283,11 @@ async def update_plugin(
 
 
 async def uninstall_plugin(
-        request: Request,
-        plugin_req: dict = Body(...),
-        token_valid: bool = Depends(verify_token),
-        server=None,
-        plugin_installer=None
+    request: Request,
+    plugin_req: dict = Body(...),
+    token_valid: bool = Depends(verify_token),
+    server=None,
+    plugin_installer=None
 ):
     """
     卸载指定的插件，支持卸载并删除未加载的插件
@@ -341,12 +341,12 @@ async def uninstall_plugin(
 
 
 async def task_status(
-        request: Request,
-        task_id: str = None,
-        plugin_id: str = None,
-        token_valid: bool = Depends(verify_token),
-        server=None,
-        plugin_installer=None
+    request: Request,
+    task_id: str = None,
+    plugin_id: str = None,
+    token_valid: bool = Depends(verify_token),
+    server=None,
+    plugin_installer=None
 ):
     """
     获取任务状态
@@ -411,12 +411,12 @@ async def task_status(
 
 
 async def get_plugin_versions_v2(
-        request: Request,
-        plugin_id: str,
-        repo_url: str = None,
-        token_valid: bool = Depends(verify_token),
-        server=None,
-        plugin_installer=None
+    request: Request,
+    plugin_id: str,
+    repo_url: str = None,
+    token_valid: bool = Depends(verify_token),
+    server=None,
+    plugin_installer=None
 ):
     """
     获取插件的所有可用版本（新版API）
@@ -480,11 +480,11 @@ async def get_plugin_versions_v2(
 
 
 async def get_plugin_repository(
-        request: Request,
-        plugin_id: str,
-        token_valid: bool = Depends(verify_token),
-        server=None,
-        pim_helper=None
+    request: Request,
+    plugin_id: str,
+    token_valid: bool = Depends(verify_token),
+    server=None,
+    pim_helper=None
 ):
     """
     获取插件所属的仓库信息
@@ -524,8 +524,7 @@ async def get_plugin_repository(
         config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
         server.logger.debug(f"api_get_plugin_repository: Raw config: {config}")
 
-        official_repo_url = config.get("mcdr_plugins_url",
-                                       "https://api.mcdreforged.com/catalogue/everything_slim.json.xz")
+        official_repo_url = config.get("mcdr_plugins_url", "https://api.mcdreforged.com/catalogue/everything_slim.json.xz")
         configured_repos = [official_repo_url]  # 始终包含官方仓库
 
         # 添加内置的第三方仓库（与前端保持一致）
@@ -572,8 +571,7 @@ async def get_plugin_repository(
                 # 获取仓库元数据
                 meta_registry = pim_helper.get_cata_meta(source, ignore_ttl=False, repo_url=repo_url)
                 if not meta_registry or not hasattr(meta_registry, 'get_plugin_data'):
-                    server.logger.debug(
-                        f"api_get_plugin_repository: Failed to get meta_registry or get_plugin_data for {repo_url}")
+                    server.logger.debug(f"api_get_plugin_repository: Failed to get meta_registry or get_plugin_data for {repo_url}")
                     continue
 
                 # 查找插件
@@ -661,11 +659,47 @@ async def check_pim_status(
         token_valid: bool = Depends(verify_token),
         server=None
 ):
-    # ... (existing code) ...
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"status": "error", "message": f"检查PIM状态时出错: {str(e)}"}
-    )
+    """检查 PIM 插件的安装状态"""
+    # 鉴权失败
+    if not token_valid:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"status": "error", "message": "未登录或会话已过期"}
+        )
+
+    # 缺少服务器接口
+    if not server:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "error", "message": "服务器接口未提供"}
+        )
+
+    try:
+        # 获取插件信息，检查是否存在 ID 为 pim_helper 的插件
+        loaded_plugin_metadata, unloaded_plugin_metadata, loaded_plugin, disabled_plugin = load_plugin_info(server)
+
+        installed = (
+            "pim_helper" in loaded_plugin_metadata or
+            "pim_helper" in unloaded_plugin_metadata
+        )
+
+        pim_status = "installed" if installed else "not_installed"
+        message = "PIM插件已安装" if installed else "PIM插件未安装"
+
+        return JSONResponse(
+            content={
+                "status": "success",
+                "pim_status": pim_status,
+                "message": message
+            }
+        )
+    except Exception as e:
+        if server:
+            server.logger.error(f"检查PIM状态时出错: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "error", "message": f"检查PIM状态时出错: {str(e)}"}
+        )
 
 
 async def self_update(
