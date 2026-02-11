@@ -657,7 +657,43 @@ async def check_pim_status(
     token_valid: bool = Depends(verify_token),
     server=None
 ):
-# ... (existing code) ...
+    """检查 PIM 插件的安装状态"""
+    # 鉴权失败
+    if not token_valid:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"status": "error", "message": "未登录或会话已过期"}
+        )
+
+    # 缺少服务器接口
+    if not server:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "error", "message": "服务器接口未提供"}
+        )
+
+    try:
+        # 获取插件信息，检查是否存在 ID 为 pim_helper 的插件
+        loaded_plugin_metadata, unloaded_plugin_metadata, loaded_plugin, disabled_plugin = load_plugin_info(server)
+
+        installed = (
+            "pim_helper" in loaded_plugin_metadata or
+            "pim_helper" in unloaded_plugin_metadata
+        )
+
+        pim_status = "installed" if installed else "not_installed"
+        message = "PIM插件已安装" if installed else "PIM插件未安装"
+
+        return JSONResponse(
+            content={
+                "status": "success",
+                "pim_status": pim_status,
+                "message": message
+            }
+        )
+    except Exception as e:
+        if server:
+            server.logger.error(f"检查PIM状态时出错: {e}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"status": "error", "message": f"检查PIM状态时出错: {str(e)}"}

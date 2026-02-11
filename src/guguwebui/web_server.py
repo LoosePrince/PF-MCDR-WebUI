@@ -49,7 +49,7 @@ from .services.plugin_service import PluginService
 from .services.config_service import ConfigService
 from .services.server_service import ServerService
 
-from mcdreforged.api.all import MCDRPluginEvents
+from mcdreforged.api.all import MCDRPluginEvents, PluginServerInterface
 
 # 导入聊天API模块和全局变量
 from .api.chat import (
