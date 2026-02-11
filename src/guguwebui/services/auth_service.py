@@ -9,8 +9,9 @@ from guguwebui.utils.auth_util import verify_password
 
 
 class AuthService:
-    def __init__(self, server):
+    def __init__(self, server, config_service=None):
         self.server = server
+        self.config_service = config_service
 
     @staticmethod
     def login_admin_check(account, disable_other_admin, super_admin_account):
@@ -79,3 +80,53 @@ class AuthService:
                 return JSONResponse({"status": "error", "message": "临时登录码无效。"}, status_code=401)
         else:
             return JSONResponse({"status": "error", "message": "请填写完整的登录信息。"}, status_code=400)
+
+    async def logout(self, request: Request, response):
+        """
+        清理会话与 token：
+        - 清空 session
+        - 从 user_db 中移除当前 token
+        - 删除常见路径下的 token cookie（独立模式与挂载模式）
+        """
+        # 清理 session
+        request.session["logged_in"] = False
+        request.session.clear()
+
+        # 计算根路径，用于 cookie path
+        root_path = request.scope.get("root_path", "")
+        cookie_path = root_path if root_path else "/"
+
+        # 从 user_db 中移除 token，确保后端登录状态真正失效
+        token = request.cookies.get("token")
+        try:
+            if token and token in user_db.get("token", {}):
+                del user_db["token"][token]
+                user_db.save()
+        except Exception:
+            # 不因清理失败中断整个登出流程
+            pass
+
+        # 删除 token cookie（当前路径）
+        response.set_cookie(
+            "token",
+            value="",
+            path=cookie_path if cookie_path else "/",
+            expires=0,
+            max_age=0,
+            httponly=True,
+            samesite="lax",
+        )
+
+        # 额外尝试清除常见路径，兼容不同挂载/反向代理场景
+        for p in ["/", "/guguwebui", "/guguwebui/"]:
+            response.set_cookie(
+                "token",
+                value="",
+                path=p,
+                expires=0,
+                max_age=0,
+                httponly=True,
+                samesite="lax",
+            )
+
+        return response

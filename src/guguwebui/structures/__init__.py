@@ -1,6 +1,33 @@
-from typing import Optional
+from typing import Optional, Any, Dict
 
 from pydantic import BaseModel
+
+
+class BusinessException(Exception):
+    """业务异常基类"""
+    def __init__(self, message: str, status_code: int = 400, data: Any = None):
+        self.message = message
+        self.status_code = status_code
+        self.data = data
+        super().__init__(message)
+
+
+class AuthenticationException(BusinessException):
+    """认证异常"""
+    def __init__(self, message: str = "未登录或会话已过期", data: Any = None):
+        super().__init__(message, status_code=401, data=data)
+
+
+class ForbiddenException(BusinessException):
+    """权限异常"""
+    def __init__(self, message: str = "权限不足", data: Any = None):
+        super().__init__(message, status_code=403, data=data)
+
+
+class NotFoundException(BusinessException):
+    """资源未找到异常"""
+    def __init__(self, message: str = "资源未找到", data: Any = None):
+        super().__init__(message, status_code=404, data=data)
 
 
 class LoginData(BaseModel):
