@@ -557,24 +557,22 @@ def on_unload(server: PluginServerInterface):
         # 获取当前事件循环
         try:
             loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                return
-
-            server.logger.debug("关闭asyncio事件循环")
-            # 停止所有任务
-            try:
-                for task in asyncio.all_tasks(loop):
-                    task.cancel()
-            except Exception:
-                pass
-
-            # 运行一次loop确保任务被取消
             if not loop.is_closed():
-                loop.run_until_complete(asyncio.sleep(0))
+                server.logger.debug("关闭asyncio事件循环")
+                # 停止所有任务
+                try:
+                    for task in asyncio.all_tasks(loop):
+                        task.cancel()
+                except Exception:
+                    pass
 
-            # 关闭事件循环
-            if not loop.is_closed():
-                loop.close()
+                # 运行一次loop确保任务被取消
+                if not loop.is_closed():
+                    loop.run_until_complete(asyncio.sleep(0))
+
+                # 关闭事件循环
+                if not loop.is_closed():
+                    loop.close()
         except Exception:
             pass
     except Exception as e:

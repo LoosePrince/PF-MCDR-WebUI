@@ -102,13 +102,13 @@ async def package_pim_plugin(server, plugins_dir: str) -> str:
                     return False
 
             # 1) 复制 pim_helper 目录到 pim_plugin_dir
-            pim_helper_src = "guguwebui/utils/PIM/pim_helper"
+            pim_helper_src = "guguwebui/PIM/pim_helper"
             if not copy_folder_from_package(server, pim_helper_src, pim_plugin_dir):
                 server.logger.error(f"无法从插件包内提取目录: {pim_helper_src}")
                 raise FileNotFoundError(f"PIM source directory not found inside package: {pim_helper_src}")
 
             # 2) 复制 mcdreforged.plugin.json 到插件根目录
-            meta_src = "guguwebui/utils/PIM/mcdreforged.plugin.json"
+            meta_src = "guguwebui/PIM/mcdreforged.plugin.json"
             meta_dst = os.path.join(plugin_root_dir, "mcdreforged.plugin.json")
             try:
                 __copyFile(server, meta_src, meta_dst)

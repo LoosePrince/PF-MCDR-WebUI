@@ -1,0 +1,9 @@
+{
+    "id": "pim_helper",
+    "version": "1.3.0",
+    "name": "PIM Helper",
+    "description": "自定义的安装MCDR插件的辅助工具",
+    "author": "LoosePrince",
+    "link": "",
+    "dependencies": {}
+}
