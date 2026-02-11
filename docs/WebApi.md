@@ -610,7 +610,7 @@
   - `action`: 操作类型（"config"/"disable_admin_login_web"/"enable_temp_login_password"）
   - `host`: 主机地址（可选）
   - `port`: 端口（可选）
-  - `superaccount`: 超级管理员账号（可选）
+  - `super_account`: 超级管理员账号（可选）
   - `ai_api_key`: AI API密钥（可选）
   - `ai_model`: AI模型选择（可选）
   - `ai_api_url`: AI API地址（可选）
@@ -662,7 +662,7 @@
   saveWebConfig({
     host: '0.0.0.0',
     port: 8080,
-    superaccount: 'admin',
+    super_account: 'admin',
     ai_api_key: 'your-api-key',
     ai_model: 'deepseek-chat',
     ai_api_url: 'https://api.deepseek.com/chat/completions',
