@@ -3,20 +3,22 @@
 迁移自 web_server.py 中的 /api/pim/ 端点
 """
 
+import datetime
 import logging
 import os
-import datetime
-import zipfile
 import tempfile
-from pathlib import Path
+import zipfile
+
+from fastapi import Body, Depends, status
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from fastapi import status, Body, Depends
-from ..utils.constant import DEFALUT_CONFIG, toggleconfig, plugin_info
-from ..utils.PIM import create_installer
-from ..utils.mc_util import load_plugin_info
-from ..utils.file_util import __copyFile, __copyFolder
-from ..utils.server_util import verify_token
+
+from guguwebui.PIM import create_installer
+from guguwebui.constant import DEFALUT_CONFIG
+from guguwebui.structures import PluginInfo, ToggleConfig
+from guguwebui.utils.file_util import __copyFile
+from guguwebui.utils.mc_util import load_plugin_info
+from guguwebui.utils.server_util import verify_token
 
 
 async def package_pim_plugin(server, plugins_dir: str) -> str:
@@ -653,9 +655,9 @@ async def get_plugin_repository(
 
 
 async def check_pim_status(
-    request: Request,
-    token_valid: bool = Depends(verify_token),
-    server=None
+        request: Request,
+        token_valid: bool = Depends(verify_token),
+        server=None
 ):
     """检查 PIM 插件的安装状态"""
     # 鉴权失败
@@ -701,9 +703,9 @@ async def check_pim_status(
 
 
 async def self_update(
-    request: Request,
-    token_valid: bool = Depends(verify_token),
-    server=None
+        request: Request,
+        token_valid: bool = Depends(verify_token),
+        server=None
 ):
     """执行 WebUI 自身更新"""
     if not token_valid:
@@ -722,7 +724,7 @@ async def self_update(
         command = "!!MCDR plugin install -U -y guguwebui"
         server.logger.info(f"执行自更新命令: {command}")
         server.execute_command(command)
-        
+
         return JSONResponse(
             content={
                 "success": True,
@@ -738,20 +740,20 @@ async def self_update(
 
 
 async def get_self_update_info(
-    request: Request,
-    token_valid: bool = Depends(verify_token)
+        request: Request,
+        token_valid: bool = Depends(verify_token)
 ):
     """获取 WebUI 自身更新信息"""
-    
+
     # 使用 request.app 获取正确的 app 实例
     info = getattr(request.app.state, "self_update_info", {"available": False})
     return JSONResponse(content={"success": True, "info": info})
 
 
 async def install_pim_plugin(
-    request: Request,
-    token_valid: bool = Depends(verify_token),
-    server=None
+        request: Request,
+        token_valid: bool = Depends(verify_token),
+        server=None
 ):
     """将PIM作为独立插件安装"""
     if not token_valid:
@@ -810,9 +812,9 @@ async def install_pim_plugin(
 
 
 async def toggle_plugin(
-    request: Request,
-    request_body: toggleconfig,
-    server=None
+        request: Request,
+        request_body: ToggleConfig,
+        server=None
 ):
     """切换插件状态（加载/卸载）"""
     if not server:
@@ -828,7 +830,7 @@ async def toggle_plugin(
     if plugin_id == "guguwebui":
         server.reload_plugin(plugin_id)
     # loading
-    elif target_status == True:
+    elif target_status:
         _, unloaded_plugin_metadata, unloaded_plugin, disabled_plugin = (
             load_plugin_info(server)
         )
@@ -843,15 +845,15 @@ async def toggle_plugin(
             server.enable_plugin(plugin_path)
         server.load_plugin(plugin_path)
     # unload
-    elif target_status == False:
+    elif not target_status:
         server.unload_plugin(plugin_id)
     return JSONResponse({"status": "success"})
 
 
 async def reload_plugin(
-    request: Request,
-    plugin_info: plugin_info,
-    server=None
+        request: Request,
+        plugin_info: PluginInfo,
+        server=None
 ):
     """重载插件"""
     if not server:
@@ -866,17 +868,17 @@ async def reload_plugin(
 
     server_response = server.reload_plugin(plugin_id)
 
-    if server_response: # success
+    if server_response:  # success
         return JSONResponse({"status": "success"})
 
     return JSONResponse({"status": "error", "message": f"Reload {plugin_id} failed"}, status_code=500)
 
 
 async def get_online_plugins(
-    request: Request,
-    repo_url: str = None,
-    server=None,
-    pim_helper=None
+        request: Request,
+        repo_url: str = None,
+        server=None,
+        pim_helper=None
 ):
     """获取在线插件列表"""
     # 如果没有服务器接口，无法处理请求
@@ -1067,7 +1069,8 @@ async def get_online_plugins(
                             plugin_entry["last_update_time"] = dt.strftime("%Y-%m-%d %H:%M:%S")
                         except Exception as time_error:
                             server.logger.error(f"处理插件 {plugin_id} 的时间信息时出错: {time_error}")
-                            plugin_entry["last_update_time"] = latest_release.created_at if hasattr(latest_release, 'created_at') else ''
+                            plugin_entry["last_update_time"] = latest_release.created_at if hasattr(latest_release,
+                                                                                                    'created_at') else ''
 
                     plugins_data.append(plugin_entry)
                 except Exception as plugin_error:

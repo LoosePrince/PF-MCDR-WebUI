@@ -5,19 +5,20 @@
 
 import datetime
 import traceback
+
 from fastapi import Request
-from fastapi.responses import JSONResponse
 from fastapi import status
-from ..utils.constant import server_control, user_db
-from ..utils.mc_util import get_java_server_info, get_minecraft_path, get_server_port
-from ..utils.api_cache import api_cache
-import javaproperties
-from ..utils.server_util import verify_token
+from fastapi.responses import JSONResponse
+
+from guguwebui.constant import user_db
+from guguwebui.structures import ServerControl
+from guguwebui.utils.api_cache import api_cache
+from guguwebui.utils.mc_util import get_java_server_info, get_server_port
 
 
 async def get_server_status(
-    request: Request,
-    server=None
+        request: Request,
+        server=None
 ) -> JSONResponse:
     """获取服务器状态（使用短期缓存，5秒）"""
     if not server:
@@ -59,7 +60,7 @@ async def get_server_status(
 
     # 缓存未命中，执行实际查询
     server_status = "online" if server.is_server_running() or server.is_server_startup() else "offline"
-    
+
     # 获取MC服务器端口
     mc_port = get_server_port(server)
 
@@ -95,9 +96,9 @@ async def get_server_status(
 
 
 async def control_server(
-    request: Request,
-    control_info: server_control,
-    server=None
+        request: Request,
+        control_info: ServerControl,
+        server=None
 ) -> JSONResponse:
     """控制Minecraft服务器"""
     if not server:
@@ -138,11 +139,11 @@ async def control_server(
 
 
 async def get_server_logs(
-    request: Request,
-    start_line: int = 0,
-    max_lines: int = 100,
-    server=None,
-    log_watcher=None
+        request: Request,
+        start_line: int = 0,
+        max_lines: int = 100,
+        server=None,
+        log_watcher=None
 ) -> JSONResponse:
     """获取服务器日志"""
     if not server:
@@ -188,11 +189,11 @@ async def get_server_logs(
 
 
 async def get_new_logs(
-    request: Request,
-    last_counter: int = 0,
-    max_lines: int = 100,
-    server=None,
-    log_watcher=None
+        request: Request,
+        last_counter: int = 0,
+        max_lines: int = 100,
+        server=None,
+        log_watcher=None
 ) -> JSONResponse:
     """获取新增日志（基于计数器）"""
     if not server:
@@ -228,8 +229,8 @@ async def get_new_logs(
 
 
 async def get_rcon_status(
-    request: Request,
-    server=None
+        request: Request,
+        server=None
 ) -> JSONResponse:
     """获取RCON连接状态（使用短期缓存，因为RCON状态可能随服务器状态改变）"""
     if not server:
@@ -242,7 +243,7 @@ async def get_rcon_status(
         # 检查是否已登录
         if not request.session.get("logged_in"):
             return JSONResponse(
-                {"status": "error", "message": "User not logged in"}, 
+                {"status": "error", "message": "User not logged in"},
                 status_code=401
             )
 
@@ -257,7 +258,7 @@ async def get_rcon_status(
         rcon_enabled = False
         rcon_connected = False
         rcon_info = {}
-        
+
         # 读取MCDR配置检查RCON是否启用
         try:
             import ruamel.yaml
@@ -275,7 +276,7 @@ async def get_rcon_status(
         # 检查RCON是否正在运行
         if hasattr(server, "is_rcon_running") and server.is_rcon_running():
             rcon_connected = True
-            
+
             # 尝试执行/list命令获取在线玩家信息
             try:
                 feedback = server.rcon_query("list")
@@ -312,10 +313,11 @@ async def get_rcon_status(
 
 from ..utils.mcdr_adapter import MCDRAdapter
 
+
 async def get_command_suggestions(
-    request: Request,
-    input: str = "",
-    server=None
+        request: Request,
+        input: str = "",
+        server=None
 ) -> JSONResponse:
     """获取MCDR命令补全建议"""
     if not server:
@@ -536,8 +538,8 @@ async def get_command_suggestions(
 
 
 async def send_command(
-    request: Request,
-    server=None
+        request: Request,
+        server=None
 ) -> JSONResponse:
     """发送命令到MCDR终端"""
     if not server:

@@ -4,23 +4,23 @@
 """
 
 import datetime
-import secrets
-import time
 import random
+import secrets
 import string
-import concurrent.futures
-from typing import Dict, List, Any, Optional, Tuple
+import time
+from typing import Any, Dict, Optional, Tuple
 
-from mcdreforged.api.all import PluginServerInterface, RText, RTextList, RColor
-from fastapi.responses import JSONResponse
+from mcdreforged.api.all import PluginServerInterface
 
-from ..utils.constant import user_db, DEFALUT_CONFIG
-from ..utils.chat_logger import ChatLogger
-from ..utils.auth_util import verify_password, hash_password, cleanup_chat_verifications
-from ..utils.mc_util import get_player_uuid, create_chat_message_rtext, get_java_server_info, get_bot_list, create_chat_logger_status_rtext
-from ..state import WEB_ONLINE_PLAYERS, RCON_ONLINE_CACHE
+from guguwebui.constant import DEFALUT_CONFIG, user_db
+from guguwebui.state import RCON_ONLINE_CACHE, WEB_ONLINE_PLAYERS
+from guguwebui.utils.auth_util import cleanup_chat_verifications, hash_password, verify_password
+from guguwebui.utils.chat_logger import ChatLogger
+from guguwebui.utils.mc_util import create_chat_logger_status_rtext, create_chat_message_rtext, get_bot_list, \
+    get_java_server_info, get_player_uuid, get_server_port
 
-#============================================================#
+
+# ============================================================#
 # 验证码管理功能
 def generate_chat_verification_code(server: PluginServerInterface) -> Tuple[str, int]:
     """
@@ -54,6 +54,7 @@ def generate_chat_verification_code(server: PluginServerInterface) -> Tuple[str,
 
     server.logger.debug(f"生成聊天页验证码: {code}")
     return code, expire_minutes
+
 
 def check_chat_verification_status(code: str) -> Dict[str, Any]:
     """
@@ -92,6 +93,7 @@ def check_chat_verification_status(code: str) -> Dict[str, Any]:
 
     # 未绑定则尚未在游戏内验证
     return {"status": "error", "message": "验证码尚未在游戏内验证"}
+
 
 async def set_chat_user_password(code: str, password: str, server: PluginServerInterface) -> Dict[str, Any]:
     """
@@ -162,9 +164,11 @@ async def set_chat_user_password(code: str, password: str, server: PluginServerI
             pass
     return result
 
-#============================================================#
+
+# ============================================================#
 # 用户认证功能
-async def chat_user_login(player_id: str, password: str, client_ip: str, server: PluginServerInterface) -> Dict[str, Any]:
+async def chat_user_login(player_id: str, password: str, client_ip: str, server: PluginServerInterface) -> Dict[
+    str, Any]:
     """
     聊天页用户登录
 
@@ -259,6 +263,7 @@ async def chat_user_login(player_id: str, password: str, client_ip: str, server:
             pass
     return result
 
+
 async def check_chat_session(session_id: str, server: PluginServerInterface = None) -> Dict[str, Any]:
     """
     检查聊天页会话状态
@@ -302,13 +307,13 @@ async def check_chat_session(session_id: str, server: PluginServerInterface = No
             pass
     return result
 
-def chat_user_logout(session_id: str, server: PluginServerInterface) -> Dict[str, Any]:
+
+def chat_user_logout(session_id: str) -> Dict[str, Any]:
     """
     聊天页用户退出登录
 
     Args:
         session_id: 会话ID
-        server: MCDR服务器接口
 
     Returns:
         Dict: 退出结果
@@ -323,10 +328,12 @@ def chat_user_logout(session_id: str, server: PluginServerInterface) -> Dict[str
 
     return {"status": "success", "message": "退出登录成功"}
 
-#============================================================#
+
+# ============================================================#
 # 消息处理功能
 async def get_chat_messages_handler(limit: int = 50, offset: int = 0, after_id: Optional[int] = None,
-                              before_id: Optional[int] = None, server: PluginServerInterface = None) -> Dict[str, Any]:
+                                    before_id: Optional[int] = None, server: PluginServerInterface = None) -> Dict[
+    str, Any]:
     """
     获取聊天消息
 
@@ -357,27 +364,27 @@ async def get_chat_messages_handler(limit: int = 50, offset: int = 0, after_id: 
     try:
         uuid_cache = {}
         need_uuid_players = set()
-        
+
         # 首先检查哪些消息需要补充UUID
         for m in messages:
             pid = m.get('player_id')
             if pid and not m.get('is_plugin', False):  # 插件消息不需要UUID
                 if m.get('uuid') is None:  # 只有没有UUID的消息才需要查询
                     need_uuid_players.add(pid)
-        
+
         # 只对缺失UUID的玩家进行网络查询
         if need_uuid_players:
             for pid in need_uuid_players:
                 uuid_val = await get_player_uuid(pid, server)
                 uuid_cache[pid] = uuid_val
-        
+
         # 为缺失UUID的消息设置UUID
         for m in messages:
             pid = m.get('player_id')
             if pid and m.get('uuid') is None and not m.get('is_plugin', False):
                 if pid in uuid_cache:
                     m['uuid'] = uuid_cache[pid]
-                
+
     except Exception:
         # 静默失败，不影响消息返回
         pass
@@ -388,8 +395,9 @@ async def get_chat_messages_handler(limit: int = 50, offset: int = 0, after_id: 
         "has_more": len(messages) == limit
     }
 
+
 async def get_new_chat_messages_handler(after_id: int = 0, player_id_heartbeat: str = None,
-                                   server: PluginServerInterface = None) -> Dict[str, Any]:
+                                        server: PluginServerInterface = None) -> Dict[str, Any]:
     """
     获取新消息（基于最后消息ID）
 
@@ -419,13 +427,15 @@ async def get_new_chat_messages_handler(after_id: int = 0, player_id_heartbeat: 
                 uuid_val = await get_player_uuid(pid, server)
                 uuid_cache[pid] = uuid_val
             m['uuid'] = uuid_val
-    except Exception: pass
+    except Exception:
+        pass
 
     # 记录Web在线心跳（+5秒）
     try:
         if isinstance(player_id_heartbeat, str) and player_id_heartbeat:
             WEB_ONLINE_PLAYERS[player_id_heartbeat] = int(time.time()) + 5
-    except Exception: pass
+    except Exception:
+        pass
 
     # 生成在线列表：游戏在线（通过 get_java_server_info），Web在线（通过心跳）
     online_web = set(pid for pid, until in WEB_ONLINE_PLAYERS.items() if until >= int(time.time()))
@@ -433,12 +443,10 @@ async def get_new_chat_messages_handler(after_id: int = 0, player_id_heartbeat: 
 
     # 获取服务器信息
     # Need to get port from config
-    from ..utils.mc_util import get_server_port
     mc_port = get_server_port(server)
-    server_info = await get_java_server_info(mc_port)
 
     # 快速RCON查询
-    if hasattr(server, "is_rcon_running") and server.is_rcon_running():
+    if server.is_rcon_running():
         now_sec = int(time.time())
         if RCON_ONLINE_CACHE["dirty"] or (now_sec - int(RCON_ONLINE_CACHE["ts"]) >= 300):
             try:
@@ -453,7 +461,8 @@ async def get_new_chat_messages_handler(after_id: int = 0, player_id_heartbeat: 
                 RCON_ONLINE_CACHE["names"] = names
                 RCON_ONLINE_CACHE["ts"] = now_sec
                 RCON_ONLINE_CACHE["dirty"] = False
-            except Exception: pass
+            except Exception:
+                pass
         online_game = set(RCON_ONLINE_CACHE["names"])
 
     # 快速获取假人列表
@@ -469,6 +478,7 @@ async def get_new_chat_messages_handler(after_id: int = 0, player_id_heartbeat: 
             "bot": online_bot
         }
     }
+
 
 def clear_chat_messages_handler(server: PluginServerInterface = None) -> Dict[str, Any]:
     """
@@ -492,8 +502,9 @@ def clear_chat_messages_handler(server: PluginServerInterface = None) -> Dict[st
 
     return {"status": "success", "message": "聊天消息已清空"}
 
+
 async def send_chat_message_handler(message: str, player_id: str, session_id: str,
-                            server: PluginServerInterface = None, is_admin: bool = False) -> Dict[str, Any]:
+                                    server: PluginServerInterface = None, is_admin: bool = False) -> Dict[str, Any]:
     """
     发送聊天消息到游戏
 
@@ -517,7 +528,7 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
     if not is_admin:
         if not session_id:
             return {"status": "error", "message": "会话ID无效"}
-            
+
         if session_id not in user_db["chat_sessions"]:
             return {"status": "error", "message": "会话已过期，请重新登录"}
 
@@ -554,7 +565,6 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
         return {"status": "error", "message": "聊天到游戏功能未启用"}
 
     # 获取玩家UUID（如果可用）
-    player_uuid = "未知"  # 默认值
     try:
         player_uuid = await get_player_uuid(player_id, server)
         # 如果仍然没有找到UUID，设置为"未知"
@@ -572,11 +582,11 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
         from mcdreforged.api.all import LiteralEvent
         # 创建事件数据元组 - MCDR会将元组展开为多个参数
         event_data = (
-            "webui",           # source
-            player_id,         # player_id
-            player_uuid,       # player_uuid
-            message,           # message
-            session_id,        # session_id
+            "webui",  # source
+            player_id,  # player_id
+            player_uuid,  # player_uuid
+            message,  # message
+            session_id,  # session_id
             int(datetime.datetime.now(datetime.timezone.utc).timestamp())  # timestamp (Unix时间戳)
         )
         # 分发事件
@@ -593,7 +603,8 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
             with open(get_minecraft_path(server, "working_directory") + "/server.properties", "r") as f:
                 props = javaproperties.load(f)
                 mc_port = int(props.get("server-port", 25565))
-        except: mc_port = 25565
+        except:
+            mc_port = 25565
         info = await get_java_server_info(mc_port)
         player_count_raw = info.get("server_player_count")
         player_count = int(player_count_raw) if player_count_raw is not None and str(player_count_raw).isdigit() else 0
@@ -605,7 +616,8 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
         try:
             chat_logger = ChatLogger()
             # 记录RText格式的消息，标记为WebUI消息
-            chat_logger.add_message(player_id, message, rtext_data=rtext_message.to_json_object(), message_type=1, server=server)
+            chat_logger.add_message(player_id, message, rtext_data=rtext_message.to_json_object(), message_type=1,
+                                    server=server)
         except Exception as e:
             server.logger.warning(f"记录聊天消息失败: {e}")
         return {
@@ -626,7 +638,8 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
     try:
         chat_logger = ChatLogger()
         # 记录RText格式的消息，标记为WebUI消息，这样前端显示时就能正确渲染
-        chat_logger.add_message(player_id, message, rtext_data=rtext_message.to_json_object(), message_type=1, server=server)
+        chat_logger.add_message(player_id, message, rtext_data=rtext_message.to_json_object(), message_type=1,
+                                server=server)
     except Exception as e:
         server.logger.warning(f"记录聊天消息失败: {e}")
 
@@ -639,16 +652,18 @@ async def send_chat_message_handler(message: str, player_id: str, session_id: st
         "message": "消息发送成功"
     }
 
-#============================================================#
+
+# ============================================================#
 # 事件处理功能
-def on_player_joined(server, player: str, info=None):
+def on_player_joined(_server, _player: str, _info=None):
     """处理玩家加入事件"""
     try:
         RCON_ONLINE_CACHE["dirty"] = True
     except Exception:
         pass
 
-def on_player_left(server, player: str):
+
+def on_player_left(_server, _player: str):
     """处理玩家离开事件"""
     try:
         RCON_ONLINE_CACHE["dirty"] = True

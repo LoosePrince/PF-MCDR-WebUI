@@ -1,6 +1,6 @@
 import re
 from collections import OrderedDict
-from ruamel.yaml.comments import CommentedSeq
+
 
 def consistent_type_update(original, updates, remove_missing=False):
     from ruamel.yaml.comments import CommentedSeq
@@ -8,8 +8,10 @@ def consistent_type_update(original, updates, remove_missing=False):
         keys_to_remove = [key for key in original if key not in updates]
         for key in keys_to_remove: del original[key]
     for key, value in updates.items():
-        if key in original and original[key] is None and (not value or (isinstance(value,list) and not any(value))): continue
-        elif isinstance(value, dict) and key in original and isinstance(original[key], dict): consistent_type_update(original[key], value, remove_missing)
+        if key in original and original[key] is None and (not value or (isinstance(value, list) and not any(value))):
+            continue
+        elif isinstance(value, dict) and key in original and isinstance(original[key], dict):
+            consistent_type_update(original[key], value, remove_missing)
         elif isinstance(value, list) and key in original:
             if isinstance(original[key], dict):
                 original[key] = value
@@ -19,12 +21,15 @@ def consistent_type_update(original, updates, remove_missing=False):
             temp_list = [(targe_type[0](item) if targe_type else item) if item else None for item in value]
             if original_ca:
                 original[key] = CommentedSeq(temp_list)
-                original[key].ca.items[len(original[key])-1] = original_ca[max(original_ca)]
-            else: original[key] = temp_list
+                original[key].ca.items[len(original[key]) - 1] = original_ca[max(original_ca)]
+            else:
+                original[key] = temp_list
         elif key in original and original[key]:
             original_type = type(original[key])
             original[key] = original_type(value)
-        else: original[key] = value
+        else:
+            original[key] = value
+
 
 def _normalize_lang_code(raw_code: str) -> str:
     code = (raw_code or "").strip().strip("[] ")
@@ -37,6 +42,7 @@ def _normalize_lang_code(raw_code: str) -> str:
         parts = base.split("-", 1)
         return f"{parts[0].lower()}-{parts[1].upper()}"
     return base
+
 
 def _parse_inline_and_prev_comments(file_text: str):
     result = {}
@@ -85,6 +91,7 @@ def _parse_inline_and_prev_comments(file_text: str):
 
     return result
 
+
 def _parse_language_blocks(file_text: str):
     lang_order = []
     lang_map = {}
@@ -110,8 +117,10 @@ def _parse_language_blocks(file_text: str):
                     else:
                         value = [right]
                     lang_map[current_lang][key_part] = value
-                except Exception: continue
+                except Exception:
+                    continue
     return lang_order, lang_map
+
 
 def _nest_translation_map(flat_map: dict) -> dict:
     nested = {}
@@ -133,6 +142,7 @@ def _nest_translation_map(flat_map: dict) -> dict:
             cur = next_children
     return nested
 
+
 def build_yaml_i18n_translations(yaml_config: dict, file_text: str) -> dict:
     file_text = file_text or ""
     lang_order, lang_block_map = _parse_language_blocks(file_text)
@@ -143,7 +153,8 @@ def build_yaml_i18n_translations(yaml_config: dict, file_text: str) -> dict:
         conf_lang = yaml_config.get("language") if isinstance(yaml_config, dict) else None
         if isinstance(conf_lang, str) and conf_lang.strip():
             default_lang = _normalize_lang_code(conf_lang)
-    except Exception: pass
+    except Exception:
+        pass
     if not default_lang:
         default_lang = lang_order[0] if lang_order else "zh-CN"
 
@@ -170,13 +181,14 @@ def build_yaml_i18n_translations(yaml_config: dict, file_text: str) -> dict:
 
     return {"default": default_lang, "translations": translations}
 
+
 def build_json_i18n_translations(json_obj: dict) -> dict:
     if not isinstance(json_obj, dict): return {"default": "zh-CN", "translations": {}}
 
     def normalize_candidates(lang_code: str) -> list[str]:
         base = _normalize_lang_code(lang_code)
         a, b = (base.split('-', 1) + [""])[:2]
-        return list(set([base, base.lower(), f"{a.lower()}_{b.lower()}", a.lower()]))
+        return list({base, base.lower(), f"{a.lower()}_{b.lower()}", a.lower()})
 
     translations = OrderedDict()
     avail_keys = set(json_obj.keys())
@@ -187,9 +199,11 @@ def build_json_i18n_translations(json_obj: dict) -> dict:
             translations[target] = {}
             for k, v in json_obj[picked].items():
                 if isinstance(v, list) and len(v) >= 1:
-                    translations[target][k] = {"name": str(v[0]) if v[0] is not None else "", "desc": str(v[1]) if len(v) >= 2 and v[1] is not None else None}
+                    translations[target][k] = {"name": str(v[0]) if v[0] is not None else "",
+                                               "desc": str(v[1]) if len(v) >= 2 and v[1] is not None else None}
                 elif isinstance(v, dict):
-                    translations[target][k] = {"name": str(v.get("name", "")), "desc": str(v.get("desc")) if v.get("desc") is not None else None}
+                    translations[target][k] = {"name": str(v.get("name", "")),
+                                               "desc": str(v.get("desc")) if v.get("desc") is not None else None}
                 elif isinstance(v, str):
                     translations[target][k] = {"name": v, "desc": None}
 
@@ -201,17 +215,21 @@ def build_json_i18n_translations(json_obj: dict) -> dict:
         if isinstance(inner, dict):
             for k, v in inner.items():
                 if isinstance(v, list) and len(v) >= 1:
-                    translations[normalized][k] = {"name": str(v[0]) if v[0] is not None else "", "desc": str(v[1]) if len(v) >= 2 and v[1] is not None else None}
+                    translations[normalized][k] = {"name": str(v[0]) if v[0] is not None else "",
+                                                   "desc": str(v[1]) if len(v) >= 2 and v[1] is not None else None}
                 elif isinstance(v, dict):
-                    translations[normalized][k] = {"name": str(v.get("name", "")), "desc": str(v.get("desc")) if v.get("desc") is not None else None}
+                    translations[normalized][k] = {"name": str(v.get("name", "")),
+                                                   "desc": str(v.get("desc")) if v.get("desc") is not None else None}
                 elif isinstance(v, str):
                     translations[normalized][k] = {"name": v, "desc": None}
 
     for lang in list(translations.keys()):
         translations[lang] = _nest_translation_map(translations[lang])
 
-    default_lang = "zh-CN" if "zh-CN" in translations else (next(iter(translations.keys())) if translations else "zh-CN")
+    default_lang = "zh-CN" if "zh-CN" in translations else (
+        next(iter(translations.keys())) if translations else "zh-CN")
     return {"default": default_lang, "translations": translations}
+
 
 def extract_comment(comment_object) -> str:
     if not comment_object: return ""
@@ -219,9 +237,10 @@ def extract_comment(comment_object) -> str:
     comment = comment.split("\n", 1)[0].replace("#", "").strip()
     return comment.split("::", 1) if "::" in comment else comment
 
+
 def get_comment(config: dict) -> dict:
     name_map = {}
-    for k, v in config.items(): 
+    for k, v in config.items():
         comment = extract_comment(config.ca.items.get(k))
         if comment: name_map[k] = comment
         if isinstance(v, dict): name_map.update(get_comment(v))
