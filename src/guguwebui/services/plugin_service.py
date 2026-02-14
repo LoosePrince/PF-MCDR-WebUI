@@ -380,22 +380,39 @@ class PluginService:
                     return self.server
 
             source = FakeSource(self.server)
-            # 获取所有仓库
+            # 获取所有仓库：(url, name?) 官方仓库无配置名，自定义仓库取 config 中的 name
             config = self.config_service.get_config() if self.config_service else {}
             official_url = config.get(
                 "mcdr_plugins_url",
                 "https://api.mcdreforged.com/catalogue/everything_slim.json.xz",
             )
-            repos = [official_url]
+            repos: list[tuple[str, str | None]] = [(official_url, None)]
             if "repositories" in config:
-                repos.extend([r["url"] for r in config["repositories"] if "url" in r])
+                for r in config["repositories"]:
+                    if "url" in r:
+                        name = r.get("name") or None
+                        if isinstance(name, str):
+                            name = name.strip() or None
+                        repos.append((r["url"], name))
 
-            for repo_url in repos:
+            for repo_url, repo_name in repos:
                 meta = self.pim_helper.get_cata_meta(
                     source, ignore_ttl=False, repo_url=repo_url
                 )
                 if meta and plugin_id in meta.get_plugins():
-                    return {"status": "success", "repository": repo_url}
+                    is_official = (
+                        repo_url == official_url
+                        or "mcdreforged.com" in repo_url
+                    )
+                    return {
+                        "status": "success",
+                        "repository": {
+                            "url": repo_url,
+                            "is_official": is_official,
+                            "name_key": "official" if is_official else "custom",
+                            "name": repo_name,
+                        },
+                    }
 
             return {"status": "error", "message": "Plugin not found in any repository"}
         except Exception as e:

@@ -148,8 +148,16 @@ const LocalPlugins: React.FC = () => {
       const pluginsWithRepo = await Promise.all(pluginList.map(async (p: PluginMetadata) => {
         try {
           const repoResp = await api.get(`/pim/plugin_repository?plugin_id=${p.id}`, { signal });
-          if (repoResp.data.success) {
-            return { ...p, repository: repoResp.data.repository };
+          const ok = repoResp.data?.status === 'success' || repoResp.data?.success === true;
+          const repo = repoResp.data?.repository;
+          if (ok && repo) {
+            const nameKey = (typeof repo === 'object' && repo.name_key) ? repo.name_key : 'custom';
+            const name = typeof repo === 'object' && 'name' in repo && repo.name
+              ? repo.name
+              : t(`page.settings.repo.${nameKey}`);
+            const url = typeof repo === 'object' && repo.url ? repo.url : (typeof repo === 'string' ? repo : '');
+            const is_official = typeof repo === 'object' && typeof repo.is_official === 'boolean' ? repo.is_official : false;
+            return { ...p, repository: { name, url, is_official } };
           }
         } catch (e: any) {
           // 忽略取消的请求错误和repo获取错误
