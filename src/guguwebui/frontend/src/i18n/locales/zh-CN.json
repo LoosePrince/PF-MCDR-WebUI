@@ -512,6 +512,7 @@
                 "url": "URL",
                 "actions": "操作",
                 "official": "官方仓库",
+                "custom": "自定义仓库",
                 "loose_repo": "PF的仓库",
                 "default": "默认仓库",
                 "placeholder_name": "仓库名称",

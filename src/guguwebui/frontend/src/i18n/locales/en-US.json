@@ -504,6 +504,7 @@
                 "url": "URL",
                 "actions": "Actions",
                 "official": "Official repository",
+                "custom": "Custom repository",
                 "loose_repo": "PF's repository",
                 "default": "Default",
                 "placeholder_name": "Repository name",

@@ -708,12 +708,7 @@ async def api_get_plugin_repository(
 ):
     """获取插件所属的仓库信息"""
     result = request.app.state.plugin_service.get_plugin_repository(plugin_id)
-    status_code = (
-        200
-        if result.get("status") == "success"
-        else (404 if "not found" in result.get("message", "").lower() else 500)
-    )
-    return JSONResponse(result, status_code=status_code)
+    return JSONResponse(result)
 
 
 @app.get("/api/pim/plugin_versions")
