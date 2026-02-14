@@ -1,40 +1,40 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
+import { AnimatePresence, motion } from 'framer-motion';
 import 'github-markdown-css/github-markdown.css';
 import {
-  Puzzle,
-  Search,
+  AlertCircle,
+  AlertTriangle,
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  BookOpen,
+  Calendar,
+  CheckCircle2,
+  ChevronLeft,
+  Database,
   Download,
   ExternalLink,
-  Info,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  X,
-  Github,
-  Package,
-  Database,
-  ShieldCheck,
-  ArrowUp,
-  ArrowDown,
-  RefreshCw,
-  Users,
-  Calendar,
-  ArrowRight,
-  AlertTriangle,
-  Tag,
-  ChevronLeft,
   FileText,
-  BookOpen
+  Github,
+  Info,
+  Loader2,
+  Package,
+  Puzzle,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Tag,
+  Users,
+  X
 } from 'lucide-react';
-import api, { isCancel } from '../utils/api';
-import { VersionSelectModal } from '../components/VersionSelectModal';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 import { NiceSelect } from '../components/NiceSelect';
+import { VersionSelectModal } from '../components/VersionSelectModal';
+import api, { isCancel } from '../utils/api';
 
 // --- 接口定义 ---
 
@@ -363,7 +363,7 @@ const OnlinePlugins: React.FC = () => {
     setLoadingVersions(true);
     setShowVersionModal(true);
     try {
-      const resp = await api.get(`/pim/plugin_versions_v2`, {
+      const resp = await api.get(`/pim/plugin_versions`, {
         params: { plugin_id: plugin.id, repo_url: selectedRepo || undefined }
       });
       if (resp.data.success) {
@@ -464,7 +464,7 @@ const OnlinePlugins: React.FC = () => {
     setReadmeUrl(plugin.readme_url);
     const catalogue = parseCatalogueUrl(plugin.readme_url);
     setCatalogueUrl(catalogue);
-    
+
     // 默认打开catalogue文档（如果存在），否则打开readme
     const defaultType = catalogue ? 'catalogue' : 'readme';
     setReadmeType(defaultType);
@@ -487,14 +487,14 @@ const OnlinePlugins: React.FC = () => {
   // 切换文档类型
   const switchReadmeType = async (type: 'readme' | 'catalogue') => {
     if (readmeType === type) return;
-    
+
     setReadmeType(type);
     setLoadingReadmeContent(true);
 
     try {
       const url = type === 'readme' ? readmeUrl : catalogueUrl;
       if (!url) {
-        const docType = type === 'readme' 
+        const docType = type === 'readme'
           ? t('page.online_plugins.readme_doc')
           : t('page.online_plugins.catalogue_doc');
         throw new Error(t('page.online_plugins.msg.doc_not_found', { docType }));
@@ -1080,21 +1080,19 @@ const OnlinePlugins: React.FC = () => {
                   <>
                     <button
                       onClick={() => switchReadmeType('catalogue')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        readmeType === 'catalogue'
-                          ? 'bg-purple-600 text-white shadow-md'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                      }`}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${readmeType === 'catalogue'
+                        ? 'bg-purple-600 text-white shadow-md'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
                     >
                       {t('page.online_plugins.catalogue_doc')}
                     </button>
                     <button
                       onClick={() => switchReadmeType('readme')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        readmeType === 'readme'
-                          ? 'bg-purple-600 text-white shadow-md'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                      }`}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${readmeType === 'readme'
+                        ? 'bg-purple-600 text-white shadow-md'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
                     >
                       {t('page.online_plugins.readme_doc')}
                     </button>
@@ -1332,11 +1330,10 @@ const OnlinePluginCard: React.FC<{
             <button
               onClick={status === 'installed' ? undefined : onInstall}
               disabled={status === 'installed'}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${
-                status === 'installed'
-                  ? 'bg-emerald-500 text-white cursor-default'
-                  : 'bg-purple-600 text-white shadow-md shadow-purple-500/20 hover:scale-110 active:scale-95'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${status === 'installed'
+                ? 'bg-emerald-500 text-white cursor-default'
+                : 'bg-purple-600 text-white shadow-md shadow-purple-500/20 hover:scale-110 active:scale-95'
+                }`}
               title={status === 'installed' ? t('common.installed') : t('common.install')}
             >
               {status === 'installed' ? (
@@ -1365,7 +1362,7 @@ const Modal: React.FC<{
   maxWidthClassName?: string;
 }> = ({ isOpen, onClose, title, children, maxWidthClassName }) => {
   if (!isOpen) return null;
-  
+
   const modalContent = (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <motion.div
