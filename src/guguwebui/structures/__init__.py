@@ -78,6 +78,16 @@ class PluginInfo(BaseModel):
     plugin_id: str
 
 
+class PimInstallRequest(BaseModel):
+    plugin_id: str
+    version: Optional[str] = None
+    repo_url: Optional[str] = None
+
+
+class PimUninstallRequest(BaseModel):
+    plugin_id: str
+
+
 class ConfigData(BaseModel):
     file_path: str
     config_data: dict

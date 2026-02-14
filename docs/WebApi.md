@@ -1312,6 +1312,33 @@
   - all_messages包含任务执行的完整日志
   - status可能的值：pending（等待中）、running（执行中）、completed（已完成）、failed（失败）
 
+### 获取插件版本列表
+- 端点: `/api/pim/plugin_versions`
+- 方法: GET
+- 参数:
+  - `plugin_id`: 插件ID
+  - `repo_url`: 指定仓库URL（可选）
+- 功能: 获取指定插件的所有可用版本列表
+- 响应: 对象，包含 `versions` 数组，每项包含版本号、下载地址、大小等信息
+
+  ```json
+  {
+    "versions": [
+      {
+        "version": "版本号",
+        "tag_name": "标签名",
+        "created_at": "创建时间",
+        "download_url": "下载地址",
+        "download_count": 下载次数,
+        "size": 文件大小,
+        "description": "版本描述"
+      }
+    ]
+  }
+  ```
+
+- 使用位置: 插件管理页面（更新/安装指定版本）
+
 ## Pip包管理API
 
 ### 获取已安装的Pip包列表

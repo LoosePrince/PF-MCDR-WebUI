@@ -3,7 +3,10 @@
 统一维护跨模块的全局变量，减少循环引用
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+# FastAPI 应用实例，由 web_server.init_app 注入，供 PIM 等模块调度异步任务
+app: Optional[Any] = None
 
 # Web在线玩家心跳（基于 /api/chat/get_new_messages 请求），值为最近心跳Unix秒
 WEB_ONLINE_PLAYERS: Dict[str, int] = {}
