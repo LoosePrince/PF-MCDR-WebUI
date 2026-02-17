@@ -1,5 +1,6 @@
 import logging
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List, Optional
+
 
 class MCDRAdapter:
     @staticmethod

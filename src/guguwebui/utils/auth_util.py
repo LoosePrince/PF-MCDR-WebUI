@@ -1,44 +1,48 @@
-import string
-import secrets
 import datetime
 import json
 import os
+import secrets
+import string
 from pathlib import Path
-from ..utils.constant import user_db, pwd_context
-from .server_util import format_host_for_url
-from mcdreforged.api.all import RText, RColor, RTextList
+
+from mcdreforged.api.rtext import RColor, RText, RTextList
+
+from guguwebui.constant import pwd_context, user_db
+from guguwebui.utils.server_util import format_host_for_url
+
 
 def migrate_old_config():
-    try:
-        plugin_config_dir = Path("./config") / "guguwebui"
-        config_path = plugin_config_dir / "config.json"
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                old_config = json.load(f)
-            need_save = False
-            if "deepseek_api_key" in old_config and old_config["deepseek_api_key"] and not old_config.get("ai_api_key"):
-                old_config["ai_api_key"] = old_config["deepseek_api_key"]
-                need_save = True
-            if "deepseek_model" in old_config and old_config["deepseek_model"] and not old_config.get("ai_model"):
-                old_config["ai_model"] = old_config["deepseek_model"]
-                need_save = True
-            if "deepseek_api_key" in old_config:
-                del old_config["deepseek_api_key"]
-                need_save = True
-            if "deepseek_model" in old_config:
-                del old_config["deepseek_model"]
-                need_save = True
-            if need_save:
-                plugin_config_dir.mkdir(parents=True, exist_ok=True)
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(old_config, f, ensure_ascii=False, indent=4)
-    except Exception: pass
+    plugin_config_dir = Path("./config") / "guguwebui"
+    config_path = plugin_config_dir / "config.json"
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            old_config = json.load(f)
+        need_save = False
+        if "deepseek_api_key" in old_config and old_config["deepseek_api_key"] and not old_config.get("ai_api_key"):
+            old_config["ai_api_key"] = old_config["deepseek_api_key"]
+            need_save = True
+        if "deepseek_model" in old_config and old_config["deepseek_model"] and not old_config.get("ai_model"):
+            old_config["ai_model"] = old_config["deepseek_model"]
+            need_save = True
+        if "deepseek_api_key" in old_config:
+            del old_config["deepseek_api_key"]
+            need_save = True
+        if "deepseek_model" in old_config:
+            del old_config["deepseek_model"]
+            need_save = True
+        if need_save:
+            plugin_config_dir.mkdir(parents=True, exist_ok=True)
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(old_config, f, ensure_ascii=False, indent=4)
+
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def hash_password(plain_password):
     return pwd_context.hash(plain_password)
+
 
 def create_temp_password() -> str:
     characters = string.ascii_uppercase + string.digits
@@ -47,12 +51,14 @@ def create_temp_password() -> str:
     user_db.save()
     return temp_password
 
+
 def create_user_account(user_name: str, password: str) -> bool:
     if user_name not in user_db['user']:
         user_db['user'][user_name] = pwd_context.hash(password)
         user_db.save()
         return True
     return False
+
 
 def change_user_account(user_name: str, old_password: str, new_password: str) -> bool:
     if user_name in user_db['user'] and verify_password(old_password, user_db['user'][user_name]):
@@ -61,12 +67,13 @@ def change_user_account(user_name: str, old_password: str, new_password: str) ->
         return True
     return False
 
+
 def create_account_command(src, ctx, host: str, port: int):
     if hasattr(src, 'player') and src.player is not None:
         error_msg = RText("此命令只能在终端中执行！请在MCDR控制台中使用此命令。", color=RColor.red)
         src.reply(error_msg)
         return
-    
+
     account, password = ctx['account'], ctx['password']
     account = account.replace('<', '').replace('>', '')
     password = password.replace('<', '').replace('>', '')
@@ -85,12 +92,13 @@ def create_account_command(src, ctx, host: str, port: int):
         error_msg = RText("账户已存在！", color=RColor.red)
         src.reply(error_msg)
 
+
 def change_account_command(src, ctx, host: str, port: int):
     if hasattr(src, 'player') and src.player is not None:
         error_msg = RText("此命令只能在终端中执行！请在MCDR控制台中使用此命令。", color=RColor.red)
         src.reply(error_msg)
         return
-    
+
     account = ctx['account']
     old_password, new_password = ctx['old password'], ctx['new password']
     account = account.replace('<', '').replace('>', '')
@@ -111,12 +119,13 @@ def change_account_command(src, ctx, host: str, port: int):
         error_msg = RText("用户不存在 或 密码错误！", color=RColor.red)
         src.reply(error_msg)
 
+
 def get_temp_password_command(src, ctx, host: str, port: int):
     if hasattr(src, 'player') and src.player is not None:
         error_msg = RText("此命令只能在终端中执行！请在MCDR控制台中使用此命令。", color=RColor.red)
         src.reply(error_msg)
         return
-    
+
     temp_password = create_temp_password()
     temp_msg = RTextList(
         RText("临时密码(15分钟后过期): ", color=RColor.yellow),
@@ -126,6 +135,7 @@ def get_temp_password_command(src, ctx, host: str, port: int):
         RText(f"http://{format_host_for_url(host)}:{port}", color=RColor.aqua)
     )
     src.reply(temp_msg)
+
 
 def cleanup_chat_verifications():
     try:
@@ -150,16 +160,17 @@ def cleanup_chat_verifications():
     except Exception:
         pass
 
+
 def verify_chat_code_command(src, ctx):
     code = ctx['code']
     if not hasattr(src, 'player') or src.player is None:
         error_msg = RText("此命令只能由玩家在游戏内使用！", color=RColor.red)
         src.reply(error_msg)
         return
-    
+
     player_id = src.player
     cleanup_chat_verifications()
-    
+
     if code not in user_db['chat_verification']:
         error_msg = RTextList(
             RText("验证码 ", color=RColor.red),
@@ -168,7 +179,7 @@ def verify_chat_code_command(src, ctx):
         )
         src.reply(error_msg)
         return
-    
+
     verification = user_db['chat_verification'][code]
     expire_time = datetime.datetime.fromisoformat(verification['expire_time'].replace('Z', '+00:00'))
     if datetime.datetime.now(datetime.timezone.utc) > expire_time:
@@ -181,7 +192,7 @@ def verify_chat_code_command(src, ctx):
         )
         src.reply(error_msg)
         return
-    
+
     if verification.get('used'):
         error_msg = RTextList(
             RText("验证码 ", color=RColor.red),
@@ -190,7 +201,7 @@ def verify_chat_code_command(src, ctx):
         )
         src.reply(error_msg)
         return
-    
+
     if verification['player_id'] is not None and verification['player_id'] != player_id:
         error_msg = RTextList(
             RText("验证码 ", color=RColor.red),
@@ -201,12 +212,12 @@ def verify_chat_code_command(src, ctx):
         )
         src.reply(error_msg)
         return
-    
+
     verification['player_id'] = player_id
     verification['used'] = True
     verification['verified_time'] = str(datetime.datetime.now(datetime.timezone.utc))
     user_db.save()
-    
+
     success_msg = RTextList(
         RText("验证码 ", color=RColor.green),
         RText(code, color=RColor.yellow),

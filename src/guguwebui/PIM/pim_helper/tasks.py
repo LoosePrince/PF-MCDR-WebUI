@@ -1,7 +1,8 @@
-import time
-import threading
 import logging
-from typing import Dict, Any, List, Optional
+import threading
+import time
+from typing import Any, Dict, Optional
+
 
 class TaskManager:
     """任务管理器"""
@@ -50,13 +51,13 @@ class TaskManager:
             if task_id in cls._all_tasks:
                 task = cls._all_tasks[task_id]
                 task.update(kwargs)
-                
+
                 # 自动处理消息记录
                 if 'message' in kwargs:
                     msg = kwargs['message']
                     if msg not in task['all_messages']:
                         task['all_messages'].append(msg)
-                    
+
                     # 自动识别错误消息
                     if any(x in msg.lower() for x in ['error', 'failed', '失败', '错误', '⚠']):
                         if msg not in task['error_messages']:
@@ -66,7 +67,7 @@ class TaskManager:
     def _cleanup_old_tasks(cls):
         current = time.time()
         # 清理 30 分钟前完成的任务
-        to_remove = [tid for tid, t in cls._all_tasks.items() 
+        to_remove = [tid for tid, t in cls._all_tasks.items()
                      if t['status'] in ('completed', 'failed') and current - t.get('access_time', 0) > 1800]
         for tid in to_remove:
             del cls._all_tasks[tid]

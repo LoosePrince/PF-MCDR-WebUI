@@ -1,3 +1,5 @@
+import { GITHUB_NOTICE_URL } from '../constants'
+
 /**
  * 公告数据：来自 GitHub Release tag "notice"
  * body 为 JSON：{ text, img?, fill? }
@@ -8,8 +10,6 @@ export interface NoticeData {
   img: string | null
   fill: string | null
 }
-
-const GITHUB_NOTICE_URL = 'https://api.github.com/repos/PFingan-Code/PF-MCDR-WebUI/releases/tags/notice'
 
 function isSafeUrl(url: string): boolean {
   return /^https?:\/\//i.test(url)

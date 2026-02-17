@@ -1,72 +1,81 @@
-import os
-import json
-import lzma
-import time
-import logging
 import hashlib
+import json
+import logging
+import lzma
+import os
+import time
+from typing import Dict, List, Optional
+
 import requests
-from typing import List, Dict, Optional, Tuple
-from .models import PluginData, ReleaseData, ExtendedVersionRequirement
+
+from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL
+
+from .models import ExtendedVersionRequirement, PluginData, ReleaseData
+
 
 class EmptyMetaRegistry:
     """空元数据注册表"""
+
     def __init__(self):
         self.plugins = {}
-    
+
     def get_plugin_data(self, plugin_id: str) -> Optional[PluginData]:
         return None
-    
+
     def has_plugin(self, plugin_id: str) -> bool:
         return False
-    
+
     def get_plugins(self) -> Dict[str, PluginData]:
         return {}
 
+
 class MetaRegistry:
     """元数据注册表类"""
+
     def __init__(self, data: Dict = None, source_url: str = None):
         self.data = data or {}
         self.source_url = source_url
         self.plugins = {}
         self.logger = logging.getLogger('PIM.MetaRegistry')
-        
+
         try:
             self._parse_data()
         except Exception as e:
             self.logger.error(f"解析元数据失败: {e}")
-        
+
         plugins_count = len(self.plugins)
         plugin_ids = list(self.plugins.keys())
         source_info = f" from {self.source_url}" if self.source_url else ""
-        self.logger.debug(f"已加载 {plugins_count} 个插件{source_info}: {', '.join(plugin_ids[:5])}{'...' if plugins_count > 5 else ''}")
-    
+        self.logger.debug(
+            f"已加载 {plugins_count} 个插件{source_info}: {', '.join(plugin_ids[:5])}{'...' if plugins_count > 5 else ''}")
+
     def get_registry_data(self) -> Dict:
         """获取元数据注册表的原始数据"""
         return self.data
-    
+
     def _parse_data(self):
         """解析数据为插件数据对象"""
         if not self.data:
             return
-        
+
         self.plugins = {}
-        
+
         if isinstance(self.data, list):
             # 数组格式的简化仓库
             for plugin_info in self.data:
                 if not isinstance(plugin_info, dict) or 'id' not in plugin_info:
                     continue
-                
+
                 plugin_id = plugin_info.get('id')
                 if not plugin_id:
                     continue
-                
+
                 dependencies = {}
                 dependencies_dict = plugin_info.get('dependencies') or {}
                 if isinstance(dependencies_dict, dict):
                     for dep_id, dep_req in dependencies_dict.items():
                         dependencies[dep_id] = ExtendedVersionRequirement(dep_req)
-                
+
                 repos_owner = ""
                 repos_name = ""
                 if plugin_info.get('repository_url') and 'github.com' in plugin_info.get('repository_url'):
@@ -77,7 +86,7 @@ class MetaRegistry:
                             repos_name = parts[1]
                     except:
                         pass
-                
+
                 release = None
                 if plugin_info.get('latest_version'):
                     release = ReleaseData(
@@ -92,7 +101,7 @@ class MetaRegistry:
                         size=0,
                         file_name=f"{plugin_id}.mcdr"
                     )
-                
+
                 plugin_data = PluginData(
                     id=plugin_id,
                     name=plugin_info.get('name', plugin_id),
@@ -113,23 +122,23 @@ class MetaRegistry:
             for plugin_id, plugin_info in self.data['plugins'].items():
                 if not isinstance(plugin_info, dict):
                     continue
-                
+
                 meta = plugin_info.get('meta') or {}
                 release_info = plugin_info.get('release') or {}
-                
+
                 if not isinstance(meta, dict): meta = {}
                 if not isinstance(release_info, dict): release_info = {}
-                
+
                 releases = []
                 releases_list = release_info.get('releases', [])
                 if not isinstance(releases_list, list): releases_list = []
-                
+
                 for rel in releases_list:
                     if not isinstance(rel, dict): continue
-                    
+
                     asset = rel.get('asset') or {}
                     if not isinstance(asset, dict): asset = {}
-                    
+
                     release_data = ReleaseData(
                         name=rel.get('name', ''),
                         tag_name=rel.get('tag_name', ''),
@@ -143,13 +152,13 @@ class MetaRegistry:
                         file_name=asset.get('name', '')
                     )
                     releases.append(release_data)
-                
+
                 dependencies = {}
                 dependencies_dict = meta.get('dependencies', {})
                 if isinstance(dependencies_dict, dict):
                     for dep_id, dep_req in dependencies_dict.items():
                         dependencies[dep_id] = ExtendedVersionRequirement(dep_req)
-                
+
                 plugin_data = PluginData(
                     id=meta.get('id', plugin_id),
                     name=meta.get('name', plugin_id),
@@ -162,21 +171,21 @@ class MetaRegistry:
                     releases=releases
                 )
                 self.plugins[plugin_id] = plugin_data
-    
+
     def get_plugin_data(self, plugin_id: str) -> Optional[PluginData]:
         return self.plugins.get(plugin_id)
-    
+
     def has_plugin(self, plugin_id: str) -> bool:
         return plugin_id in self.plugins
-    
+
     def get_plugins(self) -> Dict[str, PluginData]:
         return self.plugins
-    
+
     def filter_plugins(self, keyword: str = None) -> List[str]:
         result = []
         if not keyword:
             return list(self.plugins.keys())
-        
+
         keyword = keyword.lower()
         for plugin_id, plugin_data in self.plugins.items():
             if keyword in plugin_id.lower():
@@ -190,11 +199,12 @@ class MetaRegistry:
                         break
         return result
 
+
 class RegistryManager:
     """元数据注册表管理器"""
     _download_failure_cache = {}
     _failure_cooldown = 15 * 60  # 15分钟
-    
+
     def __init__(self, server, cache_dir: str):
         self.server = server
         self.cache_dir = cache_dir
@@ -203,16 +213,14 @@ class RegistryManager:
 
     def get_meta(self, url: str, ignore_ttl: bool = False) -> MetaRegistry:
         """获取元数据"""
-        official_url = "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"
-        
-        if url == official_url:
+        if url == MCDR_OFFICIAL_CATALOGUE_URL:
             cache_file = os.path.join(self.cache_dir, "everything_slim.json")
         else:
             cache_name = hashlib.md5(url.encode()).hexdigest()
             cache_file = os.path.join(self.cache_dir, f"repo_{cache_name}.json")
-            
+
         cache_xz_file = cache_file + ".xz"
-        
+
         # 1. 检查失败冷却
         current_time = time.time()
         if url in self._download_failure_cache:
@@ -243,7 +251,7 @@ class RegistryManager:
                 else:
                     with open(cache_file, 'wb') as f:
                         f.write(response.content)
-                
+
                 if url in self._download_failure_cache:
                     del self._download_failure_cache[url]
                 return self._load_from_file(cache_file, url)
@@ -273,34 +281,35 @@ class RegistryManager:
             self._download_failure_cache[url]['failed_at'] = current_time
             self._download_failure_cache[url]['attempt_count'] += 1
 
+
 class PluginCatalogueAccess:
     """插件目录访问实现"""
+
     @staticmethod
     def filter_sort(plugins: List[PluginData], keyword: str = None) -> List[PluginData]:
         if not keyword:
             return list(plugins)
-        
+
         keyword = keyword.lower()
         result = []
         for plugin in plugins:
-            if (keyword in plugin.id.lower() or 
-                keyword in plugin.name.lower() or
-                any(keyword in str(desc).lower() for desc in plugin.description.values())):
+            if (keyword in plugin.id.lower() or
+                    keyword in plugin.name.lower() or
+                    any(keyword in str(desc).lower() for desc in plugin.description.values())):
                 result.append(plugin)
         return result
-    
+
     @staticmethod
     def list_plugin(meta: MetaRegistry, replier, keyword: str = None) -> int:
         plugins = list(meta.get_plugins().values())
         filtered_plugins = PluginCatalogueAccess.filter_sort(plugins, keyword)
-        
+
         if not filtered_plugins:
             replier.reply(f"没有找到包含关键词 '{keyword}' 的插件")
             return 0
-        
+
         replier.reply(f"找到 {len(filtered_plugins)} 个插件:")
         for plugin in filtered_plugins:
             desc = plugin.description.get('zh_cn', plugin.description.get('en_us', '无描述'))
             replier.reply(f"{plugin.id} | {plugin.name} | {plugin.version} | {desc}")
         return len(filtered_plugins)
-

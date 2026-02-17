@@ -1,34 +1,34 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  ArrowUpCircle,
+  CheckCircle2,
+  ChevronRight,
+  Download,
+  FileText,
+  Github,
+  Info,
+  Loader2,
+  Package,
+  Play,
+  Puzzle,
+  RotateCw,
+  Save as SaveIcon,
+  Search,
+  Settings,
+  Shield,
+  Square,
+  Tag,
+  Trash2,
+  X
+} from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Puzzle,
-  Search,
-  RotateCw,
-  Trash2,
-  Settings,
-  AlertTriangle,
-  Tag,
-  ArrowLeft,
-  FileText,
-  Save as SaveIcon,
-  ChevronRight,
-  Info,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  X,
-  Play,
-  Square,
-  Shield,
-  Github,
-  Package,
-  ArrowUpCircle,
-  Download
-} from 'lucide-react';
-import api, { isCancel } from '../utils/api';
 import { VersionSelectModal } from '../components/VersionSelectModal';
+import api, { isCancel } from '../utils/api';
 
 interface PluginDescription {
   [key: string]: string;
@@ -148,8 +148,16 @@ const LocalPlugins: React.FC = () => {
       const pluginsWithRepo = await Promise.all(pluginList.map(async (p: PluginMetadata) => {
         try {
           const repoResp = await api.get(`/pim/plugin_repository?plugin_id=${p.id}`, { signal });
-          if (repoResp.data.success) {
-            return { ...p, repository: repoResp.data.repository };
+          const ok = repoResp.data?.status === 'success' || repoResp.data?.success === true;
+          const repo = repoResp.data?.repository;
+          if (ok && repo) {
+            const nameKey = (typeof repo === 'object' && repo.name_key) ? repo.name_key : 'custom';
+            const name = typeof repo === 'object' && 'name' in repo && repo.name
+              ? repo.name
+              : t(`page.settings.repo.${nameKey}`);
+            const url = typeof repo === 'object' && repo.url ? repo.url : (typeof repo === 'string' ? repo : '');
+            const is_official = typeof repo === 'object' && typeof repo.is_official === 'boolean' ? repo.is_official : false;
+            return { ...p, repository: { name, url, is_official } };
           }
         } catch (e: any) {
           // 忽略取消的请求错误和repo获取错误
@@ -385,14 +393,14 @@ const LocalPlugins: React.FC = () => {
       } else {
         // Force json type to avoid auto-switching to HTML
         const resp = await api.get(`/load_config?path=${encodeURIComponent(file)}&type=json`);
-        
+
         // Validation: If backend still returns HTML structure when JSON is requested, ignore it
         if (resp.data && resp.data.type === 'html') {
-           notify(t('plugins.config_modal.cannot_edit_form'), 'error');
-           setEditorMode('code');
-           return;
+          notify(t('plugins.config_modal.cannot_edit_form'), 'error');
+          setEditorMode('code');
+          return;
         }
-        
+
         setConfigData(resp.data);
         // Fetch translations - explicitly set type=json to avoid HTML return
         try {
@@ -461,7 +469,7 @@ const LocalPlugins: React.FC = () => {
     setLoadingVersions(true);
     setShowVersionModal(true);
     try {
-      const resp = await api.get(`/pim/plugin_versions_v2?plugin_id=${plugin.id}`);
+      const resp = await api.get(`/pim/plugin_versions?plugin_id=${plugin.id}`);
       if (resp.data.success) {
         // 映射后端字段到前端字段，并格式化日期
         const versions = (resp.data.versions || []).map((v: any) => ({
@@ -729,9 +737,9 @@ const LocalPlugins: React.FC = () => {
                 ) : (
                   <div className="flex-1 p-6 overflow-y-auto max-h-[500px] custom-scrollbar">
                     {configData ? (
-                      <ConfigForm 
-                        data={configData} 
-                        onChange={setConfigData} 
+                      <ConfigForm
+                        data={configData}
+                        onChange={setConfigData}
                         translations={configTranslations}
                         lang={i18n.language}
                       />
@@ -1045,7 +1053,7 @@ const PluginCard: React.FC<{
 
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; fullWidth?: boolean }> = ({ isOpen, onClose, title, children, fullWidth = false }) => {
   if (!isOpen) return null;
-  
+
   const modalContent = (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ margin: 0 }}>
       <motion.div
@@ -1076,9 +1084,9 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
   return createPortal(modalContent, document.body);
 };
 
-const ConfigForm: React.FC<{ 
-  data: any; 
-  onChange: (data: any) => void; 
+const ConfigForm: React.FC<{
+  data: any;
+  onChange: (data: any) => void;
   translations?: any;
   parentPath?: string;
   lang: string;
@@ -1091,21 +1099,21 @@ const ConfigForm: React.FC<{
 
     const currentLang = lang; // e.g. "zh-CN"
     const currentLangAlt = lang.replace('-', '_').toLowerCase(); // e.g. "zh_cn"
-    
+
     const transMap = translations.translations || {};
     // Try multiple lang key variations
-    const langPick = transMap[currentLang] || 
-                    transMap[currentLangAlt] || 
-                    transMap['zh-CN'] || 
-                    transMap['zh_cn'] || 
-                    transMap['en-US'] || 
-                    transMap['en_us'] || 
-                    Object.values(transMap)[0] || {};
-    
+    const langPick = transMap[currentLang] ||
+      transMap[currentLangAlt] ||
+      transMap['zh-CN'] ||
+      transMap['zh_cn'] ||
+      transMap['en-US'] ||
+      transMap['en_us'] ||
+      Object.values(transMap)[0] || {};
+
     // Split key path
     const parts = (parentPath ? `${parentPath}.${key}` : key).split('.').filter(Boolean);
     let cursor = langPick;
-    
+
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       if (cursor && cursor[part]) {
@@ -1120,7 +1128,7 @@ const ConfigForm: React.FC<{
         break;
       }
     }
-    
+
     return { name: key, desc: '' };
   };
 
@@ -1132,7 +1140,7 @@ const ConfigForm: React.FC<{
     <div className="space-y-4">
       {Object.entries(data).map(([key, value]: [string, any]) => {
         const { name, desc } = getTranslation(key);
-        
+
         if (typeof value === 'boolean') {
           return (
             <div key={key} className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
@@ -1169,9 +1177,9 @@ const ConfigForm: React.FC<{
               <label className="text-xs font-bold text-slate-500 uppercase ml-1">{name}</label>
               {desc && <p className="text-[10px] text-slate-400 ml-1">{desc}</p>}
               <div className="pl-4 border-l-2 border-slate-100 dark:border-slate-800 ml-1">
-                <ConfigForm 
-                  data={value} 
-                  onChange={(v) => handleChange(key, v)} 
+                <ConfigForm
+                  data={value}
+                  onChange={(v) => handleChange(key, v)}
                   translations={translations}
                   parentPath={parentPath ? `${parentPath}.${key}` : key}
                   lang={lang}

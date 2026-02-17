@@ -1,85 +1,53 @@
-import datetime
-import javaproperties
-import secrets
-import aiohttp
 import asyncio
-import requests
-import os
+import datetime
 import json
-import lzma
-import time
-import io
-import importlib
-import uuid
 import logging
-import inspect
-import subprocess
-import sys
-from typing import Dict, List, Any, Optional, Union, Tuple
-from packaging.version import parse as parse_version
-
 from pathlib import Path
+from typing import Optional
 
-from fastapi import Depends, FastAPI, Form, Request, status, HTTPException, Body
+from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.responses import (
+    FileResponse,
     HTMLResponse,
-    RedirectResponse,
     JSONResponse,
     PlainTextResponse,
-    FileResponse,
+    RedirectResponse,
 )
-from ruamel.yaml.comments import CommentedSeq
+from mcdreforged.api.event import MCDRPluginEvents
+from mcdreforged.api.types import PluginServerInterface
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
-from .utils.log_watcher import LogWatcher
-from .utils.PIM import PluginInstaller, create_installer, initialize_pim
-from .state import pip_tasks, WEB_ONLINE_PLAYERS, RCON_ONLINE_CACHE, REGISTERED_PLUGIN_PAGES
-
-from .utils.constant import *
-from .utils.server_util import *
-from .utils.table import yaml
-from .utils.auth_util import verify_password, migrate_old_config
-from .utils.mc_util import get_java_server_info, get_plugin_version, load_plugin_info, get_plugins_info
-from .utils.file_util import amount_static_files
-
-from .services.auth_service import AuthService
-from .services.plugin_service import PluginService
-from .services.config_service import ConfigService
-from .services.server_service import ServerService
-
-from mcdreforged.api.all import MCDRPluginEvents, PluginServerInterface
-
-# 导入聊天API模块和全局变量
-from .api.chat import (
-    generate_chat_verification_code, check_chat_verification_status,
-    set_chat_user_password, chat_user_login, check_chat_session,
-    chat_user_logout, get_chat_messages_handler, get_new_chat_messages_handler,
-    clear_chat_messages_handler, send_chat_message_handler,
-    WEB_ONLINE_PLAYERS, RCON_ONLINE_CACHE,
-    on_player_joined, on_player_left
+from guguwebui.constant import *
+from guguwebui.dependencies.auth import get_current_admin, get_current_user
+from guguwebui.PIM import initialize_pim
+from guguwebui.services.ai_service import AIService
+from guguwebui.services.auth_service import AuthService
+from guguwebui.services.chat_service import ChatService
+from guguwebui.services.config_service import ConfigService
+from guguwebui.services.file_service import FileService
+from guguwebui.services.pip_service import PipService
+from guguwebui.services.plugin_service import PluginService
+from guguwebui.services.server_service import ServerService
+from guguwebui.state import RCON_ONLINE_CACHE, REGISTERED_PLUGIN_PAGES, pip_tasks
+from guguwebui.structures import (
+    BusinessException,
+    ConfigData,
+    DeepseekQuery,
+    PimInstallRequest,
+    PimUninstallRequest,
+    PipPackageRequest,
+    PluginInfo,
+    SaveConfig,
+    SaveContent,
+    ServerControl,
+    ToggleConfig,
 )
-
-# 导入插件API模块
-from .api.plugins import (
-    install_plugin, update_plugin, uninstall_plugin,
-    task_status, get_plugin_versions_v2, get_plugin_repository,
-    check_pim_status, install_pim_plugin, toggle_plugin,
-    reload_plugin, get_online_plugins, self_update, get_self_update_info
-)
-
-# 导入配置API模块
-from .api.config import (
-    list_config_files, get_web_config, save_web_config,
-    load_config, save_config, setup_rcon_config
-)
-
-# 导入服务器API模块
-from .api.server import (
-    get_server_status, control_server, get_server_logs,
-    get_new_logs, get_command_suggestions, send_command, get_rcon_status
-)
+from guguwebui.utils.auth_util import migrate_old_config
+from guguwebui.utils.log_watcher import LogWatcher
+from guguwebui.utils.mc_util import get_plugin_version
+from guguwebui.utils.server_util import *
 
 # 获取插件真实版本号
 app = FastAPI(
@@ -88,50 +56,47 @@ app = FastAPI(
     version=get_plugin_version(),
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
 )
 
 # 导出 get_plugins_info 供 __init__.py 使用
-__all__ = ['app', 'init_app', 'get_plugins_info', 'log_watcher', 'DEFALUT_CONFIG', 'STATIC_PATH', 'ThreadedUvicorn']
+__all__ = [
+    "app",
+    "init_app",
+    "log_watcher",
+    "DEFALUT_CONFIG",
+    "STATIC_PATH",
+    "ThreadedUvicorn",
+]
 
 # URL路径处理函数已移至 utils.py
 
 # SPA 入口文件路径
 static_index_path = Path(STATIC_PATH) / "static" / "index.html"
 
+
 def serve_spa_index(request: Request) -> HTMLResponse:
     """返回 SPA 的 index.html 文件，并注入配置"""
-    if static_index_path.exists():
-        with open(static_index_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        
-        # 获取当前应用的根路径
-        root_path = request.scope.get("root_path", "")
-        if not root_path.endswith("/"):
-            root_path += "/"
-        
-        # 注入全局变量和 <base> 标签以支持相对路径
-        # root_path 示例: "" -> "/", "/guguwebui" -> "/guguwebui/"
-        config_script = f'<script>window.__GUGU_CONFIG__ = {json.dumps({"root_path": root_path.rstrip("/")})};</script>'
-        base_tag = f'<base href="{root_path}">'
-        content = content.replace('<head>', f'<head>{base_tag}{config_script}')
-        
-        return HTMLResponse(content=content)
-    else:
-        # 如果 index.html 不存在，返回简单的错误页面
+    if not static_index_path.exists():
         return HTMLResponse(
             content="<h1>前端文件未找到</h1><p>请确保已构建前端项目（运行 npm run build）</p>",
-            status_code=404
+            status_code=404,
         )
+    with open(static_index_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    root_path = request.scope.get("root_path", "")
+    if not root_path.endswith("/"):
+        root_path += "/"
+    config_script = f'<script>window.__GUGU_CONFIG__ = {json.dumps({"root_path": root_path.rstrip("/")})};</script>'
+    content = content.replace(
+        "<head>", f'<head><base href="{root_path}">{config_script}'
+    )
+    return HTMLResponse(content=content)
+
 
 # 全局LogWatcher实例
 log_watcher = LogWatcher()
 
-# 全局服务实例
-auth_service: AuthService = None
-plugin_service: PluginService = None
-config_service: ConfigService = None
-server_service: ServerService = None
 
 # 尝试迁移旧配置
 migrate_old_config()
@@ -140,22 +105,22 @@ migrate_old_config()
 # 初始化函数，在应用程序启动时调用
 def init_app(server_instance):
     """初始化应用程序，注册事件监听器"""
-    global log_watcher, auth_service, plugin_service, config_service, server_service
-    
+    global log_watcher
+
+    # 注入 FastAPI app 到 state，供 PIM installer 等模块调度异步任务
+    import guguwebui.state as state_module
+    state_module.app = app
+
     # 存储服务器接口
     app.state.server_interface = server_instance
-    
+
     # 初始化自更新信息
     app.state.self_update_info = {"available": False}
-    
-    # 初始化服务
-    auth_service = AuthService(server_instance)
-    config_service = ConfigService(server_instance)
-    server_service = ServerService(server_instance, log_watcher)
-    
+
     # 确保user_db包含所有必要的键
     try:
-        from .utils.constant import user_db, DEFALUT_DB
+        from guguwebui.constant import DEFALUT_DB, user_db
+
         # 检查并添加缺失的键
         for key in DEFALUT_DB:
             if key not in user_db:
@@ -165,26 +130,39 @@ def init_app(server_instance):
         server_instance.logger.debug("数据库结构已更新")
     except Exception as e:
         server_instance.logger.error(f"更新数据库结构时出错: {e}")
-    
+
     # 清理现有监听器，避免重复注册
     if log_watcher:
         log_watcher.stop()
-    
+
     # 初始化LogWatcher实例，将 server_instance 传递给它
     log_watcher = LogWatcher(server_interface=server_instance)
-    
+
     # 设置日志捕获 - 直接调用此方法确保与MCDR内部日志系统连接
     log_watcher._setup_log_capture()
-    
+
     # 注册MCDR事件监听器，每种事件只注册一次
-    # 修正：GENERAL_INFO应该映射到on_mcdr_info，处理MCDR和服务器的常规信息
-    # USER_INFO应该映射到on_server_output，处理用户输入的命令
     server_instance.register_event_listener(MCDRPluginEvents.GENERAL_INFO, on_mcdr_info)
-    server_instance.register_event_listener(MCDRPluginEvents.USER_INFO, on_server_output)
+    server_instance.register_event_listener(
+        MCDRPluginEvents.USER_INFO, on_server_output
+    )
     # 注册玩家进出事件，刷新RCON在线缓存
-    server_instance.register_event_listener(MCDRPluginEvents.PLAYER_JOINED, on_player_joined)
-    server_instance.register_event_listener(MCDRPluginEvents.PLAYER_LEFT, on_player_left)
-    
+    server_instance.register_event_listener(
+        MCDRPluginEvents.PLAYER_JOINED, on_player_joined
+    )
+    server_instance.register_event_listener(
+        MCDRPluginEvents.PLAYER_LEFT, on_player_left
+    )
+
+    # 初始化服务
+    app.state.auth_service = AuthService(server_instance)
+    app.state.config_service = ConfigService(server_instance)
+    app.state.server_service = ServerService(server_instance, log_watcher)
+    app.state.ai_service = AIService(server_instance, app.state.config_service)
+    app.state.pip_service = PipService(server_instance)
+    app.state.file_service = FileService(server_instance)
+    app.state.chat_service = ChatService(server_instance, app.state.config_service)
+
     # 初始化PIM模块
     try:
         server_instance.logger.debug("正在初始化内置PIM模块...")
@@ -192,31 +170,60 @@ def init_app(server_instance):
         # 将初始化后的PIM实例存储到app.state中，供API调用
         app.state.pim_helper = pim_helper
         app.state.plugin_installer = plugin_installer
-        
+
         # 初始化插件服务
-        plugin_service = PluginService(server_instance, pim_helper, plugin_installer)
-        
+        app.state.plugin_service = PluginService(
+            server_instance, pim_helper, plugin_installer
+        )
+
+        # 注入服务依赖
+        app.state.auth_service.config_service = app.state.config_service
+        app.state.plugin_service.config_service = app.state.config_service
+        app.state.server_service.config_service = app.state.config_service
+
         if pim_helper and plugin_installer:
             server_instance.logger.info("内置PIM模块初始化成功")
         else:
-            server_instance.logger.warning("内置PIM模块初始化部分失败，某些功能可能不可用")
-            
+            server_instance.logger.warning(
+                "内置PIM模块初始化部分失败，某些功能可能不可用"
+            )
+
         # 在启动时检查插件仓库缓存
         from .utils.file_util import check_repository_cache
+
         check_repository_cache(server_instance)
     except Exception as e:
         server_instance.logger.error(f"内置PIM模块初始化失败: {e}")
-    
+
     server_instance.logger.debug("WebUI日志捕获器已初始化，将直接从MCDR捕获日志")
+
 
 # check_repository_cache 函数已移至 utils.py
 
+
 # 事件处理函数
+def on_player_joined(_server, _player: str, _info=None):
+    """处理玩家加入事件"""
+    try:
+        RCON_ONLINE_CACHE["dirty"] = True
+    except Exception:
+        pass
+
+
+def on_player_left(_server, _player: str):
+    """处理玩家离开事件"""
+    try:
+        RCON_ONLINE_CACHE["dirty"] = True
+    except Exception:
+        pass
+
+
 def on_server_output(server, info):
     """处理服务器输出事件"""
     global log_watcher
     if log_watcher:
         log_watcher.on_server_output(server, info)
+
 
 def on_mcdr_info(server, info):
     """处理MCDR信息事件"""
@@ -229,114 +236,51 @@ def on_mcdr_info(server, info):
         server.logger.warning("LogWatcher 尚未初始化，无法记录日志")
 
 
+# 全局异常处理器
+@app.exception_handler(BusinessException)
+async def business_exception_handler(request: Request, exc: BusinessException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"status": "error", "message": exc.message, "data": exc.data},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    # 如果是 401 或 403 且不是 API 请求，重定向到登录
+    if exc.status_code in [401, 403] and "/api/" not in request.url.path:
+        return RedirectResponse(
+            url=get_redirect_url(request, "/login"), status_code=302
+        )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"status": "error", "message": str(exc.detail)},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    app.state.server_interface.logger.error(f"全局异常: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500, content={"status": "error", "message": "服务器内部错误"}
+    )
+
+
 # 语言列表 API：返回 /lang 目录下的 json 文件及其显示名称
 @app.get("/api/langs")
-def get_languages():
-    try:
-        lang_dir = Path(STATIC_PATH) / "lang"
-        if not lang_dir.exists():
-            return JSONResponse([], status_code=200)
+def get_languages(request: Request):
+    return JSONResponse(
+        request.app.state.plugin_service.get_languages(), status_code=200
+    )
 
-        # 常见语言的默认显示名映射
-        default_names = {
-            "zh-CN": "中文",
-            "zh-TW": "繁體中文",
-            "en-US": "English",
-            "ja-JP": "日本語",
-            "ko-KR": "한국어",
-            "ru-RU": "Русский",
-            "fr-FR": "Français",
-            "de-DE": "Deutsch",
-            "es-ES": "Español",
-            "pt-BR": "Português (Brasil)",
-            "vi-VN": "Tiếng Việt",
-            "tr-TR": "Türkçe",
-            "ar-SA": "العربية",
-            "it-IT": "Italiano",
-            "pl-PL": "Polski",
-            "uk-UA": "Українська",
-            "id-ID": "Bahasa Indonesia",
-            "th-TH": "ไทย",
-            "hi-IN": "हिन्दी"
-        }
-
-        langs = []
-        for file in sorted(lang_dir.glob("*.json")):
-            code = file.stem
-            name = default_names.get(code, code)
-            # 如果文件里包含更友好的显示名，优先使用
-            try:
-                with open(file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    meta = data.get("meta") or {}
-                    if isinstance(meta, dict):
-                        display = meta.get("name")
-                        if isinstance(display, str) and display.strip():
-                            name = display.strip()
-            except Exception:
-                pass
-            langs.append({"code": code, "name": name})
-        return JSONResponse(langs, status_code=200)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
 
 # ============================================================#
 #
 # 认证与页面路由
 
 
-def _clear_login_state(request: Request, response):
-    """
-    清理会话与 token：
-    - 清空 session
-    - 从 user_db 中移除当前 token
-    - 删除常见路径下的 token cookie（独立模式与挂载模式）
-    """
-    # 清理 session
-    request.session["logged_in"] = False
-    request.session.clear()
-
-    # 计算根路径，用于 cookie path
-    root_path = request.scope.get("root_path", "")
-    cookie_path = root_path if root_path else "/"
-
-    # 从 user_db 中移除 token，确保后端登录状态真正失效
-    token = request.cookies.get("token")
-    try:
-        if token and token in user_db.get("token", {}):
-            del user_db["token"][token]
-            user_db.save()
-    except Exception:
-        # 不因清理失败中断整个登出流程
-        pass
-
-    # 删除 token cookie（当前路径）
-    response.set_cookie(
-        "token",
-        value="",
-        path=cookie_path if cookie_path else "/",
-        expires=0,
-        max_age=0,
-        httponly=True,
-        samesite="lax",
-    )
-
-    # 额外尝试清除常见路径，兼容不同挂载/反向代理场景
-    for p in ["/", "/guguwebui", "/guguwebui/"]:
-        response.set_cookie(
-            "token",
-            value="",
-            path=p,
-            expires=0,
-            max_age=0,
-            httponly=True,
-            samesite="lax",
-        )
-
-    return response
-
-
-# redirect to login
+# redirect to log in
 @app.get("/", name="root")
 def read_root(request: Request):
     return RedirectResponse(url=get_redirect_url(request, "/login"))
@@ -345,50 +289,12 @@ def read_root(request: Request):
 # login page - 使用 React SPA
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    # token is valid
-    token = request.cookies.get("token")
-    server:PluginServerInterface = app.state.server_interface
-    server_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
-
-    disable_other_admin = server_config.get("disable_other_admin", False)
-    super_admin_account = server_config.get("super_admin_account")
-
-    def login_admin_check(account, disable_other_admin, super_admin_account):
-        if disable_other_admin and account != super_admin_account:
-            return False
-        return True
-
-    if (
-        token
-        and user_db["token"].get(token)
-        and user_db["token"][token]["expire_time"]
-        > str(datetime.datetime.now(datetime.timezone.utc))
-        and login_admin_check(user_db["token"][token]["user_name"], disable_other_admin, super_admin_account)
-    ):
-        request.session["logged_in"] = True
-        request.session["token"] = token
-        request.session["username"] = user_db["token"][token]["user_name"]
-        
-        return RedirectResponse(url=get_redirect_url(request, "/index"), status_code=status.HTTP_302_FOUND)
-
-    # no token / expired token - 返回 SPA index.html
-    response = serve_spa_index(request)
-    if token:
-        if token in user_db["token"]:
-            del user_db["token"][token]
-            user_db.save()
-        
-        # 删除过期token的cookie，确保在不同模式下都能正确删除
-        root_path = request.scope.get("root_path", "")
-        if root_path:
-            # fastapi_mcdr模式下，删除cookie时需要指定正确的路径
-            response.delete_cookie("token", path=root_path)
-            # 同时尝试删除根路径的cookie，确保完全清除
-            response.delete_cookie("token", path="/")
-        else:
-            # 独立模式下，删除根路径的cookie
-            response.delete_cookie("token", path="/")
-    return response
+    auth_service: AuthService = request.app.state.auth_service
+    if await auth_service.check_session_valid(request):
+        return RedirectResponse(
+            url=get_redirect_url(request, "/index"), status_code=status.HTTP_302_FOUND
+        )
+    return serve_spa_index(request)
 
 
 # login request
@@ -400,31 +306,27 @@ async def login(
     temp_code: str = Form(""),
     remember: bool = Form(False),
 ):
-    global auth_service
-    return await auth_service.login(request, account, password, temp_code, remember)
+    return await request.app.state.auth_service.login(
+        request, account, password, temp_code, remember
+    )
 
 
 # logout Endpoints
 @app.get("/logout", response_class=RedirectResponse)
-def logout(request: Request):
-    """
-    页面级登出：用于浏览器直接访问 /logout，完成登出并重定向到登录页。
-    """
-    # 计算重定向地址（根路径由 get_redirect_url 处理）
-    redirect_url = get_redirect_url(request, "/login")
-    response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
-    return _clear_login_state(request, response)
+async def logout(request: Request):
+    """页面级登出"""
+    response = RedirectResponse(
+        url=get_redirect_url(request, "/login"), status_code=status.HTTP_302_FOUND
+    )
+    return await request.app.state.auth_service.logout(request, response)
 
 
 @app.post("/api/logout")
 async def api_logout(request: Request):
-    """
-    API 形式的登出：
-    - 用于前端通过 /api/logout 主动注销
-    - 在独立模式与挂载模式下均正确清理 session 与 token
-    """
-    response = JSONResponse({"status": "success", "message": "Logged out"})
-    return _clear_login_state(request, response)
+    """API 形式的登出"""
+    return await request.app.state.auth_service.logout(
+        request, JSONResponse({"status": "success", "message": "Logged out"})
+    )
 
 
 class SessionTokenSyncMiddleware(BaseHTTPMiddleware):
@@ -439,110 +341,81 @@ class SessionTokenSyncMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SessionTokenSyncMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+
+
 # ============================================================#
 # Pages - 使用 React SPA
 @app.get("/index", response_class=HTMLResponse)
-async def read_index(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
+async def read_index(request: Request, user: dict = Depends(get_current_user)):
     return serve_spa_index(request)
 
 
 @app.get("/home", response_class=HTMLResponse)
-async def read_home(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
+async def read_home(request: Request, user: dict = Depends(get_current_user)):
     return serve_spa_index(request)
 
 
 @app.get("/mc", response_class=HTMLResponse)
-async def mc(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
+async def mc(request: Request, admin: dict = Depends(get_current_admin)):
     return serve_spa_index(request)
 
 
 @app.get("/mcdr", response_class=HTMLResponse)
-async def mcdr(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
+async def mcdr(request: Request, admin: dict = Depends(get_current_admin)):
     return serve_spa_index(request)
 
 
 @app.get("/plugins", response_class=HTMLResponse)
-async def plugins(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
+async def plugins(request: Request, admin: dict = Depends(get_current_admin)):
     return serve_spa_index(request)
 
 
 @app.get("/online-plugins", response_class=HTMLResponse)
-async def online_plugins(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
+async def online_plugins(request: Request, admin: dict = Depends(get_current_admin)):
     return serve_spa_index(request)
 
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
+async def settings(request: Request, admin: dict = Depends(get_current_admin)):
     return serve_spa_index(request)
 
 
 @app.get("/about", response_class=HTMLResponse)
-async def about(request: Request, token_valid: bool = Depends(verify_token)):
-    if not request.session.get("logged_in"):
-        return RedirectResponse(url=get_redirect_url(request, "/login"))
+async def about(request: Request, user: dict = Depends(get_current_user)):
     return serve_spa_index(request)
+
 
 # 公开聊天页 - 使用 React SPA
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request):
-    try:
-        # 检查是否启用公开聊天页
-        server:PluginServerInterface = app.state.server_interface
-        server_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
-        
-        if not server_config.get("public_chat_enabled", False):
-            return serve_spa_index(request)  # 返回 SPA，由前端处理 404
-        
-        return serve_spa_index(request)
-    except Exception as e:
-        server:PluginServerInterface = app.state.server_interface
-        if server:
-            server.logger.error(f"聊天页加载失败: {e}")
-        return serve_spa_index(request)
+    server_service: ServerService = request.app.state.server_service
+    if not server_service.is_public_chat_enabled():
+        return serve_spa_index(request)  # 返回 SPA，由前端处理 404
+    return serve_spa_index(request)
+
 
 # 玩家聊天页 - 独立页面，使用 React SPA
 @app.get("/player-chat", response_class=HTMLResponse)
 async def player_chat_page(request: Request):
-    try:
-        # 检查是否启用公开聊天页
-        server:PluginServerInterface = app.state.server_interface
-        server_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
-        
-        if not server_config.get("public_chat_enabled", False):
-            return serve_spa_index(request)  # 返回 SPA，由前端处理 404
-        
-        return serve_spa_index(request)
-    except Exception as e:
-        server:PluginServerInterface = app.state.server_interface
-        if server:
-            server.logger.error(f"玩家聊天页加载失败: {e}")
-        return serve_spa_index(request)
+    server_service: ServerService = request.app.state.server_service
+    if not server_service.is_public_chat_enabled():
+        return serve_spa_index(request)  # 返回 SPA，由前端处理 404
+    return serve_spa_index(request)
+
 
 # 404 page - 返回 SPA index.html，由前端处理 404
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc: StarletteHTTPException):
-    # 如果是 API 请求，返回 JSON 错误
     if request.url.path.startswith("/api/"):
-        return JSONResponse({"status": "error", "message": "API endpoint not found"}, status_code=404)
-    # 如果是静态资源请求，返回 404（不应该被拦截，但如果被拦截了，也要返回正确的 404）
+        return JSONResponse(
+            {"status": "error", "message": "API endpoint not found"}, status_code=404
+        )
     if request.url.path.startswith("/static/"):
-        return JSONResponse({"status": "error", "message": "Static file not found"}, status_code=404)
-    # 否则返回 SPA index.html（用于客户端路由）
+        return JSONResponse(
+            {"status": "error", "message": "Static file not found"}, status_code=404
+        )
     return serve_spa_index(request)
+
 
 @app.exception_handler(ConnectionResetError)
 async def connection_reset_handler(request: Request, exc: ConnectionResetError):
@@ -550,933 +423,607 @@ async def connection_reset_handler(request: Request, exc: ConnectionResetError):
     app.state.server_interface.logger.warning(f"连接重置错误: {str(exc)}")
     return JSONResponse(
         status_code=500,
-        content={"status": "error", "message": "连接被重置，请刷新页面重试"}
+        content={"status": "error", "message": "连接被重置，请刷新页面重试"},
     )
+
+
+@app.exception_handler(BusinessException)
+async def business_exception_handler(request: Request, exc: BusinessException):
+    """处理业务异常"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"status": "error", "message": exc.message, "data": exc.data},
+    )
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    # 记录所有未处理的异常
-    error_message = f"未处理的异常: {str(exc)}"
-    
-    # 尝试获取服务器接口记录日志
-    try:
-        if hasattr(app.state, "server_interface"):
-            app.state.server_interface.logger.error(f"{error_message}")
-        else:
-            logging.getLogger(__name__).error(error_message)
-    except Exception:
-        logging.getLogger(__name__).error(error_message)
-    
-    # 返回友好的错误消息
+    error_msg = f"未处理的异常: {str(exc)}"
+    logger = getattr(app.state.server_interface, "logger", logging.getLogger(__name__))
+    logger.error(error_msg, exc_info=True)
     return JSONResponse(
-        status_code=500,
-        content={"status": "error", "message": "服务器内部错误，请稍后再试"}
+        status_code=500, content={"status": "error", "message": "服务器内部错误"}
     )
+
 
 # ============================================================#
 
+
 @app.get("/api/checkLogin")
-async def check_login_status(request: Request):
-    # 与 db 保持一致：若 cookie 中有 token 但 token 已不在 user_db（如 db.json 被清空），则视为未登录
-    token = request.cookies.get("token")
-    if token and token not in user_db.get("token", {}):
-        request.session.clear()
-        return JSONResponse({"status": "error", "message": "User not logged in"})
-    if request.session.get("logged_in"):
-        username = request.session.get("username", "tempuser")
-        return JSONResponse({"status": "success", "username": username})
-    return JSONResponse({"status": "error", "message": "User not logged in"})
+async def check_login_status(request: Request, user: dict = Depends(get_current_user)):
+    return JSONResponse({"status": "success", "username": user.get("username")})
 
 
 # Return plugins' metadata
 @app.get("/api/plugins")
-async def get_plugins(request: Request, plugin_id: str = None):
-    plugins = get_plugins_info(app.state.server_interface)
-
-    # 如果指定了 plugin_id，则只返回对应插件（如果存在）
+async def get_plugins(
+    request: Request, plugin_id: str = None, user: dict = Depends(get_current_user)
+):
+    plugins = request.app.state.plugin_service.get_plugins_list()
     if plugin_id:
         plugins = [p for p in plugins if p.get("id") == plugin_id]
+    return JSONResponse(content={"status": "success", "plugins": plugins})
 
-    if not request.session.get("logged_in"):
-        # 未登录时仅返回 guguwebui 插件信息
-        guguwebui_plugin = next((p for p in plugins if p.get("id") == "guguwebui"), None)
-        if guguwebui_plugin:
-            return JSONResponse(
-                content={"plugins": [guguwebui_plugin]}
-            )
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
 
-    return JSONResponse(
-        content={"plugins": plugins}
-    )
-
-# 从 everything_slim.json 获取在线插件列表，免登录
+# 从 everything_slim.json 获取在线插件列表
 @app.get("/api/online-plugins")
-async def api_get_online_plugins(request: Request, repo_url: str = None):
-    """获取在线插件列表（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    pim_helper = getattr(app.state, "pim_helper", None)
-    return await get_online_plugins(request, repo_url, server, pim_helper)
+async def api_get_online_plugins(
+    request: Request, repo_url: str = None, admin: dict = Depends(get_current_admin)
+):
+    """获取在线插件列表"""
+    plugins_list = await request.app.state.plugin_service.get_online_plugins(repo_url)
+    return JSONResponse(plugins_list)
 
 
 # Loading/Unloading pluging
 @app.post("/api/toggle_plugin")
-async def api_toggle_plugin(request: Request, request_body: toggleconfig):
-    """切换插件状态（加载/卸载）（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    return await toggle_plugin(request, request_body, server)
+async def api_toggle_plugin(
+    request: Request,
+    request_body: ToggleConfig,
+    admin: dict = Depends(get_current_admin),
+):
+    """切换插件状态（加载/卸载）"""
+    return JSONResponse(
+        request.app.state.plugin_service.toggle_plugin(
+            request_body.plugin_id, request_body.status
+        )
+    )
 
 
 # Reload Plugin
 @app.post("/api/reload_plugin")
-async def api_reload_plugin(request: Request, plugin_info: plugin_info):
-    """重载插件（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    return await reload_plugin(request, plugin_info, server)   
+async def api_reload_plugin(
+    request: Request, plugin_info: PluginInfo, admin: dict = Depends(get_current_admin)
+):
+    """重载插件"""
+    return JSONResponse(
+        request.app.state.plugin_service.reload_plugin(plugin_info.plugin_id)
+    )
 
-# List all config files for a plugin
+
 @app.get("/api/list_config_files")
-async def api_list_config_files(request: Request, plugin_id:str):
-    """列出插件的配置文件（函数已迁移至 api/config.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    return await list_config_files(request, plugin_id)
+async def api_list_config_files(
+    request: Request, plugin_id: str, user: dict = Depends(get_current_user)
+):
+    """列出插件的配置文件"""
+    files_list = request.app.state.config_service.list_config_files(plugin_id)
+    return JSONResponse({"status": "success", "files": files_list})
 
 
 @app.get("/api/config/icp-records")
 async def api_get_icp_records(request: Request):
     """获取ICP备案信息"""
-    try:
-        server = app.state.server_interface
-        plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
-        icp_records = plugin_config.get('icp_records', [])
-
-        return JSONResponse({
-            "status": "success",
-            "icp_records": icp_records
-        })
-    except Exception as e:
-        server.logger.error(f"获取ICP备案信息失败: {e}")
-        return JSONResponse({
-            "status": "error",
-            "message": "获取ICP备案信息失败"
-        }, status_code=500)
+    state = request.app.state
+    return JSONResponse(state.file_service.get_icp_records(state.config_service))
 
 
 @app.get("/api/get_web_config")
-async def api_get_web_config(request: Request):
-    """获取Web配置（函数已迁移至 api/config.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    return await get_web_config(request, server)
+async def api_get_web_config(request: Request, user: dict = Depends(get_current_user)):
+    """获取Web配置"""
+    return JSONResponse(await request.app.state.config_service.get_web_config())
 
 
 @app.post("/api/save_web_config")
-async def api_save_web_config(request: Request, config: saveconfig):
-    """保存Web配置（函数已迁移至 api/config.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    return await save_web_config(request, config, server)
+async def api_save_web_config(
+    request: Request, config: SaveConfig, admin: dict = Depends(get_current_admin)
+):
+    """保存Web配置"""
+    return JSONResponse(request.app.state.config_service.save_web_config(config))
 
 
 @app.get("/api/load_config")
-async def api_load_config(request: Request, path:str, translation:bool = False, type:str = "auto"):
-    """加载配置文件（函数已迁移至 api/config.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    return await load_config(request, path, translation, type, server)
+async def api_load_config(
+    request: Request,
+    path: str,
+    translation: bool = False,
+    type: str = "auto",
+    user: dict = Depends(get_current_user),
+):
+    """加载配置文件"""
+    return JSONResponse(
+        request.app.state.config_service.load_config(path, translation, type)
+    )
 
 
 @app.post("/api/save_config")
-async def api_save_config(request: Request, config_data: config_data):
-    """保存配置文件（函数已迁移至 api/config.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    return await save_config(request, config_data, server)
+async def api_save_config(
+    request: Request, config_data: ConfigData, admin: dict = Depends(get_current_admin)
+):
+    """保存配置文件"""
+    config_service: ConfigService = request.app.state.config_service
+    return JSONResponse(
+        config_service.save_config(config_data.file_path, config_data.config_data)
+    )
 
 
 @app.post("/api/setup_rcon")
-async def api_setup_rcon(request: Request):
+async def api_setup_rcon(request: Request, admin: dict = Depends(get_current_admin)):
     """一键启用RCON配置"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    return await setup_rcon_config(request, server)
+    return JSONResponse(request.app.state.config_service.setup_rcon())
 
 
 # load overall.js / overall.css
-@app.get("/api/load_file", response_class=PlainTextResponse)
-async def load_file(request: Request, file: str):
-    if not request.session.get("logged_in"):
-        return JSONResponse({"status": "error", "message": "User not logged in"}, status_code=401)
-    file_path = CSS_FILE if file == "css" else JS_FILE
-    try:
-        with open(file_path, "r", encoding="utf-8") as file:
-            return file.read()
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"{file} file not found")
+@app.get("/api/load_file")
+async def load_file(
+    request: Request, file: str, user: dict = Depends(get_current_user)
+):
+    return PlainTextResponse(request.app.state.file_service.load_custom_file(file))
 
 
 # save overall.js / overall.css
 @app.post("/api/save_file")
-async def save_css(request: Request, data: SaveContent):
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    file_path = CSS_FILE if data.action == "css" else JS_FILE
-    with open(file_path, "w", encoding="utf-8") as file:
-        file.write(data.content)
-    return {"status": "success", "message": f"{data.action} saved successfully"}
+async def save_file(
+    request: Request, data: SaveContent, admin: dict = Depends(get_current_admin)
+):
+    file_service: FileService = request.app.state.file_service
+    return JSONResponse(file_service.save_custom_file(data.action, data.content))
 
 
 # load config file
-@app.get("/api/load_config_file", response_class=PlainTextResponse)
-async def load_config_file(request: Request, path: str):
-    if not request.session.get("logged_in"):
-        return JSONResponse({"status": "error", "message": "User not logged in"}, status_code=401)
-    try:
-        with open(path, "r", encoding="utf-8") as file:
-            return file.read()
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"{file} file not found")
+@app.get("/api/load_config_file")
+async def load_config_file(
+    request: Request, path: str, user: dict = Depends(get_current_user)
+):
+    config_service: ConfigService = request.app.state.config_service
+    return PlainTextResponse(config_service.load_config_file_raw(path))
+
 
 # save config file
 @app.post("/api/save_config_file")
-async def save_config_file(request: Request, data: SaveContent):
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    path = data.action
-    if path == "config\\guguwebui\\config.json":
-        return JSONResponse({"status": "error", "message": "无法在此处修改guguwebui配置文件"})
-    with open(path, "w", encoding="utf-8") as file:
-        file.write(data.content)
-    return {"status": "success", "message": f"{data.action} saved successfully"}
+async def save_config_file(
+    request: Request, data: SaveContent, admin: dict = Depends(get_current_admin)
+):
+    config_service: ConfigService = request.app.state.config_service
+    return JSONResponse(config_service.save_config_file_raw(data.action, data.content))
+
 
 # read MC server status
 @app.get("/api/get_server_status")
-async def api_get_server_status(request: Request):
-    """获取服务器状态（函数已迁移至 api/server.py）"""
-    server = app.state.server_interface
-    return await get_server_status(request, server)
+async def api_get_server_status(
+    request: Request, user: dict = Depends(get_current_user)
+):
+    """获取服务器状态"""
+    return JSONResponse(
+        {
+            "status": "success",
+            **await request.app.state.server_service.get_server_status(),
+        }
+    )
+
 
 # 控制Minecraft服务器
 @app.post("/api/control_server")
-async def api_control_server(request: Request, control_info: server_control):
-    """控制Minecraft服务器（函数已迁移至 api/server.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    return await control_server(request, control_info, server)
+async def api_control_server(
+    request: Request,
+    control_info: ServerControl,
+    admin: dict = Depends(get_current_admin),
+):
+    """控制Minecraft服务器"""
+    server_service: ServerService = request.app.state.server_service
+    result = server_service.control_server(control_info.action)
+    status_code = 200 if result.get("status") == "success" else 400
+    return JSONResponse(result, status_code=status_code)
 
-# 获取服务器日志
+
 @app.get("/api/server_logs")
-async def api_get_server_logs(request: Request, start_line: int = 0, max_lines: int = 100):
-    """获取服务器日志（函数已迁移至 api/server.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    global log_watcher
-    return await get_server_logs(request, start_line, max_lines, server, log_watcher)
+async def api_get_server_logs(
+    request: Request,
+    start_line: int = 0,
+    max_lines: int = 100,
+    user: dict = Depends(get_current_user),
+):
+    """获取服务器日志"""
+    return JSONResponse(
+        {"status": "success", **request.app.state.server_service.get_logs(max_lines)}
+    )
+
 
 # 获取新增日志（基于计数器）
 @app.get("/api/new_logs")
-async def api_get_new_logs(request: Request, last_counter: int = 0, max_lines: int = 100):
-    """获取新增日志（函数已迁移至 api/server.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    global log_watcher
-    return await get_new_logs(request, last_counter, max_lines, server, log_watcher)
+async def api_get_new_logs(
+    request: Request,
+    last_counter: int = 0,
+    max_lines: int = 100,
+    user: dict = Depends(get_current_user),
+):
+    """获取新增日志"""
+    return JSONResponse(
+        {
+            "status": "success",
+            **request.app.state.server_service.get_new_logs(last_counter, max_lines),
+        }
+    )
+
 
 @app.get("/terminal")
-async def terminal_page(request: Request):
-    """提供终端日志页面 - 使用 React SPA
-    
-    Args:
-        request: FastAPI请求对象
-    
-    Returns:
-        FileResponse: SPA index.html
-    """
-    # 检查是否已登录
-    username = request.session.get("username")
-    if not username:
-        return RedirectResponse(url="login?redirect=/terminal")
-    
+async def terminal_page(request: Request, admin: dict = Depends(get_current_admin)):
+    """提供终端日志页面 - 使用 React SPA"""
     return serve_spa_index(request)
+
 
 # 获取命令补全建议
 @app.get("/api/command_suggestions")
-async def api_get_command_suggestions(request: Request, input: str = ""):
-    """获取MCDR命令补全建议（函数已迁移至 api/server.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse({"status": "error", "message": "User not logged in"}, status_code=401)
-    server = app.state.server_interface
-    return await get_command_suggestions(request, input, server)
+async def api_get_command_suggestions(
+    request: Request, input: str = "", user: dict = Depends(get_current_user)
+):
+    """获取MCDR命令补全建议"""
+    suggestions = await request.app.state.server_service.get_command_suggestions(input)
+    return JSONResponse(
+        {"status": "success", "suggestions": suggestions, "input": input}
+    )
+
 
 @app.post("/api/send_command")
-async def api_send_command(request: Request):
-    """发送命令到MCDR终端（函数已迁移至 api/server.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    return await send_command(request, server)
+async def api_send_command(request: Request, admin: dict = Depends(get_current_admin)):
+    """发送命令到MCDR终端"""
+    data = await request.json()
+    server_service: ServerService = request.app.state.server_service
+    result = await server_service.send_command(data.get("command", ""))
+    status_code = (
+        403
+        if result.get("message") == "该命令已被禁止执行"
+        else (200 if result.get("status") == "success" else 400)
+    )
+    return JSONResponse(result, status_code=status_code)
 
-# 获取RCON状态
+
 @app.get("/api/get_rcon_status")
-async def api_get_rcon_status(request: Request):
-    """获取RCON连接状态（函数已迁移至 api/server.py）"""
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "User not logged in"}, status_code=401
-        )
-    server = app.state.server_interface
-    return await get_rcon_status(request, server)
+async def api_get_rcon_status(request: Request, user: dict = Depends(get_current_user)):
+    """获取RCON连接状态"""
+    return JSONResponse(await request.app.state.server_service.get_rcon_status())
+
 
 @app.get("/api/plugins/web_pages")
-async def get_registered_web_pages(request: Request):
+async def get_registered_web_pages(
+    request: Request, user: dict = Depends(get_current_user)
+):
     """获取所有已注册的插件网页列表"""
-    if not request.session.get("logged_in"):
-        return JSONResponse({"status": "error", "message": "User not logged in"}, status_code=401)
-    
-    pages = []
-    for plugin_id, config_path in REGISTERED_PLUGIN_PAGES.items():
-        pages.append({
-            "id": plugin_id,
-            "path": config_path
-        })
-    return JSONResponse({"pages": pages})
+    pages = [{"id": pid, "path": path} for pid, path in REGISTERED_PLUGIN_PAGES.items()]
+    return JSONResponse({"status": "success", "pages": pages})
 
-@app.post("/api/deepseek")
-async def query_deepseek(request: Request, query_data: DeepseekQuery):
-    """
-    向AI API发送问题并获取回答
-    
-    Args:
-        request: FastAPI请求对象
-        query_data: 查询数据，包含问题内容
-    
-    Returns:
-        JSONResponse: AI回答内容
-    """
-    # 检查是否已登录
-    if not request.session.get("logged_in"):
-        return JSONResponse(
-            {"status": "error", "message": "用户未登录"}, status_code=401
-        )
-    
-    try:
-        # 加载配置
-        server = app.state.server_interface
-        config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
-        
-        # 获取API密钥 - 优先使用请求中提供的临时api_key参数(用于验证)
-        api_key = getattr(query_data, "api_key", None) or config.get("ai_api_key", "")
-        if not api_key:
-            return JSONResponse(
-                {"status": "error", "message": "未配置AI API密钥"}, 
-                status_code=400
-            )
-        
-        # 获取模型配置
-        model = query_data.model or config.get("ai_model", "deepseek-chat")
-        
-        # 获取API URL
-        api_url = query_data.api_url or config.get("ai_api_url", "https://api.deepseek.com/chat/completions")
-        
-        # 检查查询内容
-        query = query_data.query.strip()
-        if not query:
-            return JSONResponse(
-                {"status": "error", "message": "查询内容不能为空"}, 
-                status_code=400
-            )
-        
-        # 准备API请求
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
-        }
-        
-        # 构建消息
-        messages = []
-        
-        # 添加系统指令（如果有）
-        if query_data.system_prompt:
-            messages.append({
-                "role": "system",
-                "content": query_data.system_prompt
-            })
-        
-        # 添加用户问题
-        messages.append({
-            "role": "user",
-            "content": query
-        })
-        
-        # 准备请求数据
-        json_data = {
-            "model": model,
-            "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 4000
-        }
-        
-        # 发送请求到AI API
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                api_url,
-                headers=headers,
-                json=json_data
-            ) as response:
-                # 解析响应（有些服务可能返回字符串或非标准结构）
-                try:
-                    result = await response.json(content_type=None)
-                except Exception:
-                    # 回退到纯文本
-                    text_body = await response.text()
-                    result = {"raw": text_body}
-                
-                # 统一判断类型，避免对 str / list 调用 .get
-                is_dict = isinstance(result, dict)
-                
-                if response.status != 200:
-                    if is_dict:
-                        error_msg = (
-                            result.get("error", {}).get("message")
-                            or result.get("message")
-                            or str(result)
-                        )
-                    else:
-                        error_msg = str(result)
-                    return JSONResponse(
-                        {"status": "error", "message": f"API错误: {error_msg}"},
-                        status_code=response.status
-                    )
-                
-                # 从响应中提取AI回答
-                answer = ""
-                if is_dict:
-                    choices = result.get("choices")
-                    if isinstance(choices, list) and choices:
-                        first_choice = choices[0] or {}
-                        if isinstance(first_choice, dict):
-                            msg_obj = first_choice.get("message") or {}
-                            if isinstance(msg_obj, dict):
-                                answer = msg_obj.get("content", "") or ""
-                    # 如果上述解析不到内容，兜底使用整个 result 的字符串
-                    if not answer:
-                        answer = str(result)
-                else:
-                    # 如果直接返回的是字符串 / 其他类型
-                    answer = str(result)
-                
-                return JSONResponse({
-                    "status": "success",
-                    "answer": answer,
-                    "model": model
-                })
-                
-    except Exception as e:
-        server = app.state.server_interface
-        server.logger.error(f"AI API请求失败: {str(e)}")
-        return JSONResponse(
-            {"status": "error", "message": f"请求失败: {str(e)}"}, 
-            status_code=500
-        )
 
-# PIM插件安装和任务模型
-class PluginInstallRequest:
-    def __init__(self, plugin_id: str):
-        self.plugin_id = plugin_id
-
-class TaskStatusRequest:
-    def __init__(self, task_id: str):
-        self.task_id = task_id
-        
-# ============================================================#
-# PIM API 接口
-@app.post("/api/pim/install_plugin")
-async def api_install_plugin(
-    request: Request, 
-    plugin_req: dict = Body(...),
-    token_valid: bool = Depends(verify_token)
-):
-    """安装指定的插件（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    plugin_installer = getattr(app.state, "plugin_installer", None)
-    return await install_plugin(request, plugin_req, token_valid, server, plugin_installer)
-
-@app.post("/api/pim/update_plugin")
-async def api_update_plugin(
-    request: Request, 
-    plugin_req: dict = Body(...),
-    token_valid: bool = Depends(verify_token)
-):
-    """更新指定的插件（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    plugin_installer = getattr(app.state, "plugin_installer", None)
-    return await update_plugin(request, plugin_req, token_valid, server, plugin_installer)
-
-@app.post("/api/pim/uninstall_plugin")
-async def api_uninstall_plugin(
-    request: Request, 
-    plugin_req: dict = Body(...),
-    token_valid: bool = Depends(verify_token)
-):
-    """卸载指定的插件（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    plugin_installer = getattr(app.state, "plugin_installer", None)
-    return await uninstall_plugin(request, plugin_req, token_valid, server, plugin_installer)
-
-@app.get("/api/pim/task_status")
-async def api_task_status(
-    request: Request, 
-    task_id: str = None,
-    plugin_id: str = None,
-    token_valid: bool = Depends(verify_token)
-):
-    """获取任务状态（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    plugin_installer = getattr(app.state, "plugin_installer", None)
-    return await task_status(request, task_id, plugin_id, token_valid, server, plugin_installer)
-
-@app.get("/api/check_pim_status")
-async def api_check_pim_status(request: Request, token_valid: bool = Depends(verify_token)):
-    """检查PIM插件的安装状态（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    return await check_pim_status(request, token_valid, server)
-
-@app.get("/api/install_pim_plugin")
-async def api_install_pim_plugin(request: Request, token_valid: bool = Depends(verify_token)):
-    """将PIM作为独立插件安装（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    return await install_pim_plugin(request, token_valid, server)
-
-@app.post("/api/self_update")
-async def api_self_update(request: Request, token_valid: bool = Depends(verify_token)):
-    """执行 WebUI 自身更新"""
-    server = app.state.server_interface
-    return await self_update(request, token_valid, server)
-
-@app.get("/api/self_update_info")
-async def api_get_self_update_info(request: Request, token_valid: bool = Depends(verify_token)):
-    """获取 WebUI 自身更新信息"""
-    return await get_self_update_info(request, token_valid)
-
-# 添加新的API端点，使用PluginInstaller获取插件版本
-@app.get("/api/pim/plugin_versions_v2")
-async def api_get_plugin_versions_v2(
-    request: Request, 
-    plugin_id: str,
-    repo_url: str = None,
-    token_valid: bool = Depends(verify_token)
-):
-    """获取插件的所有可用版本（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    plugin_installer = getattr(app.state, "plugin_installer", None)
-    return await get_plugin_versions_v2(request, plugin_id, repo_url, token_valid, server, plugin_installer)
-
-# 添加新的API端点，用于获取插件所属的仓库信息
 @app.get("/api/pim/plugin_repository")
 async def api_get_plugin_repository(
-    request: Request, 
-    plugin_id: str,
-    token_valid: bool = Depends(verify_token)
+    request: Request, plugin_id: str, user: dict = Depends(get_current_user)
 ):
-    """获取插件所属的仓库信息（函数已迁移至 api/plugins.py）"""
-    server = app.state.server_interface
-    pim_helper = getattr(app.state, "pim_helper", None)
-    return await get_plugin_repository(request, plugin_id, token_valid, server, pim_helper)
+    """获取插件所属的仓库信息"""
+    result = request.app.state.plugin_service.get_plugin_repository(plugin_id)
+    return JSONResponse(result)
 
-# Pip包管理相关模型
-class PipPackageRequest(BaseModel):
-    package: str
 
-# Pip 包管理函数已移至 utils.py
+@app.get("/api/pim/plugin_versions")
+async def api_get_plugin_versions(
+    request: Request,
+    plugin_id: str,
+    repo_url: str = None,
+    user: dict = Depends(get_current_user),
+):
+    """获取插件版本列表"""
+    versions = request.app.state.plugin_service.get_plugin_versions(plugin_id, repo_url)
+    return JSONResponse({"success": True, "versions": versions or []})
 
-def get_installed_pip_packages():
-    """获取已安装的pip包列表"""
-    try:
-        import subprocess
-        import sys
-        
-        # 执行 pip list --format=json
-        cmd = [sys.executable, '-m', 'pip', 'list', '--format=json']
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        
-        if result.returncode == 0:
-            packages = json.loads(result.stdout)
-            return {"status": "success", "packages": packages}
-        else:
-            return {"status": "error", "message": f"获取pip列表失败: {result.stderr}"}
-    except Exception as e:
-        return {"status": "error", "message": f"获取pip列表时发生异常: {str(e)}"}
 
-async def pip_task(task_id: str, action: str, package: str):
-    """异步执行pip安装/卸载任务"""
-    from .state import pip_tasks
-    import subprocess
-    import sys
-    
-    pip_tasks[task_id] = {
-        "completed": False,
-        "success": False,
-        "output": f"正在{ '安装' if action == 'install' else '卸载' } {package}..."
-    }
-    
-    try:
-        # 构造命令
-        if action == "install":
-            cmd = [sys.executable, '-m', 'pip', 'install', package]
-        else:
-            cmd = [sys.executable, '-m', 'pip', 'uninstall', '-y', package]
-            
-        # 执行命令
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+@app.post("/api/pim/install_plugin")
+async def api_pim_install_plugin(
+    request: Request, body: PimInstallRequest, admin: dict = Depends(get_current_admin)
+):
+    """安装插件（PIM）"""
+    if body.plugin_id == "guguwebui":
+        return JSONResponse(
+            {"success": False, "error": "不允许安装 WebUI 自身"}, status_code=400
         )
-        
-        stdout, stderr = await process.communicate()
-        output = stdout.decode() + stderr.decode()
-        
-        success = (process.returncode == 0)
-        
-        pip_tasks[task_id].update({
-            "completed": True,
-            "success": success,
-            "output": output
-        })
-        
+    try:
+        task_id = await request.app.state.plugin_service.install_plugin(
+            body.plugin_id, body.version, body.repo_url
+        )
+        return JSONResponse({"success": True, "task_id": task_id})
     except Exception as e:
-        pip_tasks[task_id].update({
-            "completed": True,
-            "success": False,
-            "output": f"任务执行出错: {str(e)}"
-        })
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@app.post("/api/pim/uninstall_plugin")
+async def api_pim_uninstall_plugin(
+    request: Request,
+    body: PimUninstallRequest,
+    admin: dict = Depends(get_current_admin),
+):
+    """卸载插件（PIM）"""
+    if body.plugin_id == "guguwebui":
+        return JSONResponse(
+            {"success": False, "error": "不允许卸载 WebUI 自身"}, status_code=400
+        )
+    try:
+        task_id = await request.app.state.plugin_service.uninstall_plugin(
+            body.plugin_id
+        )
+        return JSONResponse({"success": True, "task_id": task_id})
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@app.post("/api/pim/update_plugin")
+async def api_pim_update_plugin(
+    request: Request, body: PimInstallRequest, admin: dict = Depends(get_current_admin)
+):
+    """更新插件（PIM），本质为指定版本安装"""
+    if body.plugin_id == "guguwebui":
+        return JSONResponse(
+            {"success": False, "error": "不允许更新 WebUI 自身"}, status_code=400
+        )
+    try:
+        task_id = await request.app.state.plugin_service.install_plugin(
+            body.plugin_id, body.version, body.repo_url
+        )
+        return JSONResponse({"success": True, "task_id": task_id})
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@app.get("/api/pim/task_status")
+async def api_pim_task_status(
+    request: Request,
+    task_id: str = None,
+    plugin_id: str = None,
+    user: dict = Depends(get_current_user),
+):
+    """获取 PIM 任务状态"""
+    info = request.app.state.plugin_service.get_task_status(
+        task_id=task_id, plugin_id=plugin_id
+    )
+    if task_id and info is None:
+        return JSONResponse({"success": False, "task_info": None})
+    return JSONResponse({"success": True, "task_info": info})
+
+
+@app.post("/api/deepseek")
+async def query_deepseek(
+    request: Request,
+    query_data: DeepseekQuery,
+    admin: dict = Depends(get_current_admin),
+):
+    """向AI API发送问题并获取回答"""
+    ai_service: AIService = request.app.state.ai_service
+    result = await ai_service.query(
+        query_data.query,
+        query_data.model,
+        query_data.api_key,
+        query_data.api_url,
+        query_data.system_prompt,
+    )
+    return JSONResponse({"status": "success", **result})
+
 
 @app.get("/api/pip/list")
-async def api_pip_list(request: Request, token_valid: bool = Depends(verify_token)):
+async def api_pip_list(request: Request, admin: dict = Depends(get_current_admin)):
     """获取已安装的pip包列表"""
-    if not token_valid:
-        return {"status": "error", "message": "未授权访问"}
-    
-    return get_installed_pip_packages()
+    return JSONResponse(
+        {"status": "success", "packages": request.app.state.pip_service.list_packages()}
+    )
+
 
 @app.post("/api/pip/install")
 async def api_pip_install(
-    request: Request, 
+    request: Request,
     package_req: PipPackageRequest,
-    token_valid: bool = Depends(verify_token)
+    admin: dict = Depends(get_current_admin),
 ):
     """安装pip包"""
-    if not token_valid:
-        return {"status": "error", "message": "未授权访问"}
-    
-    package = package_req.package.strip()
-    if not package:
-        return {"status": "error", "message": "包名不能为空"}
-    
-    # 创建任务ID并启动异步任务
-    task_id = str(uuid.uuid4())
-    asyncio.create_task(pip_task(task_id, "install", package))
-    
-    return {"status": "success", "task_id": task_id, "message": f"开始安装 {package}"}
+    pip_service: PipService = request.app.state.pip_service
+    return JSONResponse(
+        {"status": "success", **pip_service.install_package(package_req.package)}
+    )
+
 
 @app.post("/api/pip/uninstall")
 async def api_pip_uninstall(
-    request: Request, 
+    request: Request,
     package_req: PipPackageRequest,
-    token_valid: bool = Depends(verify_token)
+    admin: dict = Depends(get_current_admin),
 ):
     """卸载pip包"""
-    if not token_valid:
-        return {"status": "error", "message": "未授权访问"}
-    
-    package = package_req.package.strip()
-    if not package:
-        return {"status": "error", "message": "包名不能为空"}
-    
-    # 创建任务ID并启动异步任务
-    task_id = str(uuid.uuid4())
-    asyncio.create_task(pip_task(task_id, "uninstall", package))
-    
-    return {"status": "success", "task_id": task_id, "message": f"开始卸载 {package}"}
+    pip_service: PipService = request.app.state.pip_service
+    return JSONResponse(
+        {"status": "success", **pip_service.uninstall_package(package_req.package)}
+    )
+
 
 @app.get("/api/pip/task_status")
 async def api_pip_task_status(
-    request: Request, 
-    task_id: str,
-    token_valid: bool = Depends(verify_token)
+    request: Request, task_id: str, admin: dict = Depends(get_current_admin)
 ):
     """获取pip任务状态"""
-    if not token_valid:
-        return {"status": "error", "message": "未授权访问"}
-    
-    if not task_id or task_id not in pip_tasks:
-        return {"status": "error", "message": "无效的任务ID"}
-    
-    task_info = pip_tasks[task_id]
-    
-    return {
-        "status": "success",
-        "completed": task_info["completed"],
-        "success": task_info["success"],
-        "output": task_info["output"]
-    }
+    return JSONResponse(
+        {"status": "success", **request.app.state.pip_service.get_task_status(task_id)}
+    )
+
 
 # ============================================================#
 # 聊天页相关API端点
 # ============================================================#
 
+
 @app.post("/api/chat/generate_code")
 async def chat_generate_code(request: Request):
-	"""生成聊天页验证码"""
-	try:
-		server:PluginServerInterface = app.state.server_interface
-		result = generate_chat_verification_code(server)
-		if isinstance(result, tuple):
-			code, expire_minutes = result
-			return JSONResponse({
-				"status": "success",
-				"code": code,
-				"expire_minutes": expire_minutes
-			})
-		else:
-			# 如果返回的是异常信息
-			return JSONResponse(result, status_code=403)
-	except Exception as e:
-		server:PluginServerInterface = app.state.server_interface
-		if server:
-			server.logger.error(f"生成验证码失败: {e}")
-		return JSONResponse({"status": "error", "message": "生成验证码失败"}, status_code=500)
+    """生成聊天页验证码"""
+    code, expire_minutes = request.app.state.chat_service.generate_verification_code()
+    return JSONResponse(
+        {"status": "success", "code": code, "expire_minutes": expire_minutes}
+    )
+
 
 @app.post("/api/chat/check_verification")
 async def chat_check_verification(request: Request):
-	"""检查验证码验证状态"""
-	try:
-		data = await request.json()
-		code = data.get("code", "")
-		result = check_chat_verification_status(code)
+    """检查验证码验证状态"""
+    data = await request.json()
+    chat_service: ChatService = request.app.state.chat_service
+    result = chat_service.check_verification_status(data.get("code", ""))
+    return JSONResponse(
+        result, status_code=(200 if result.get("status") != "error" else 400)
+    )
 
-		status_code = 400 if result.get("status") == "error" else 200
-		return JSONResponse(result, status_code=status_code)
-
-	except Exception as e:
-		server:PluginServerInterface = app.state.server_interface
-		if server:
-			server.logger.error(f"检查验证状态失败: {e}")
-		return JSONResponse({"status": "error", "message": "检查验证状态失败"}, status_code=500)
 
 @app.post("/api/chat/set_password")
 async def chat_set_password(request: Request):
-	"""设置聊天页用户密码"""
-	try:
-		data = await request.json()
-		code = data.get("code", "")
-		password = data.get("password", "")
-		server:PluginServerInterface = app.state.server_interface
-		result = await set_chat_user_password(code, password, server)
+    """设置聊天页用户密码"""
+    data = await request.json()
+    chat_service: ChatService = request.app.state.chat_service
+    result = await chat_service.set_user_password(
+        data.get("code", ""), data.get("password", "")
+    )
+    return JSONResponse(
+        result, status_code=(200 if result.get("status") != "error" else 400)
+    )
 
-		status_code = 400 if result.get("status") == "error" else 200
-		return JSONResponse(result, status_code=status_code)
-
-	except Exception as e:
-		server:PluginServerInterface = app.state.server_interface
-		if server:
-			server.logger.error(f"设置密码失败: {e}")
-		return JSONResponse({"status": "error", "message": "设置密码失败"}, status_code=500)
 
 @app.post("/api/chat/login")
 async def chat_login(request: Request):
     """聊天页用户登录"""
-    try:
-        data = await request.json()
-        player_id = data.get("player_id", "")
-        password = data.get("password", "")
+    data, client_ip = await request.json(), (
+        request.client.host if request.client else "unknown"
+    )
+    chat_service: ChatService = request.app.state.chat_service
+    result = await chat_service.login(
+        data.get("player_id", ""), data.get("password", ""), client_ip
+    )
+    status_code = 400 if result.get("status") == "error" else 200
+    if status_code == 400 and "IP已达上限" in result.get("message", ""):
+        status_code = 429
+    return JSONResponse(result, status_code=status_code)
 
-        # 获取客户端IP
-        try:
-            client_ip = request.client.host if request and request.client else "unknown"
-        except Exception:
-            client_ip = "unknown"
-
-        server:PluginServerInterface = app.state.server_interface
-        result = await chat_user_login(player_id, password, client_ip, server)
-
-        status_code = 400 if result.get("status") == "error" else 200
-        if status_code == 400 and "IP已达上限" in result.get("message", ""):
-            status_code = 429
-
-        return JSONResponse(result, status_code=status_code)
-
-    except Exception as e:
-        server:PluginServerInterface = app.state.server_interface
-        if server:
-            server.logger.error(f"聊天页登录失败: {e}")
-        return JSONResponse({"status": "error", "message": "登录失败"}, status_code=500)
 
 @app.post("/api/chat/check_session")
 async def chat_check_session(request: Request):
     """检查聊天页会话状态"""
-    try:
-        data = await request.json()
-        session_id = data.get("session_id", "")
-        server: PluginServerInterface = app.state.server_interface
-        result = await check_chat_session(session_id, server)
+    data = await request.json()
+    chat_service: ChatService = request.app.state.chat_service
+    result = await chat_service.check_session(data.get("session_id", ""))
+    return JSONResponse(
+        result, status_code=(200 if result.get("status") != "error" else 400)
+    )
 
-        status_code = 400 if result.get("status") == "error" else 200
-        return JSONResponse(result, status_code=status_code)
-
-    except Exception as e:
-        server:PluginServerInterface = app.state.server_interface
-        if server:
-            server.logger.error(f"检查会话状态失败: {e}")
-        return JSONResponse({"status": "error", "message": "检查会话状态失败"}, status_code=500)
 
 @app.post("/api/chat/logout")
 async def chat_logout(request: Request):
     """聊天页用户退出登录"""
-    try:
-        data = await request.json()
-        session_id = data.get("session_id", "")
-        server:PluginServerInterface = app.state.server_interface
-        result = chat_user_logout(session_id, server)
+    data = await request.json()
+    chat_service: ChatService = request.app.state.chat_service
+    result = chat_service.logout(data.get("session_id", ""))
+    return JSONResponse(
+        result, status_code=(200 if result.get("status") != "error" else 400)
+    )
 
-        status_code = 400 if result.get("status") == "error" else 200
-        return JSONResponse(result, status_code=status_code)
-
-    except Exception as e:
-        server:PluginServerInterface = app.state.server_interface
-        if server:
-            server.logger.error(f"聊天页退出登录失败: {e}")
-        return JSONResponse({"status": "error", "message": "退出登录失败"}, status_code=500)
 
 @app.post("/api/chat/get_messages")
 async def get_chat_messages(request: Request):
     """获取聊天消息"""
-    try:
-        data = await request.json()
-        limit = data.get("limit", 50)
-        offset = data.get("offset", 0)
-        after_id = data.get("after_id")  # 新增：基于消息ID获取
-        before_id = data.get("before_id")  # 新增：获取历史消息
+    data, chat_service = await request.json(), request.app.state.chat_service
+    result = await chat_service.get_messages(
+        limit=data.get("limit", 50),
+        offset=data.get("offset", 0),
+        after_id=data.get("after_id"),
+        before_id=data.get("before_id"),
+    )
+    return JSONResponse({"status": "success", **result})
 
-        server:PluginServerInterface = app.state.server_interface
-        result = await get_chat_messages_handler(limit=limit, offset=offset, after_id=after_id, before_id=before_id, server=server)
-
-        return JSONResponse(result)
-
-    except Exception as e:
-        server:PluginServerInterface = app.state.server_interface
-        if server:
-            server.logger.error(f"获取聊天消息失败: {e}")
-        return JSONResponse({
-            "status": "error",
-            "message": f"获取聊天消息失败: {e}"
-        }, status_code=500)
 
 @app.post("/api/chat/get_new_messages")
 async def get_new_chat_messages(request: Request):
     """获取新消息（基于最后消息ID）"""
-    try:
-        data = await request.json()
-        after_id = data.get("after_id", 0)
-        player_id_heartbeat = data.get("player_id")
+    data, chat_service = await request.json(), request.app.state.chat_service
+    result = await chat_service.get_new_messages(
+        after_id=data.get("after_id", 0), player_id_heartbeat=data.get("player_id")
+    )
+    return JSONResponse({"status": "success", **result})
 
-        server:PluginServerInterface = app.state.server_interface
-        result = await get_new_chat_messages_handler(after_id=after_id, player_id_heartbeat=player_id_heartbeat, server=server)
-
-        return JSONResponse(result)
-
-    except Exception as e:
-        server:PluginServerInterface = app.state.server_interface
-        if server:
-            server.logger.error(f"获取新聊天消息失败: {e}")
-        return JSONResponse({
-            "status": "error",
-            "message": f"获取新聊天消息失败: {e}"
-        }, status_code=500)
 
 @app.post("/api/chat/clear_messages")
-async def chat_clear_messages(request: Request):
+async def chat_clear_messages(
+    request: Request, admin: dict = Depends(get_current_admin)
+):
     """清空聊天消息"""
-    try:
-        server:PluginServerInterface = app.state.server_interface
-        result = clear_chat_messages_handler(server=server)
+    return JSONResponse(
+        {"status": "success", **request.app.state.chat_service.clear_messages()}
+    )
 
-        return JSONResponse(result)
 
-    except Exception as e:
-        server:PluginServerInterface = app.state.server_interface
-        if server:
-            server.logger.error(f"清空聊天消息失败: {e}")
-        return JSONResponse({"status": "error", "message": "清空聊天消息失败"}, status_code=500)
+@app.get("/api/check_pim_status")
+async def api_check_pim_status(
+    request: Request, admin: dict = Depends(get_current_admin)
+):
+    """检查PIM插件的安装状态"""
+    return JSONResponse(
+        {"status": "success", **request.app.state.plugin_service.check_pim_status()}
+    )
+
+
+@app.get("/api/install_pim_plugin")
+async def api_install_pim_plugin(
+    request: Request, admin: dict = Depends(get_current_admin)
+):
+    """将PIM作为独立插件安装"""
+    return JSONResponse(
+        {
+            "status": "success",
+            **await request.app.state.plugin_service.install_pim_plugin_action(),
+        }
+    )
+
+
+@app.post("/api/self_update")
+async def api_self_update(request: Request, admin: dict = Depends(get_current_admin)):
+    """执行 WebUI 自身更新"""
+    return JSONResponse(
+        {"status": "success", **request.app.state.plugin_service.self_update()}
+    )
+
+
+@app.get("/api/self_update_info")
+async def api_get_self_update_info(
+    request: Request, admin: dict = Depends(get_current_admin)
+):
+    """获取 WebUI 自身更新信息"""
+    return JSONResponse(
+        content={
+            "success": True,
+            "info": getattr(
+                request.app.state, "self_update_info", {"available": False}
+            ),
+        }
+    )
+
 
 @app.post("/api/chat/send_message")
-async def send_chat_message(request: Request):
+async def send_chat_message(request: Request, user: dict = Depends(get_current_user)):
     """发送聊天消息到游戏"""
-    try:
-        data = await request.json()
-        message = data.get("message", "").strip()
-        player_id = data.get("player_id", "")
-        session_id = data.get("session_id", "")
-
-        # 检查是否为WebUI已登录管理员
-        is_admin = False
-        if request.session.get("logged_in") and request.session.get("username") == player_id:
-            is_admin = True
-
-        server:PluginServerInterface = app.state.server_interface
-        result = await send_chat_message_handler(message=message, player_id=player_id, session_id=session_id, server=server, is_admin=is_admin)
-
-        status_code = 400 if result.get("status") == "error" else 200
-        if status_code == 400 and "过于频繁" in result.get("message", ""):
-            status_code = 429
-        elif status_code == 400 and ("过期" in result.get("message", "") or "不匹配" in result.get("message", "")):
-            status_code = 401
-        elif status_code == 400 and "未启用" in result.get("message", ""):
-            status_code = 403
-
-        return JSONResponse(result, status_code=status_code)
-
-    except Exception as e:
-        server:PluginServerInterface = app.state.server_interface
-        if server:
-            server.logger.error(f"发送聊天消息失败: {e}")
-        return JSONResponse({
-            "status": "error",
-            "message": f"发送消息失败: {e}"
-        }, status_code=500)
-
+    data = await request.json()
+    player_id = data.get("player_id", "")
+    chat_service: ChatService = request.app.state.chat_service
+    result = await chat_service.send_message(
+        data.get("message", "").strip(),
+        player_id,
+        data.get("session_id", ""),
+        (user and user.get("username") == player_id),
+    )
+    return JSONResponse(
+        result, status_code=chat_service.get_status_code_for_result(result)
+    )

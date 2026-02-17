@@ -38,6 +38,7 @@ interface WebConfig {
   ai_model: string
   ai_api_url: string
   mcdr_plugins_url: string
+  pf_plugin_catalogue_url?: string
   repositories: Repository[]
   ssl_enabled: boolean
   ssl_certfile: string
@@ -371,7 +372,7 @@ const Settings: React.FC = () => {
               <button
                 onClick={() =>
                   handleSave('config', {
-                    superaccount: String(config.super_admin_account)
+                    super_account: String(config.super_admin_account)
                   })
                 }
                 disabled={saving === 'account'}
@@ -687,13 +688,13 @@ const Settings: React.FC = () => {
                     </span>
                   </td>
                 </tr>
-                {/* Loose Repository (Hardcoded in old HTML, but maybe should be editable?) */}
+                {/* Loose Repository (URL from get_web_config) */}
                 <tr className="bg-blue-50/30 dark:bg-blue-900/10">
                   <td className="px-6 py-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-blue-500" />
                     {t('page.settings.repo.loose_repo')}
                   </td>
-                  <td className="px-6 py-4 text-slate-500 truncate max-w-xs">https://pfingan-code.github.io/PluginCatalogue/plugins.json</td>
+                  <td className="px-6 py-4 text-slate-500 truncate max-w-xs">{config.pf_plugin_catalogue_url ?? ''}</td>
                   <td className="px-6 py-4 text-right">
                     <span className="text-xs font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
                       {t('page.settings.repo.default')}

@@ -688,10 +688,10 @@ const Dashboard: React.FC = () => {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
-            { key: 'plugins_mgmt', icon: Puzzle, color: 'bg-blue-500', path: '/plugins' },
-            { key: 'mcdr_config', icon: Settings2, color: 'bg-purple-500', path: '/mcdr' },
-            { key: 'mc_config', icon: Sliders, color: 'bg-emerald-500', path: '/mc' },
-            { key: 'online_plugins', icon: Puzzle, color: 'bg-amber-500', path: '/online-plugins' },
+            { key: 'plugins_mgmt', icon: Puzzle, color: 'bg-blue-500', path: './plugins' },
+            { key: 'mcdr_config', icon: Settings2, color: 'bg-purple-500', path: './mcdr' },
+            { key: 'mc_config', icon: Sliders, color: 'bg-emerald-500', path: './mc' },
+            { key: 'online_plugins', icon: Puzzle, color: 'bg-amber-500', path: './online-plugins' },
           ].map((item) => (
             <motion.a
               key={item.key}

@@ -1,16 +1,12 @@
-import ruamel.yaml
 from pathlib import Path
-import json
-import os
 
+import ruamel.yaml
 from passlib.context import CryptContext
-from pydantic import BaseModel
-from typing import Optional
 
-from .table import table
+from guguwebui.utils.table import Table
 
 ALGORITHM = "HS256"
-SECRET_KEY = "guguwebui" 
+SECRET_KEY = "guguwebui"
 STATIC_PATH = "./guguwebui_static"
 USER_DB_PATH = Path(STATIC_PATH) / "db.json"
 PATH_DB_PATH = Path("./config") / "guguwebui" / "config_path.json"
@@ -21,11 +17,18 @@ JS_FILE = Path(STATIC_PATH) / "custom" / "overall.js"
 # SERVER_PATH 读config.yml的 working_directory值
 CONFIG_FILE_PATH = Path("./config.yml")
 yaml = ruamel.yaml.YAML()
-with open(CONFIG_FILE_PATH, "r", encoding='utf-8') as config_file:
+with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as config_file:
     config = yaml.load(config_file)
-SERVER_PATH = Path(config.get('working_directory', 'server'))
+SERVER_PATH = Path(config.get("working_directory", "server"))
 
-SERVER_PROPERTIES_PATH =  SERVER_PATH / "server.properties"
+SERVER_PROPERTIES_PATH = SERVER_PATH / "server.properties"
+
+# 仓库与项目链接
+MCDR_OFFICIAL_CATALOGUE_URL = "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"
+PF_PLUGIN_CATALOGUE_URL = "https://pfingan-code.github.io/PluginCatalogue/plugins.json"
+PROJECT_GITHUB_URL = "https://github.com/PFingan-Code/PF-MCDR-WebUI"
+MCDR_SITE_URL = "https://mcdreforged.com"
+MCDR_PLUGINS_PAGE_URL = "https://mcdreforged.com/zh-CN/plugins"
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -36,12 +39,12 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 # chat_verification: {code: {player_id: None, expire_time: timestamp, used: False}}
 # chat_sessions: {session_id: {player_id: player_id, expire_time: timestamp}}
 DEFALUT_DB = {
-    "token" : {},
+    "token": {},
     "user": {},
     "temp": {},
     "chat_users": {},
     "chat_verification": {},
-    "chat_sessions": {}
+    "chat_sessions": {},
 }
 DEFALUT_CONFIG = {
     "host": "127.0.0.1",
@@ -53,7 +56,7 @@ DEFALUT_CONFIG = {
     "ai_api_key": "",  # AI API密钥
     "ai_model": "deepseek-chat",  # AI模型名称
     "ai_api_url": "https://api.deepseek.com/chat/completions",  # 自定义API链接
-    "mcdr_plugins_url": "https://api.mcdreforged.com/catalogue/everything_slim.json.xz",  # MCDR插件目录URL
+    "mcdr_plugins_url": MCDR_OFFICIAL_CATALOGUE_URL,  # MCDR插件目录URL
     "repositories": [],  # 多仓库配置列表
     "ssl_enabled": False,  # 是否启用HTTPS
     "ssl_certfile": "",  # SSL证书文件路径
@@ -71,59 +74,7 @@ DEFALUT_CONFIG = {
     # ]
 }
 
-user_db = table(USER_DB_PATH, default_content=DEFALUT_DB)
-
-class LoginData(BaseModel):
-    username: Optional[str] = None
-    password: Optional[str] = None
-    token: Optional[str] = None
-    remember: Optional[bool] = False
-
-class saveconfig(BaseModel):
-    action: str
-    host: Optional[str] = None
-    port: Optional[str] = None
-    superaccount: Optional[str] = None
-    ai_api_key: Optional[str] = None
-    ai_model: Optional[str] = None
-    ai_api_url: Optional[str] = None
-    mcdr_plugins_url: Optional[str] = None
-    repositories: Optional[list] = None
-    ssl_enabled: Optional[bool] = None
-    ssl_certfile: Optional[str] = None
-    ssl_keyfile: Optional[str] = None
-    ssl_keyfile_password: Optional[str] = None
-    public_chat_enabled: Optional[bool] = None
-    public_chat_to_game_enabled: Optional[bool] = None
-    chat_verification_expire_minutes: Optional[int] = None
-    chat_session_expire_hours: Optional[int] = None
-    force_standalone: Optional[bool] = None
-    icp_records: Optional[list] = None
-
-class toggleconfig(BaseModel):
-    plugin_id: str
-    status: bool
-
-class SaveContent(BaseModel):
-    action: str
-    content: str
-
-class plugin_info(BaseModel):
-    plugin_id: str
-
-class config_data(BaseModel):
-    file_path:str
-    config_data:dict
-
-class server_control(BaseModel):
-    action:str
-
-class DeepseekQuery(BaseModel):
-    query: str
-    system_prompt: Optional[str] = None
-    model: Optional[str] = None
-    api_url: Optional[str] = None
-    api_key: Optional[str] = None
+user_db = Table(USER_DB_PATH, default_content=DEFALUT_DB)
 
 # 已注册的插件网页列表 (插件ID: HTML文件相对于插件config目录的路径)
 REGISTERED_PLUGIN_PAGES: dict[str, str] = {}
