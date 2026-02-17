@@ -7,6 +7,8 @@ from typing import Any, Dict, Optional
 from mcdreforged.api.command import Literal, Text
 from mcdreforged.api.types import PluginServerInterface
 
+from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL
+
 from .installer import PluginInstaller
 from .models import PluginData, PluginRequirement, ReleaseData
 from .registry import EmptyMetaRegistry, MetaRegistry, PluginCatalogueAccess, RegistryManager
@@ -47,8 +49,7 @@ class PIMHelper:
         if source:
             source.reply("正在获取插件目录元数据...")
 
-        official_url = "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"
-        url = repo_url if repo_url else official_url
+        url = repo_url if repo_url else MCDR_OFFICIAL_CATALOGUE_URL
 
         return self.registry_manager.get_meta(url, ignore_ttl)
 

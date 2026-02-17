@@ -4,6 +4,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL
 from guguwebui.utils.file_util import __copyFile, extract_metadata
 from guguwebui.utils.mc_util import get_plugins_info, load_plugin_info
 from guguwebui.utils.mcdr_adapter import MCDRAdapter
@@ -114,7 +115,7 @@ class PluginService:
         config = self.config_service.get_config() if self.config_service else {}
         official_repo_url = config.get(
             "mcdr_plugins_url",
-            "https://api.mcdreforged.com/catalogue/everything_slim.json.xz",
+            MCDR_OFFICIAL_CATALOGUE_URL,
         )
         configured_repos = [official_repo_url]
 
@@ -384,7 +385,7 @@ class PluginService:
             config = self.config_service.get_config() if self.config_service else {}
             official_url = config.get(
                 "mcdr_plugins_url",
-                "https://api.mcdreforged.com/catalogue/everything_slim.json.xz",
+                MCDR_OFFICIAL_CATALOGUE_URL,
             )
             repos: list[tuple[str, str | None]] = [(official_url, None)]
             if "repositories" in config:

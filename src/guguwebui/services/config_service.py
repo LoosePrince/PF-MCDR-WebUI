@@ -7,7 +7,7 @@ import string
 from pathlib import Path
 from typing import List, Optional
 
-from guguwebui.constant import DEFALUT_CONFIG, SERVER_PROPERTIES_PATH
+from guguwebui.constant import DEFALUT_CONFIG, MCDR_OFFICIAL_CATALOGUE_URL, PF_PLUGIN_CATALOGUE_URL, SERVER_PROPERTIES_PATH
 from guguwebui.utils.api_cache import api_cache
 from guguwebui.utils.chat_logger import ChatLogger
 from guguwebui.utils.i18n_util import (
@@ -135,8 +135,9 @@ class ConfigService:
             ),
             "mcdr_plugins_url": config.get(
                 "mcdr_plugins_url",
-                "https://api.mcdreforged.com/catalogue/everything_slim.json.xz",
+                MCDR_OFFICIAL_CATALOGUE_URL,
             ),
+            "pf_plugin_catalogue_url": PF_PLUGIN_CATALOGUE_URL,
             "repositories": config.get("repositories", []),
             "ssl_enabled": config.get("ssl_enabled", False),
             "ssl_certfile": config.get("ssl_certfile", ""),
