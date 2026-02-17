@@ -410,7 +410,7 @@ class ChatService:
 
         # 分发事件
         try:
-            from mcdreforged.api.all import LiteralEvent
+            from mcdreforged.api.event import LiteralEvent
 
             event_data = (
                 "webui",

@@ -1,7 +1,8 @@
 import os
 import sys
 import subprocess
-from mcdreforged.api.all import *
+from mcdreforged.api.command import CommandSource, GreedyText, Literal
+from mcdreforged.api.types import PluginServerInterface
 
 PLUGIN_METADATA = {
     'id': 'pip_installer',

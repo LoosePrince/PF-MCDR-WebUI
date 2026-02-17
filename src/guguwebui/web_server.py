@@ -13,8 +13,8 @@ from fastapi.responses import (
     PlainTextResponse,
     RedirectResponse,
 )
-from mcdreforged import PluginServerInterface
-from mcdreforged.api.all import MCDRPluginEvents
+from mcdreforged.api.event import MCDRPluginEvents
+from mcdreforged.api.types import PluginServerInterface
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
