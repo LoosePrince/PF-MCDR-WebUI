@@ -1,0 +1,19 @@
+[project]
+name = "pf-mcdr-webui"
+version = "1.7.8"
+description = "WebUI for managing all plugins, MCDR configurations, online installation, terminals, and more."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.13.3",
+    "fastapi>=0.68.0",
+    "javaproperties>=0.8.2",
+    "jinja2>=3.1.6",
+    "mcdreforged>=2.3.0",
+    "mcstatus>=12.2.1",
+    "passlib>=1.7.4",
+    "pydantic>=2.12.5",
+    "requests>=2.32.5",
+    "ruamel-yaml>=0.18.17",
+    "uvicorn[standard]>=0.15.0",
+]
