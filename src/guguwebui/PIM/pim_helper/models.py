@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+# MCDR 内部实现，非公开 API，可能随 MCDR 版本变化
 from mcdreforged.plugin.meta.version import VersionRequirement
 
 

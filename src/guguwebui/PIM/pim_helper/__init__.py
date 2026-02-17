@@ -4,7 +4,8 @@ import threading
 import time
 from typing import Any, Dict, Optional
 
-from mcdreforged.api.all import Literal, PluginServerInterface, Text
+from mcdreforged.api.command import Literal, Text
+from mcdreforged.api.types import PluginServerInterface
 
 from .installer import PluginInstaller
 from .models import PluginData, PluginRequirement, ReleaseData

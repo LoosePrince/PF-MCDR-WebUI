@@ -7,7 +7,9 @@ RText功能测试示例
 现在使用统一的 send_message_to_webui 函数，通过 is_rtext=True 参数发送RText消息
 """
 
-from mcdreforged.api.all import PluginServerInterface, RText, RTextList, RColor, RAction, RStyle, Literal, QuotableText
+from mcdreforged.api.command import Literal, QuotableText
+from mcdreforged.api.rtext import RAction, RColor, RStyle, RText, RTextList
+from mcdreforged.api.types import PluginServerInterface
 
 def on_load(server: PluginServerInterface, old):
     """插件加载时注册命令"""

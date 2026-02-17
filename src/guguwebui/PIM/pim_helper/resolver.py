@@ -5,6 +5,7 @@ import sys
 import zipfile
 from typing import Any, Dict
 
+# MCDR 内部实现，非公开 API，可能随 MCDR 版本变化
 from mcdreforged.plugin.meta.version import Version, VersionRequirement
 
 from .registry import MetaRegistry
@@ -91,6 +92,7 @@ class PluginDependencyResolver:
 
     @staticmethod
     def _check_mcdr_version(version_req: str, results: Dict):
+        # MCDR 内部实现，非公开 API，可能随 MCDR 版本变化
         from mcdreforged.constants.core_constant import VERSION as MCDR_VERSION
         if not VersionRequirement(version_req).accept(Version(MCDR_VERSION)):
             results['environment_issues'].append(f"MCDReforged 版本不符: 需要 {version_req}, 当前 {MCDR_VERSION}")

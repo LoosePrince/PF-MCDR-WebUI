@@ -6,7 +6,8 @@ from pathlib import Path
 import aiohttp
 import anyio
 import javaproperties
-from mcdreforged.api.all import RAction, RColor, RText, RTextBase, RTextList
+from mcdreforged.api.rtext import RAction, RColor, RText, RTextBase, RTextList
+# MCDR 内部实现，非公开 API，可能随 MCDR 版本变化
 from mcdreforged.plugin.type.directory_plugin import DirectoryPlugin
 from mcdreforged.plugin.type.multi_file_plugin import MultiFilePlugin
 from mcdreforged.plugin.type.packed_plugin import PackedPlugin as ZippedPlugin
@@ -150,6 +151,7 @@ def get_plugins_info(server_interface):
     plugin_versions = fetch_plugin_versions()
     respond = []
     import copy
+    # MCDR 内部实现，非公开 API，可能随 MCDR 版本变化
     from mcdreforged.plugin.meta.metadata import Metadata
     merged_metadata = copy.deepcopy(unloaded_metadata)
     merged_metadata.update(loaded_metadata)
@@ -318,7 +320,7 @@ def create_rtext_from_data(source: str, rtext_data, player_uuid: str = "未知")
 
 def _parse_rtext_component(component: dict) -> RTextBase:
     """解析单个RText组件"""
-    from mcdreforged.api.all import RStyle
+    from mcdreforged.api.rtext import RStyle
     text = component.get('text', '')
     rtext = RText(text)
     if 'color' in component:
@@ -363,7 +365,7 @@ def send_message_to_webui(server_interface, source: str, message, message_type: 
                           target_players: list = None, metadata: dict = None, is_rtext: bool = False):
     """供其他插件调用的函数，用于发送消息到WebUI并同步到游戏"""
     try:
-        from mcdreforged.api.all import LiteralEvent
+        from mcdreforged.api.event import LiteralEvent
         import datetime
         import time
         import json

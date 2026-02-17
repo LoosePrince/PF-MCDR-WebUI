@@ -3,7 +3,9 @@ import os
 import platform
 from typing import Optional
 
-from mcdreforged.api.all import Literal, LiteralEvent, PluginServerInterface, Text
+from mcdreforged.api.command import Literal, Text
+from mcdreforged.api.event import LiteralEvent
+from mcdreforged.api.types import PluginServerInterface
 
 from guguwebui.PIM import PluginInstaller, create_installer
 from guguwebui.constant import user_db

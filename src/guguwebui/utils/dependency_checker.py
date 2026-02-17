@@ -2,7 +2,7 @@ import importlib.util
 import subprocess
 import sys
 
-from mcdreforged.api.all import PluginServerInterface
+from mcdreforged.api.types import PluginServerInterface
 
 # 插件依赖包列表
 REQUIRED_PACKAGES = [
