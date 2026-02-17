@@ -18,6 +18,7 @@ import {
   Globe,
   BookOpen
 } from 'lucide-react';
+import { MCDR_SITE_URL } from '../constants';
 import api, { isCancel } from '../utils/api';
 import { NiceSelect } from '../components/NiceSelect';
 
@@ -230,7 +231,7 @@ const MCDRConfig: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <a
-            href="https://mcdreforged.com"
+            href={MCDR_SITE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors"

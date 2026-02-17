@@ -8,6 +8,8 @@ from typing import Dict, List, Optional
 
 import requests
 
+from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL
+
 from .models import ExtendedVersionRequirement, PluginData, ReleaseData
 
 
@@ -211,9 +213,7 @@ class RegistryManager:
 
     def get_meta(self, url: str, ignore_ttl: bool = False) -> MetaRegistry:
         """获取元数据"""
-        official_url = "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"
-
-        if url == official_url:
+        if url == MCDR_OFFICIAL_CATALOGUE_URL:
             cache_file = os.path.join(self.cache_dir, "everything_slim.json")
         else:
             cache_name = hashlib.md5(url.encode()).hexdigest()

@@ -17,11 +17,18 @@ JS_FILE = Path(STATIC_PATH) / "custom" / "overall.js"
 # SERVER_PATH 读config.yml的 working_directory值
 CONFIG_FILE_PATH = Path("./config.yml")
 yaml = ruamel.yaml.YAML()
-with open(CONFIG_FILE_PATH, "r", encoding='utf-8') as config_file:
+with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as config_file:
     config = yaml.load(config_file)
-SERVER_PATH = Path(config.get('working_directory', 'server'))
+SERVER_PATH = Path(config.get("working_directory", "server"))
 
 SERVER_PROPERTIES_PATH = SERVER_PATH / "server.properties"
+
+# 仓库与项目链接
+MCDR_OFFICIAL_CATALOGUE_URL = "https://api.mcdreforged.com/catalogue/everything_slim.json.xz"
+PF_PLUGIN_CATALOGUE_URL = "https://pfingan-code.github.io/PluginCatalogue/plugins.json"
+PROJECT_GITHUB_URL = "https://github.com/PFingan-Code/PF-MCDR-WebUI"
+MCDR_SITE_URL = "https://mcdreforged.com"
+MCDR_PLUGINS_PAGE_URL = "https://mcdreforged.com/zh-CN/plugins"
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -37,7 +44,7 @@ DEFALUT_DB = {
     "temp": {},
     "chat_users": {},
     "chat_verification": {},
-    "chat_sessions": {}
+    "chat_sessions": {},
 }
 DEFALUT_CONFIG = {
     "host": "127.0.0.1",
@@ -49,7 +56,7 @@ DEFALUT_CONFIG = {
     "ai_api_key": "",  # AI API密钥
     "ai_model": "deepseek-chat",  # AI模型名称
     "ai_api_url": "https://api.deepseek.com/chat/completions",  # 自定义API链接
-    "mcdr_plugins_url": "https://api.mcdreforged.com/catalogue/everything_slim.json.xz",  # MCDR插件目录URL
+    "mcdr_plugins_url": MCDR_OFFICIAL_CATALOGUE_URL,  # MCDR插件目录URL
     "repositories": [],  # 多仓库配置列表
     "ssl_enabled": False,  # 是否启用HTTPS
     "ssl_certfile": "",  # SSL证书文件路径
