@@ -38,7 +38,7 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 # chat_users: {player_id: {password: hashed_password, created_time: timestamp}}
 # chat_verification: {code: {player_id: None, expire_time: timestamp, used: False}}
 # chat_sessions: {session_id: {player_id: player_id, expire_time: timestamp}}
-DEFALUT_DB = {
+DEFAULT_DB = {
     "token": {},
     "user": {},
     "temp": {},
@@ -46,7 +46,7 @@ DEFALUT_DB = {
     "chat_verification": {},
     "chat_sessions": {},
 }
-DEFALUT_CONFIG = {
+DEFAULT_CONFIG = {
     "host": "127.0.0.1",
     "port": 8000,
     "super_admin_account": 123456789123456789,
@@ -74,7 +74,7 @@ DEFALUT_CONFIG = {
     # ]
 }
 
-user_db = Table(USER_DB_PATH, default_content=DEFALUT_DB)
+user_db = Table(USER_DB_PATH, default_content=DEFAULT_DB)
 
 # 已注册的插件网页列表 (插件ID: HTML文件相对于插件config目录的路径)
 REGISTERED_PLUGIN_PAGES: dict[str, str] = {}

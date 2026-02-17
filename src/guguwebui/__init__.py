@@ -16,7 +16,7 @@ from guguwebui.utils.file_util import amount_static_files
 from guguwebui.utils.mc_util import get_minecraft_path
 from guguwebui.utils.mc_util import get_plugins_info
 from guguwebui.utils.server_util import patch_asyncio
-from guguwebui.web_server import DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn, app, init_app, log_watcher
+from guguwebui.web_server import DEFAULT_CONFIG, STATIC_PATH, ThreadedUvicorn, app, init_app, log_watcher
 
 # 全局变量声明
 web_server_interface = None
@@ -78,7 +78,7 @@ def on_load(server: PluginServerInterface, _old):
         patch_asyncio(server)
         server.logger.debug("asyncio 补丁应用完成")
 
-    plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
+    plugin_config = server.load_config_simple("config.json", DEFAULT_CONFIG, echo_in_console=False)
 
     # 检查是否存在 fastapi_mcdr 插件
     fastapi_mcdr = server.get_plugin_instance('fastapi_mcdr')
@@ -295,8 +295,8 @@ def on_plugin_unloaded(server: PluginServerInterface, plugin_id: str):
     """处理插件卸载事件"""
     if plugin_id == "fastapi_mcdr":
         # 检查是否强制独立运行
-        from guguwebui.constant import DEFALUT_CONFIG
-        plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
+        from guguwebui.constant import DEFAULT_CONFIG
+        plugin_config = server.load_config_simple("config.json", DEFAULT_CONFIG, echo_in_console=False)
         force_standalone = plugin_config.get('force_standalone', False)
 
         if force_standalone:
@@ -317,8 +317,8 @@ def on_plugin_loaded(server: PluginServerInterface, plugin_id: str):
     server.logger.info(f"插件加载事件触发: {plugin_id}")
     if plugin_id == "fastapi_mcdr":
         # 检查是否强制独立运行
-        from guguwebui.constant import DEFALUT_CONFIG
-        plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
+        from guguwebui.constant import DEFAULT_CONFIG
+        plugin_config = server.load_config_simple("config.json", DEFAULT_CONFIG, echo_in_console=False)
         force_standalone = plugin_config.get('force_standalone', False)
 
         if force_standalone:
@@ -331,7 +331,7 @@ def on_plugin_loaded(server: PluginServerInterface, plugin_id: str):
 def start_standalone_server(server: PluginServerInterface):
     """启动独立服务器模式"""
     try:
-        from .web_server import app, init_app, DEFALUT_CONFIG
+        from .web_server import app, init_app, DEFAULT_CONFIG
         from .utils.mc_util import get_plugins_info
         from .utils.server_util import ThreadedUvicorn
         import uvicorn
@@ -341,7 +341,7 @@ def start_standalone_server(server: PluginServerInterface):
         init_app(server)
 
         # 加载配置
-        plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
+        plugin_config = server.load_config_simple("config.json", DEFAULT_CONFIG, echo_in_console=False)
         host = plugin_config['host']
         port = plugin_config['port']
 
@@ -425,8 +425,8 @@ def start_plugin_status_checker(server: PluginServerInterface):
                 fastapi_mcdr = server.get_plugin_instance('fastapi_mcdr')
                 if fastapi_mcdr is None:
                     # 检查是否强制独立运行
-                    from guguwebui.constant import DEFALUT_CONFIG
-                    plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
+                    from guguwebui.constant import DEFAULT_CONFIG
+                    plugin_config = server.load_config_simple("config.json", DEFAULT_CONFIG, echo_in_console=False)
                     force_standalone = plugin_config.get('force_standalone', False)
 
                     if force_standalone:
@@ -522,8 +522,8 @@ def on_unload(server: PluginServerInterface):
         if 'web_server_interface' in globals() and web_server_interface:
             # 如果使用了SSL，添加特殊处理
             try:
-                from .web_server import DEFALUT_CONFIG
-                plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
+                from .web_server import DEFAULT_CONFIG
+                plugin_config = server.load_config_simple("config.json", DEFAULT_CONFIG, echo_in_console=False)
                 ssl_enabled = plugin_config.get('ssl_enabled', False)
 
                 if ssl_enabled:

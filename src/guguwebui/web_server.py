@@ -64,7 +64,7 @@ __all__ = [
     "app",
     "init_app",
     "log_watcher",
-    "DEFALUT_CONFIG",
+    "DEFAULT_CONFIG",
     "STATIC_PATH",
     "ThreadedUvicorn",
 ]
@@ -119,12 +119,12 @@ def init_app(server_instance):
 
     # 确保user_db包含所有必要的键
     try:
-        from guguwebui.constant import DEFALUT_DB, user_db
+        from guguwebui.constant import DEFAULT_DB, user_db
 
         # 检查并添加缺失的键
-        for key in DEFALUT_DB:
+        for key in DEFAULT_DB:
             if key not in user_db:
-                user_db[key] = DEFALUT_DB[key]
+                user_db[key] = DEFAULT_DB[key]
                 server_instance.logger.debug(f"添加缺失的数据库键: {key}")
         user_db.save()
         server_instance.logger.debug("数据库结构已更新")

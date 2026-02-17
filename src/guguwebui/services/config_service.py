@@ -7,7 +7,7 @@ import string
 from pathlib import Path
 from typing import List, Optional
 
-from guguwebui.constant import DEFALUT_CONFIG, MCDR_OFFICIAL_CATALOGUE_URL, PF_PLUGIN_CATALOGUE_URL, SERVER_PROPERTIES_PATH
+from guguwebui.constant import DEFAULT_CONFIG, MCDR_OFFICIAL_CATALOGUE_URL, PF_PLUGIN_CATALOGUE_URL, SERVER_PROPERTIES_PATH
 from guguwebui.utils.api_cache import api_cache
 from guguwebui.utils.chat_logger import ChatLogger
 from guguwebui.utils.i18n_util import (
@@ -104,12 +104,12 @@ class ConfigService:
     def get_config(self):
         """获取原始配置字典"""
         return self.server.load_config_simple(
-            "config.json", DEFALUT_CONFIG, echo_in_console=False
+            "config.json", DEFAULT_CONFIG, echo_in_console=False
         )
 
     async def get_web_config(self):
         config = self.server.load_config_simple(
-            "config.json", DEFALUT_CONFIG, echo_in_console=False
+            "config.json", DEFAULT_CONFIG, echo_in_console=False
         )
         ai_api_key_value = config.get("ai_api_key", "")
         ai_api_key_configured = bool(ai_api_key_value and ai_api_key_value.strip())
@@ -158,7 +158,7 @@ class ConfigService:
 
     def save_web_config(self, config_info):
         web_config = self.server.load_config_simple(
-            "config.json", DEFALUT_CONFIG, echo_in_console=False
+            "config.json", DEFAULT_CONFIG, echo_in_console=False
         )
         action = config_info.action
 

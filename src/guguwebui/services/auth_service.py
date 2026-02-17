@@ -4,7 +4,7 @@ import secrets
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from guguwebui.constant import DEFALUT_CONFIG, user_db
+from guguwebui.constant import DEFAULT_CONFIG, user_db
 from guguwebui.utils.auth_util import verify_password
 
 
@@ -29,7 +29,7 @@ class AuthService:
     ):
         now = datetime.datetime.now(datetime.timezone.utc)
         server_config = self.server.load_config_simple(
-            "config.json", DEFALUT_CONFIG, echo_in_console=False
+            "config.json", DEFAULT_CONFIG, echo_in_console=False
         )
         root_path = request.scope.get("root_path", "")
         cookie_path = root_path if root_path else "/"
@@ -191,7 +191,7 @@ class AuthService:
         """检查会话是否有效"""
         token = request.cookies.get("token")
         server_config = self.server.load_config_simple(
-            "config.json", DEFALUT_CONFIG, echo_in_console=False
+            "config.json", DEFAULT_CONFIG, echo_in_console=False
         )
         disable_other_admin = server_config.get("disable_other_admin", False)
         super_admin_account = server_config.get("super_admin_account")

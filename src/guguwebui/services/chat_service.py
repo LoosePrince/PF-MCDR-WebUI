@@ -5,7 +5,7 @@ import string
 import time
 from typing import Any, Dict, Optional, Tuple
 
-from guguwebui.constant import DEFALUT_CONFIG, user_db
+from guguwebui.constant import DEFAULT_CONFIG, user_db
 from guguwebui.state import RCON_ONLINE_CACHE, WEB_ONLINE_PLAYERS
 from guguwebui.structures import BusinessException
 from guguwebui.utils.auth_util import (

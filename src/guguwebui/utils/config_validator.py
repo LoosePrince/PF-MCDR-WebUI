@@ -3,7 +3,7 @@ import logging
 import socket
 from typing import Any, Dict, Tuple
 
-from guguwebui.constant import DEFALUT_CONFIG
+from guguwebui.constant import DEFAULT_CONFIG
 
 
 class ConfigValidator:
@@ -82,10 +82,10 @@ class ConfigValidator:
         super_account = config.get('super_admin_account')
         if not isinstance(super_account, (int, str)):
             self.warnings.append(f"super_admin_account 类型错误，期望 int 或 str，实际: {type(super_account)}")
-            validated_config['super_admin_account'] = DEFALUT_CONFIG['super_admin_account']
+            validated_config['super_admin_account'] = DEFAULT_CONFIG['super_admin_account']
         elif isinstance(super_account, str) and not super_account.isdigit():
             self.warnings.append(f"super_admin_account 格式错误: {super_account}")
-            validated_config['super_admin_account'] = DEFALUT_CONFIG['super_admin_account']
+            validated_config['super_admin_account'] = DEFAULT_CONFIG['super_admin_account']
 
         # 验证布尔值配置
         bool_configs = [
@@ -96,7 +96,7 @@ class ConfigValidator:
             value = config.get(key)
             if not isinstance(value, bool):
                 self.warnings.append(f"{key} 类型错误，期望 bool，实际: {type(value)}")
-                validated_config[key] = DEFALUT_CONFIG[key]
+                validated_config[key] = DEFAULT_CONFIG[key]
 
         # 验证字符串配置
         string_configs = [
@@ -107,19 +107,19 @@ class ConfigValidator:
             value = config.get(key)
             if not isinstance(value, str):
                 self.warnings.append(f"{key} 类型错误，期望 str，实际: {type(value)}")
-                validated_config[key] = DEFALUT_CONFIG[key]
+                validated_config[key] = DEFAULT_CONFIG[key]
 
         # 验证列表配置
         repositories = config.get('repositories')
         if not isinstance(repositories, list):
             self.warnings.append(f"repositories 类型错误，期望 list，实际: {type(repositories)}")
-            validated_config['repositories'] = DEFALUT_CONFIG['repositories']
+            validated_config['repositories'] = DEFAULT_CONFIG['repositories']
 
         # 验证ICP备案配置
         icp_records = config.get('icp_records')
         if not isinstance(icp_records, list):
             self.warnings.append(f"icp_records 类型错误，期望 list，实际: {type(icp_records)}")
-            validated_config['icp_records'] = DEFALUT_CONFIG['icp_records']
+            validated_config['icp_records'] = DEFAULT_CONFIG['icp_records']
         else:
             # 验证ICP备案数量（最多两个）
             if len(icp_records) > 2:
@@ -161,30 +161,30 @@ class ConfigValidator:
             value = config.get(key)
             if not isinstance(value, int):
                 self.warnings.append(f"{key} 类型错误，期望 int，实际: {type(value)}")
-                validated_config[key] = DEFALUT_CONFIG[key]
+                validated_config[key] = DEFAULT_CONFIG[key]
             elif value <= 0:
                 self.warnings.append(f"{key} 值超出范围，期望 > 0，实际: {value}")
-                validated_config[key] = DEFALUT_CONFIG[key]
+                validated_config[key] = DEFAULT_CONFIG[key]
 
         # 验证AI模型配置
         ai_model = config.get('ai_model')
         if ai_model and not isinstance(ai_model, str):
             self.warnings.append(f"ai_model 类型错误，期望 str，实际: {type(ai_model)}")
-            validated_config['ai_model'] = DEFALUT_CONFIG['ai_model']
+            validated_config['ai_model'] = DEFAULT_CONFIG['ai_model']
 
         # 验证AI API URL格式
         ai_api_url = config.get('ai_api_url')
         if ai_api_url and isinstance(ai_api_url, str):
             if not ai_api_url.startswith(('http://', 'https://')):
                 self.warnings.append(f"ai_api_url 格式错误，期望以 http:// 或 https:// 开头: {ai_api_url}")
-                validated_config['ai_api_url'] = DEFALUT_CONFIG['ai_api_url']
+                validated_config['ai_api_url'] = DEFAULT_CONFIG['ai_api_url']
 
         # 验证MCDR插件URL格式
         mcdr_plugins_url = config.get('mcdr_plugins_url')
         if mcdr_plugins_url and isinstance(mcdr_plugins_url, str):
             if not mcdr_plugins_url.startswith(('http://', 'https://')):
                 self.warnings.append(f"mcdr_plugins_url 格式错误，期望以 http:// 或 https:// 开头: {mcdr_plugins_url}")
-                validated_config['mcdr_plugins_url'] = DEFALUT_CONFIG['mcdr_plugins_url']
+                validated_config['mcdr_plugins_url'] = DEFAULT_CONFIG['mcdr_plugins_url']
 
     @staticmethod
     def _is_valid_ip(host: str) -> bool:
