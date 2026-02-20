@@ -7,15 +7,14 @@ import string
 from pathlib import Path
 from typing import List, Optional
 
-from guguwebui.constant import DEFALUT_CONFIG, MCDR_OFFICIAL_CATALOGUE_URL, PF_PLUGIN_CATALOGUE_URL, SERVER_PROPERTIES_PATH
+from guguwebui.constant import (DEFALUT_CONFIG, MCDR_OFFICIAL_CATALOGUE_URL,
+                                PF_PLUGIN_CATALOGUE_URL,
+                                SERVER_PROPERTIES_PATH)
 from guguwebui.utils.api_cache import api_cache
 from guguwebui.utils.chat_logger import ChatLogger
-from guguwebui.utils.i18n_util import (
-    build_json_i18n_translations,
-    build_yaml_i18n_translations,
-    consistent_type_update,
-    get_comment,
-)
+from guguwebui.utils.i18n_util import (build_json_i18n_translations,
+                                       build_yaml_i18n_translations,
+                                       consistent_type_update, get_comment)
 from guguwebui.utils.mc_util import find_plugin_config_paths, get_server_port
 from guguwebui.utils.path_util import SafePath, get_base_dirs
 
@@ -168,7 +167,13 @@ class ConfigService:
             if config_info.port:
                 web_config["port"] = int(config_info.port)
             if config_info.super_account:
-                web_config["super_admin_account"] = int(config_info.super_account)
+                # 支持字符串类型的超级管理员账号（如QQ号）
+                # 如果是纯数字字符串，转换为整数；否则保持字符串
+                super_account_str = str(config_info.super_account).strip()
+                if super_account_str.isdigit():
+                    web_config["super_admin_account"] = int(super_account_str)
+                else:
+                    web_config["super_admin_account"] = super_account_str
             if config_info.ai_api_key is not None:
                 web_config["ai_api_key"] = config_info.ai_api_key
             if config_info.ai_model is not None:
@@ -205,7 +210,7 @@ class ConfigService:
                 web_config["force_standalone"] = config_info.force_standalone
             if config_info.icp_records is not None:
                 web_config["icp_records"] = config_info.icp_records
-            response = {"status": "success", "message": "配置已保存，重启插件后生效"}
+            response = {"status": "success", "message": "配置已保存，修改后生效情况请查看页面提示"}
         elif action in ["disable_admin_login_web", "enable_temp_login_password"]:
             config_map = {
                 "disable_admin_login_web": "disable_other_admin",

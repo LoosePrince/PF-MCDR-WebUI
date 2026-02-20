@@ -4,8 +4,10 @@ import api, { getBasePath } from '../utils/api'
 interface AuthContextType {
   isAuthenticated: boolean | null
   username: string | null
+  nickname: string | null
   loading: boolean
   login: (account: string, password: string, remember?: boolean) => Promise<{ success: boolean; message?: string }>
+  loginWithTempCode: (tempCode: string) => Promise<{ success: boolean; message?: string }>
   logout: () => Promise<void>
   checkLoginStatus: () => Promise<void>
 }
@@ -15,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [username, setUsername] = useState<string | null>(null)
+  const [nickname, setNickname] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -27,13 +30,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.data.status === 'success') {
         setIsAuthenticated(true)
         setUsername(response.data.username)
+        setNickname(response.data.nickname || null)
       } else {
         setIsAuthenticated(false)
         setUsername(null)
+        setNickname(null)
       }
     } catch (error) {
       setIsAuthenticated(false)
       setUsername(null)
+      setNickname(null)
     } finally {
       setLoading(false)
     }
@@ -55,6 +61,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.data.status === 'success') {
         setIsAuthenticated(true)
         setUsername(account)
+        setNickname(response.data.nickname || null)
+        return { success: true }
+      } else {
+        return { success: false, message: response.data.message }
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.response?.data?.message || undefined,
+      }
+    }
+  }
+
+  const loginWithTempCode = async (tempCode: string) => {
+    try {
+      const formData = new FormData()
+      formData.append('temp_code', tempCode)
+
+      const response = await api.post('/login', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+
+      if (response.data.status === 'success') {
+        setIsAuthenticated(true)
+        setUsername(response.data.username || 'tempuser')
+        setNickname(response.data.nickname || null)
         return { success: true }
       } else {
         return { success: false, message: response.data.message }
@@ -77,6 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 无论后端是否成功，前端都先清理本地登录状态并跳转登录页
       setIsAuthenticated(false)
       setUsername(null)
+      setNickname(null)
       // 清除所有可能的 cookie (前端尝试)
       const cookieNames = ['token', 'session'];
       const domains = [window.location.hostname, ''];
@@ -99,8 +134,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         isAuthenticated,
         username,
+        nickname,
         loading,
         login,
+        loginWithTempCode,
         logout,
         checkLoginStatus,
       }}

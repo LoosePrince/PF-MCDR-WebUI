@@ -44,10 +44,34 @@ def hash_password(plain_password):
     return pwd_context.hash(plain_password)
 
 
-def create_temp_password() -> str:
+def create_temp_password(qq_id: str = None) -> str:
+    """
+    生成临时登录码
+    
+    Parameters
+    ----------
+    qq_id : str, optional
+        关联的QQ号，如果提供则会在登录时使用该QQ号作为用户名
+    
+    Returns
+    -------
+    str
+        临时登录码
+    """
     characters = string.ascii_uppercase + string.digits
     temp_password = ''.join(secrets.choice(characters) for _ in range(6))
-    user_db['temp'][temp_password] = str(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15))
+    expire_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15)
+    
+    if qq_id:
+        # 如果提供了QQ号，存储为字典格式，包含过期时间和QQ号
+        user_db['temp'][temp_password] = {
+            "expire_time": str(expire_time),
+            "qq_id": str(qq_id)
+        }
+    else:
+        # 向后兼容：如果没有提供QQ号，保持旧格式（字符串）
+        user_db['temp'][temp_password] = str(expire_time)
+    
     user_db.save()
     return temp_password
 

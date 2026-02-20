@@ -150,10 +150,26 @@ def on_load(server: PluginServerInterface, _old):
             LiteralEvent("mcdreforged.plugin_manager.plugin_unloaded"),
             lambda plugin_id: on_plugin_unloaded(server, plugin_id)
         )
+        
+        # 注册插件加载事件监听器（用于 GUGUBot）
+        server.register_event_listener(
+            LiteralEvent("mcdreforged.plugin_manager.plugin_loaded"),
+            lambda plugin_id: on_plugin_loaded(server, plugin_id)
+        )
     elif force_standalone:
         server.logger.info("强制独立运行模式，已忽略fastapi_mcdr插件")
+        # 注册插件加载事件监听器（用于 GUGUBot）
+        server.register_event_listener(
+            LiteralEvent("mcdreforged.plugin_manager.plugin_loaded"),
+            lambda plugin_id: on_plugin_loaded(server, plugin_id)
+        )
     else:
         server.logger.info("未检测到 fastapi_mcdr 插件，将使用独立服务器模式")
+        # 注册插件加载事件监听器（用于 GUGUBot）
+        server.register_event_listener(
+            LiteralEvent("mcdreforged.plugin_manager.plugin_loaded"),
+            lambda plugin_id: on_plugin_loaded(server, plugin_id)
+        )
 
     host = plugin_config['host']
     port = plugin_config['port']
@@ -277,6 +293,9 @@ def on_load(server: PluginServerInterface, _old):
 
     get_plugins_info(app.state.server_interface)
 
+    # 尝试注册 GUGUBot 系统模块
+    register_gugubot_system(server)
+
 
 def mount_to_fastapi_mcdr(server: PluginServerInterface, fastapi_mcdr):
     """挂载 WebUI 到 fastapi_mcdr 插件"""
@@ -326,6 +345,10 @@ def on_plugin_loaded(server: PluginServerInterface, plugin_id: str):
         else:
             server.logger.info("检测到 fastapi_mcdr 插件被重新加载")
             # 不需要主动切换，fastapi_mcdr 准备好时会自动挂载 WebUI
+    elif plugin_id == "gugubot":
+        # GUGUBot 插件加载时，尝试注册系统模块
+        server.logger.info("检测到 GUGUBot 插件加载，尝试注册 WebUI 系统模块")
+        register_gugubot_system(server)
 
 
 def start_standalone_server(server: PluginServerInterface):
@@ -485,6 +508,9 @@ def start_self_update_checker(server: PluginServerInterface):
 def on_unload(server: PluginServerInterface):
     global _mounted_to_fastapi_mcdr
     server.logger.info("正在卸载 WebUI...")
+    
+    # 卸载 GUGUBot 系统模块
+    unregister_gugubot_system(server)
 
     # 优先从 fastapi_mcdr 取消挂载（不依赖 config / is_ready，仅根据挂载标志）
     if _mounted_to_fastapi_mcdr:
@@ -691,3 +717,103 @@ def register_plugin_page(plugin_id: str, html_path: str):
     """
     from guguwebui.constant import REGISTERED_PLUGIN_PAGES
     REGISTERED_PLUGIN_PAGES[plugin_id] = html_path
+
+
+def register_gugubot_system(server: PluginServerInterface):
+    """
+    注册 WebUI 系统模块到 GUGUBot
+    
+    Parameters
+    ----------
+    server : PluginServerInterface
+        MCDR 服务器接口
+    """
+    try:
+        # 检测 GUGUBot 插件是否存在
+        gugubot_module = server.get_plugin_instance("gugubot")
+        if not gugubot_module:
+            return
+
+        # 通过 connector_manager 获取 SystemManager
+        connector_manager = getattr(gugubot_module, "connector_manager", None)
+        if not connector_manager:
+            return
+        
+        system_manager = getattr(connector_manager, "system_manager", None)
+        if not system_manager:
+            return
+
+        # 检查系统是否已注册
+        systems = getattr(system_manager, "systems", [])
+        for system in systems:
+            if hasattr(system, "name") and system.name == "webui":
+                # 如果已注册但 system_manager 为 None，更新它
+                if hasattr(system, "system_manager") and system.system_manager is None:
+                    system.system_manager = system_manager
+                return
+
+        # 获取 GUGUBot 配置
+        gugubot_config = {}
+        config_paths = ["GUGUbot/config.json", "GUGUBot/config.json", "gugubot/config.json"]
+        
+        for config_path in config_paths:
+            try:
+                gugubot_config = server.load_config_simple(config_path, {}, echo_in_console=False)
+                break
+            except Exception:
+                continue
+        
+        # 如果无法加载配置，尝试从模块获取
+        if not gugubot_config:
+            gugubot_config = getattr(gugubot_module, "gugubot_config", None) or getattr(gugubot_module, "config", {})
+
+        # 创建并注册系统模块
+        from .integrations.gugubot_system import create_webui_system
+        
+        webui_system = create_webui_system(server, gugubot_config, system_manager)
+        
+        # 初始化系统
+        if hasattr(webui_system, "initialize"):
+            webui_system.initialize()
+        
+        # 注册到 SystemManager
+        if hasattr(system_manager, "systems"):
+            system_manager.systems.append(webui_system)
+            server.logger.info("WebUI 系统模块已成功注册到 GUGUBot")
+
+    except Exception as e:
+        server.logger.debug(f"注册 GUGUBot 系统模块时出错: {e}")
+
+
+def unregister_gugubot_system(server: PluginServerInterface):
+    """
+    从 GUGUBot 卸载 WebUI 系统模块
+    
+    Parameters
+    ----------
+    server : PluginServerInterface
+        MCDR 服务器接口
+    """
+    try:
+        gugubot_module = server.get_plugin_instance("gugubot")
+        if not gugubot_module:
+            return
+
+        connector_manager = getattr(gugubot_module, "connector_manager", None)
+        if not connector_manager:
+            return
+        
+        system_manager = getattr(connector_manager, "system_manager", None)
+        if not system_manager:
+            return
+
+        # 查找并移除 WebUI 系统
+        systems = getattr(system_manager, "systems", [])
+        for i, system in enumerate(systems):
+            if hasattr(system, "name") and system.name == "webui":
+                systems.pop(i)
+                server.logger.info("WebUI 系统模块已从 GUGUBot 卸载")
+                break
+
+    except Exception:
+        pass

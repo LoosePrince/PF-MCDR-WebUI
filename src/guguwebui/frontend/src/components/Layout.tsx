@@ -45,7 +45,7 @@ const statusColors: Record<ServerStatusType, string> = {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { t, i18n } = useTranslation()
-  const { username, logout } = useAuth()
+  const { username, nickname, logout } = useAuth()
   const { mode, setMode, label: themeLabel } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -236,15 +236,46 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 font-bold text-sm">
-              {username?.charAt(0).toUpperCase()}
-            </div>
+            {(() => {
+              // 判断是否是QQ号（纯数字，长度5-11位）
+              const isQQNumber = (str: string | null): boolean => {
+                if (!str) return false
+                return /^\d{5,11}$/.test(str)
+              }
+              
+              const qqNumber = username && isQQNumber(username) ? username : null
+              const avatarUrl = qqNumber ? `https://q1.qlogo.cn/g?b=qq&nk=${qqNumber}&s=100` : null
+              
+              return avatarUrl ? (
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                  <img 
+                    src={avatarUrl} 
+                    alt={nickname || username || ''} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // 如果头像加载失败，显示首字母
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                      const parent = target.parentElement
+                      if (parent) {
+                        parent.textContent = (nickname || username)?.charAt(0).toUpperCase() || ''
+                        parent.className = 'w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 font-bold text-sm'
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 font-bold text-sm shrink-0">
+                  {(nickname || username)?.charAt(0).toUpperCase()}
+                </div>
+              )
+            })()}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                {username}
+                {nickname || username}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t('nav.status_online')}
+                {nickname && username !== nickname ? username : t('nav.status_online')}
               </p>
             </div>
           </div>
