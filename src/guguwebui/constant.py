@@ -34,10 +34,11 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # token: {token : {expire_time, user_name}}
 # user : {username: password}
-# temp : {temppassword: expire_time}
+# temp : {temppassword: expire_time} 或 {temppassword: {expire_time: str, qq_id: str}} (新格式，如果关联了QQ号)
 # chat_users: {player_id: {password: hashed_password, created_time: timestamp}}
 # chat_verification: {code: {player_id: None, expire_time: timestamp, used: False}}
 # chat_sessions: {session_id: {player_id: player_id, expire_time: timestamp}}
+# qq_nicknames: {qq_id: nickname} - QQ号到昵称的映射
 DEFALUT_DB = {
     "token": {},
     "user": {},
@@ -45,6 +46,7 @@ DEFALUT_DB = {
     "chat_users": {},
     "chat_verification": {},
     "chat_sessions": {},
+    "qq_nicknames": {},
 }
 DEFALUT_CONFIG = {
     "host": "127.0.0.1",

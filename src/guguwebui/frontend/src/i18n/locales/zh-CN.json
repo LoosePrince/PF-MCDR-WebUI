@@ -427,8 +427,10 @@
                 "tip": "配置 WebUI 的网络绑定。更改这些设置后，您需要重启插件使修改生效。",
                 "host": "主机地址",
                 "host_hint": "使用 127.0.0.1 仅本机访问，使用 0.0.0.0 允许所有网络访问",
+                "host_effect": "修改后需要重启插件才能生效",
                 "port": "端口",
                 "port_hint": "端口范围：1-65535，请避免使用已被占用的端口",
+                "port_effect": "修改后需要重启插件才能生效",
                 "save": "保存网络设置"
             },
             "https": {
@@ -454,26 +456,33 @@
                 "title": "账户设置",
                 "super_admin": "超级管理员账号",
                 "super_admin_hint": "具有超级管理员权限的QQ账号",
+                "super_admin_effect": "修改后立即生效，无需重启",
                 "save": "保存账户设置"
             },
             "security": {
                 "title": "安全设置",
                 "disable_admin_web": "禁用管理员网页登录",
+                "disable_admin_web_effect": "修改后立即生效，无需重启",
                 "enable_temp_code": "启用临时登录密码",
+                "enable_temp_code_effect": "修改后立即生效，无需重启",
                 "force_standalone": "强制独立运行",
                 "force_standalone_desc": "忽略 fastapi_mcdr 插件，强制作为独立 Web 服务运行",
+                "force_standalone_effect": "修改后需要重启插件才能生效",
                 "save": "保存安全设置"
             },
             "ai": {
                 "title": "AI 模型配置",
                 "api_key": "API 密钥",
+                "api_key_effect": "修改后立即生效，无需重启",
                 "validate": "验证密钥",
                 "validate_query": "测试密钥是否有效，请回复\"有效\"",
                 "validate_system_prompt": "你是一个简单的验证程序，只需回复\"有效\"",
                 "api_url": "API 链接",
                 "api_url_hint": "API链接地址，DeepSeek默认为: https://api.deepseek.com/chat/completions",
+                "api_url_effect": "修改后立即生效，无需重启",
                 "model": "模型名称",
                 "model_hint": "AI模型名称，DeepSeek默认为: deepseek-chat",
+                "model_effect": "修改后立即生效，无需重启",
                 "save": "保存AI配置",
                 "placeholder_api_key": "输入新的API密钥",
                 "placeholder_api_url": "https://api.deepseek.com/chat/completions",
@@ -484,18 +493,22 @@
                 "tip": "配置公开聊天页的功能选项。这些设置会影响聊天页的访问权限和消息转发功能。",
                 "enable": "启用公开聊天页",
                 "enable_desc": "允许用户访问公开聊天页面",
+                "enable_effect": "修改后立即生效，无需重启",
                 "enable_to_game": "发送消息到游戏",
                 "enable_to_game_desc": "允许公开聊天页的用户发送消息到Minecraft游戏内",
+                "enable_to_game_effect": "修改后立即生效，无需重启",
                 "save": "保存聊天页设置",
                 "verification_expire": {
                     "title": "验证码过期时间",
                     "desc": "设置聊天页验证码的有效期（分钟）",
-                    "unit_min": "分钟"
+                    "unit_min": "分钟",
+                    "effect": "修改后立即生效，新生成的验证码将使用新设置"
                 },
                 "session_expire": {
                     "title": "会话过期时间",
                     "desc": "设置聊天页用户会话的有效期（小时）",
-                    "unit_hour": "小时"
+                    "unit_hour": "小时",
+                    "effect": "修改后立即生效，新登录的会话将使用新设置"
                 },
                 "history": {
                     "title": "聊天记录管理",
@@ -517,7 +530,8 @@
                 "default": "默认仓库",
                 "placeholder_name": "仓库名称",
                 "placeholder_url": "仓库URL地址",
-                "save": "保存仓库配置"
+                "save": "保存仓库配置",
+                "effect": "修改后需要重启插件才能生效"
             },
             "icp": {
                 "title": "ICP 备案信息",
@@ -527,7 +541,8 @@
                 "actions": "操作",
                 "placeholder_text": "例如：浙ICP备12345678号",
                 "placeholder_url": "https://beian.miit.gov.cn/",
-                "save": "保存备案信息"
+                "save": "保存备案信息",
+                "effect": "修改后刷新页面即可看到效果，无需重启"
             },
             "pim": {
                 "title": "PIM独立插件配置",
@@ -835,6 +850,11 @@
         "login": "登录",
         "placeholder_username": "请输入账号",
         "placeholder_password": "请输入密码",
+        "password_login": "密码登录",
+        "temp_code_login": "临时码登录",
+        "temp_code": "临时登录码",
+        "placeholder_temp_code": "请输入临时登录码",
+        "temp_code_hint": "临时登录码有效期为15分钟",
         "go_chat": "我是玩家，我需要访问服务器聊天页",
         "msg": {
             "login_failed": "登录失败"

@@ -73,7 +73,14 @@ class AuthService:
                 }
                 user_db.save()
 
-                response = JSONResponse({"status": "success", "message": "登录成功"})
+                # 获取昵称（如果有）
+                nickname = user_db.get("qq_nicknames", {}).get(str(account))
+
+                response = JSONResponse({
+                    "status": "success",
+                    "message": "登录成功",
+                    "nickname": nickname
+                })
                 response.set_cookie(
                     "token",
                     token,
@@ -96,24 +103,59 @@ class AuthService:
                     status_code=403,
                 )
 
-            if temp_code in user_db["temp"] and user_db["temp"][temp_code] > str(now):
+            if temp_code not in user_db["temp"]:
+                return JSONResponse(
+                    {"status": "error", "message": "临时登录码无效。"}, status_code=401
+                )
+
+            temp_info = user_db["temp"][temp_code]
+            
+            # 兼容旧格式（字符串）和新格式（字典）
+            if isinstance(temp_info, dict):
+                # 新格式：包含 expire_time 和 qq_id
+                expire_time_str = temp_info.get("expire_time", "")
+                qq_id = temp_info.get("qq_id")
+                is_valid = expire_time_str > str(now) if expire_time_str else False
+            else:
+                # 旧格式：直接是过期时间字符串
+                expire_time_str = temp_info
+                qq_id = None
+                is_valid = expire_time_str > str(now) if isinstance(expire_time_str, str) else False
+
+            if is_valid:
                 token = secrets.token_hex(16)
                 expiry = now + datetime.timedelta(hours=2)
                 max_age = datetime.timedelta(hours=2).total_seconds()
 
+                # 如果有关联的QQ号，使用QQ号作为用户名；否则使用 tempuser
+                username = qq_id if qq_id else "tempuser"
+                
+                # 获取昵称（如果有）
+                nickname = None
+                if qq_id:
+                    nickname = user_db.get("qq_nicknames", {}).get(qq_id)
+
                 request.session["logged_in"] = True
                 request.session["token"] = token
-                request.session["username"] = "tempuser"
+                request.session["username"] = username
 
                 user_db["token"][token] = {
-                    "user_name": "tempuser",
+                    "user_name": username,
                     "expire_time": str(expiry),
                 }
                 user_db.save()
 
-                response = JSONResponse(
-                    {"status": "success", "message": "临时登录成功"}
-                )
+                # 删除已使用的临时码
+                del user_db["temp"][temp_code]
+                user_db.save()
+
+                response_data = {
+                    "status": "success",
+                    "message": "临时登录成功",
+                    "username": username,
+                    "nickname": nickname
+                }
+                response = JSONResponse(response_data)
                 response.set_cookie(
                     "token",
                     token,
@@ -122,14 +164,15 @@ class AuthService:
                     httponly=True,
                     max_age=max_age,
                 )
-                self.server.logger.info(f"临时用户登录成功")
+                self.server.logger.info(f"临时用户登录成功，用户名: {username}")
                 return response
             else:
+                # 临时码已过期或无效，删除它
                 if temp_code in user_db["temp"]:
                     del user_db["temp"][temp_code]
                     user_db.save()
                 return JSONResponse(
-                    {"status": "error", "message": "临时登录码无效。"}, status_code=401
+                    {"status": "error", "message": "临时登录码无效或已过期。"}, status_code=401
                 )
         else:
             return JSONResponse(

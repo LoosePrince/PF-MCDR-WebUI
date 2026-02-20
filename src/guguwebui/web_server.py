@@ -451,7 +451,22 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/checkLogin")
 async def check_login_status(request: Request, user: dict = Depends(get_current_user)):
-    return JSONResponse({"status": "success", "username": user.get("username")})
+    username = user.get("username")
+    nickname = None
+    
+    # 从 qq_nicknames 中获取昵称
+    if username:
+        try:
+            from guguwebui.constant import user_db
+            nickname = user_db.get("qq_nicknames", {}).get(str(username))
+        except Exception:
+            pass
+    
+    return JSONResponse({
+        "status": "success",
+        "username": username,
+        "nickname": nickname
+    })
 
 
 # Return plugins' metadata

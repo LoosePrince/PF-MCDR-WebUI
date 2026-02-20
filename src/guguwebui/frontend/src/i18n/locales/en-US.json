@@ -422,8 +422,10 @@
                 "tip": "Configure the WebUI network binding. After changing these settings, you need to restart the plugin to apply them.",
                 "host": "Host",
                 "host_hint": "Use 127.0.0.1 for local access only, use 0.0.0.0 to allow access from other devices",
+                "host_effect": "Changes take effect after restarting the plugin",
                 "port": "Port",
                 "port_hint": "Port range: 1-65535. Avoid using ports that are already in use.",
+                "port_effect": "Changes take effect after restarting the plugin",
                 "save": "Save Network Settings"
             },
             "https": {
@@ -449,23 +451,33 @@
                 "title": "Account Settings",
                 "super_admin": "Super admin account",
                 "super_admin_hint": "QQ account with super admin permission",
+                "super_admin_effect": "Changes take effect immediately, no restart required",
                 "save": "Save Account Settings"
             },
             "security": {
                 "title": "Security Settings",
                 "disable_admin_web": "Disable admin login via web",
-                "enable_temp_code": "Enable temporary login password"
+                "disable_admin_web_effect": "Changes take effect immediately, no restart required",
+                "enable_temp_code": "Enable temporary login password",
+                "enable_temp_code_effect": "Changes take effect immediately, no restart required",
+                "force_standalone": "Force standalone mode",
+                "force_standalone_desc": "Ignore fastapi_mcdr plugin, force running as standalone Web service",
+                "force_standalone_effect": "Changes take effect after restarting the plugin",
+                "save": "Save Security Settings"
             },
             "ai": {
                 "title": "AI Model Configuration",
                 "api_key": "API Key",
+                "api_key_effect": "Changes take effect immediately, no restart required",
                 "validate": "Validate Key",
                 "validate_query": "Test if the key is valid, please reply \"valid\"",
                 "validate_system_prompt": "You are a simple validation program, just reply \"valid\"",
                 "api_url": "API URL",
                 "api_url_hint": "API endpoint, DeepSeek default: https://api.deepseek.com/chat/completions",
+                "api_url_effect": "Changes take effect immediately, no restart required",
                 "model": "Model Name",
                 "model_hint": "AI model name, DeepSeek default: deepseek-chat",
+                "model_effect": "Changes take effect immediately, no restart required",
                 "save": "Save AI Configuration",
                 "placeholder_api_key": "Enter a new API key",
                 "placeholder_api_url": "https://api.deepseek.com/chat/completions",
@@ -476,18 +488,22 @@
                 "tip": "Configure options for the public chat page. These settings affect access and message forwarding behavior.",
                 "enable": "Enable Public Chat Page",
                 "enable_desc": "Allow users to access the public chat page",
+                "enable_effect": "Changes take effect immediately, no restart required",
                 "enable_to_game": "Send messages to game",
                 "enable_to_game_desc": "Allow users on the public chat page to send messages into the Minecraft game",
+                "enable_to_game_effect": "Changes take effect immediately, no restart required",
                 "save": "Save Chat Page Settings",
                 "verification_expire": {
                     "title": "Verification code expiry",
                     "desc": "Set validity period of verification code (minutes)",
-                    "unit_min": "minutes"
+                    "unit_min": "minutes",
+                    "effect": "Changes take effect immediately, new verification codes will use the new setting"
                 },
                 "session_expire": {
                     "title": "Session expiry",
                     "desc": "Set validity period of user sessions (hours)",
-                    "unit_hour": "hours"
+                    "unit_hour": "hours",
+                    "effect": "Changes take effect immediately, new login sessions will use the new setting"
                 },
                 "history": {
                     "title": "Chat History Management",
@@ -509,7 +525,19 @@
                 "default": "Default",
                 "placeholder_name": "Repository name",
                 "placeholder_url": "Repository URL",
-                "save": "Save Repository Configuration"
+                "save": "Save Repository Configuration",
+                "effect": "Changes take effect after restarting the plugin"
+            },
+            "icp": {
+                "title": "ICP Filing Information",
+                "tip": "Configure ICP filing information displayed at the bottom of the website. Maximum of two records supported.",
+                "text": "Filing Number",
+                "url": "Query Link",
+                "actions": "Actions",
+                "placeholder_text": "e.g., 浙ICP备12345678号",
+                "placeholder_url": "https://beian.miit.gov.cn/",
+                "save": "Save Filing Information",
+                "effect": "Changes take effect after refreshing the page, no restart required"
             },
             "pim": {
                 "title": "PIM Standalone Plugin",
@@ -743,6 +771,11 @@
         "login": "Login",
         "placeholder_username": "Enter username",
         "placeholder_password": "Enter password",
+        "password_login": "Password Login",
+        "temp_code_login": "Temp Code Login",
+        "temp_code": "Temporary Code",
+        "placeholder_temp_code": "Enter temporary code",
+        "temp_code_hint": "Temporary code expires in 15 minutes",
         "go_chat": "I'm a player, I need to access the server chat page",
         "msg": {
             "login_failed": "Login failed"

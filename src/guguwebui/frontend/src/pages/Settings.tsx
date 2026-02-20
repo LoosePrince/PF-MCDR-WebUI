@@ -313,6 +313,7 @@ const Settings: React.FC = () => {
                   className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/60 transition-all outline-none"
                 />
                 <p className="text-xs text-slate-500">{t('page.settings.network.host_hint')}</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">{t('page.settings.network.host_effect')}</p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -326,6 +327,7 @@ const Settings: React.FC = () => {
                   className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/60 transition-all outline-none"
                 />
                 <p className="text-xs text-slate-500">{t('page.settings.network.port_hint')}</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">{t('page.settings.network.port_effect')}</p>
               </div>
             </div>
 
@@ -366,6 +368,7 @@ const Settings: React.FC = () => {
                 className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/60 transition-all outline-none"
               />
               <p className="text-xs text-slate-500">{t('page.settings.account.super_admin_hint')}</p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('page.settings.account.super_admin_effect')}</p>
             </div>
 
             <div className="flex justify-end pt-2">
@@ -397,6 +400,7 @@ const Settings: React.FC = () => {
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
                 <div>
                   <p className="font-bold text-slate-900 dark:text-white">{t('page.settings.security.disable_admin_web')}</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">{t('page.settings.security.disable_admin_web_effect')}</p>
                 </div>
                 <button
                   onClick={() => toggleSetting('disable_admin_login_web')}
@@ -412,6 +416,7 @@ const Settings: React.FC = () => {
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
                 <div>
                   <p className="font-bold text-slate-900 dark:text-white">{t('page.settings.security.enable_temp_code')}</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">{t('page.settings.security.enable_temp_code_effect')}</p>
                 </div>
                 <button
                   onClick={() => toggleSetting('enable_temp_login_password')}
@@ -428,6 +433,7 @@ const Settings: React.FC = () => {
                 <div>
                   <p className="font-bold text-slate-900 dark:text-white">{t('page.settings.security.force_standalone')}</p>
                   <p className="text-xs text-slate-500">{t('page.settings.security.force_standalone_desc')}</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">{t('page.settings.security.force_standalone_effect')}</p>
                 </div>
                 <button
                   onClick={() => setConfig({ ...config, force_standalone: !config.force_standalone })}
@@ -584,6 +590,7 @@ const Settings: React.FC = () => {
                   placeholder="https://api.deepseek.com/chat/completions"
                   className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/60 transition-all outline-none"
                 />
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('page.settings.ai.api_url_effect')}</p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('page.settings.ai.model')}</label>
@@ -594,6 +601,7 @@ const Settings: React.FC = () => {
                   placeholder="deepseek-chat"
                   className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/60 transition-all outline-none"
                 />
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('page.settings.ai.model_effect')}</p>
               </div>
               <form
                 className="space-y-2"
@@ -627,6 +635,7 @@ const Settings: React.FC = () => {
                     {showAiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('page.settings.ai.api_key_effect')}</p>
                 <div className="flex justify-end gap-2 mt-2">
                   <button
                     type="button"
@@ -664,6 +673,7 @@ const Settings: React.FC = () => {
           </div>
 
           <p className="text-sm text-slate-500">{t('page.settings.repo.tip')}</p>
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">{t('page.settings.repo.effect')}</p>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
             <table className="w-full text-sm text-left">
@@ -769,6 +779,7 @@ const Settings: React.FC = () => {
           </div>
 
           <p className="text-sm text-slate-500">{t('page.settings.icp.tip')}</p>
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">{t('page.settings.icp.effect')}</p>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
             <table className="w-full text-sm text-left">
@@ -857,6 +868,7 @@ const Settings: React.FC = () => {
               <div>
                 <p className="font-bold text-slate-900 dark:text-white">{t('page.settings.public_chat.enable')}</p>
                 <p className="text-xs text-slate-500">{t('page.settings.public_chat.enable_desc')}</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">{t('page.settings.public_chat.enable_effect')}</p>
               </div>
               <button
                 onClick={() => setConfig({ ...config, public_chat_enabled: !config.public_chat_enabled })}
@@ -873,6 +885,7 @@ const Settings: React.FC = () => {
               <div>
                 <p className="font-bold text-slate-900 dark:text-white">{t('page.settings.public_chat.enable_to_game')}</p>
                 <p className="text-xs text-slate-500">{t('page.settings.public_chat.enable_to_game_desc')}</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">{t('page.settings.public_chat.enable_to_game_effect')}</p>
               </div>
               <button
                 disabled={!config.public_chat_enabled}
@@ -898,6 +911,7 @@ const Settings: React.FC = () => {
                   />
                   <span className="text-xs text-slate-500">{t('page.settings.public_chat.verification_expire.unit_min')}</span>
                 </div>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('page.settings.public_chat.verification_expire.effect')}</p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('page.settings.public_chat.session_expire.title')}</label>
@@ -910,6 +924,7 @@ const Settings: React.FC = () => {
                   />
                   <span className="text-xs text-slate-500">{t('page.settings.public_chat.session_expire.unit_hour')}</span>
                 </div>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t('page.settings.public_chat.session_expire.effect')}</p>
               </div>
             </div>
 
