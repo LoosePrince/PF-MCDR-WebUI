@@ -561,23 +561,9 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
         
-        {/* Decorative background element */}
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.2, 1],
-            opacity: [0.05, 0.08, 0.05] 
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-          className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl" 
-        />
-        <motion.div 
-          animate={{ 
-            scale: [1.2, 1, 1.2],
-            opacity: [0.05, 0.08, 0.05] 
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-          className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl" 
-        />
+        {/* Decorative background element - static to avoid GPU drain from infinite blur animation */}
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
       </motion.div>
 
       {/* Stats Grid */}
@@ -911,7 +897,7 @@ const Dashboard: React.FC = () => {
       <AnimatePresence>
         {showInstallPipModal && (
           <motion.div
-            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center"
+            className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -961,7 +947,7 @@ const Dashboard: React.FC = () => {
       <AnimatePresence>
         {showRconSetupModal && (
           <motion.div
-            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center"
+            className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

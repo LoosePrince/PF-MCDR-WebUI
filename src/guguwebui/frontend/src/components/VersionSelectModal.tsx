@@ -23,7 +23,7 @@ export const VersionSelectModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div onClick={onClose} className="absolute inset-0 bg-black/60" />
       <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl p-6 md:p-8 max-h-[85vh] overflow-y-auto custom-scrollbar">
         <div className="flex items-center justify-between mb-4 sticky top-0 bg-white dark:bg-slate-900 z-10 pb-3 border-b border-slate-100 dark:border-slate-800">
           <h3 className="text-xl font-bold text-slate-900 dark:text-white line-clamp-1">{title}</h3>
