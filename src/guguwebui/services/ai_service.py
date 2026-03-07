@@ -31,22 +31,23 @@ class AIService:
             "ai_system_prompt", "你是一个专业的 Minecraft 服务器管理员助手。"
         )
 
-        if not api_key:
+        is_xzt_free = "ai-api.xzt.plus" in (api_url or "")
+        if not is_xzt_free and not api_key:
             raise BusinessException("未配置 AI API Key", status_code=400)
 
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        }
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
 
         payload = {
-            "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": query},
             ],
             "stream": False,
         }
+        if not is_xzt_free and model:
+            payload["model"] = model
 
         try:
             async with aiohttp.ClientSession() as session:

@@ -38,7 +38,7 @@ const MCDRConfig: React.FC = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState('');
   const [notificationType, setNotificationType] = useState<'success' | 'error'>('success');
-  const [rconConnected, setRconConnected] = useState(false);
+  const [rconStatus, setRconStatus] = useState<{ rcon_enabled: boolean; rcon_connected: boolean }>({ rcon_enabled: false, rcon_connected: false });
 
   // RCON Modal states
   const [showRconSetupModal, setShowRconSetupModal] = useState(false);
@@ -71,11 +71,14 @@ const MCDRConfig: React.FC = () => {
       const [configResp, permResp, rconResp] = await Promise.all([
         api.get('/load_config?path=config.yml', { signal }),
         api.get('/load_config?path=permission.yml', { signal }),
-        api.get('/get_rcon_status', { signal }).catch(() => ({ data: { connected: false } }))
+        api.get('/get_rcon_status', { signal }).catch(() => ({ data: { rcon_enabled: false, rcon_connected: false } }))
       ]);
       setConfigData(configResp.data);
       setPermissionData(permResp.data);
-      setRconConnected(rconResp.data?.connected || false);
+      setRconStatus({
+        rcon_enabled: rconResp.data?.rcon_enabled ?? false,
+        rcon_connected: rconResp.data?.rcon_connected ?? false,
+      });
     } catch (error: any) {
       // 忽略取消的请求错误
       if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
@@ -123,9 +126,15 @@ const MCDRConfig: React.FC = () => {
         setRconConfig(resp.data.config);
         setShowRconSetupModal(false);
         setShowRconRestartModal(true);
-        // Reload config to show new values
-        const configResp = await api.get('/load_config?path=config.yml');
+        const [configResp, rconResp] = await Promise.all([
+          api.get('/load_config?path=config.yml'),
+          api.get('/get_rcon_status'),
+        ]);
         setConfigData(configResp.data);
+        setRconStatus({
+          rcon_enabled: rconResp.data?.rcon_enabled ?? false,
+          rcon_connected: rconResp.data?.rcon_connected ?? false,
+        });
         notify(t('page.mcdr.rcon.setup_success_msg'), 'success');
       } else {
         notify(t('page.mcdr.rcon.setup_failed_prefix') + (resp.data.message || ''), 'error');
@@ -406,7 +415,7 @@ const MCDRConfig: React.FC = () => {
               {/* RCON Settings */}
               <ConfigSection title={t('page.mcdr.rcon.title')} icon={Terminal}>
                 <div className="space-y-6">
-                  {!rconConnected && (
+                  {(!rconStatus.rcon_enabled || !rconStatus.rcon_connected) && (
                     <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl">
                       <div className="flex items-center gap-3">
                         <Zap className="text-blue-500" size={24} />
