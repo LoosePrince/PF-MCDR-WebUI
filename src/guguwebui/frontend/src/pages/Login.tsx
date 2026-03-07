@@ -139,7 +139,7 @@ const Login: React.FC = () => {
           opacity: [0.1, 0.15, 0.1]
         }}
         transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-        className="absolute top-0 right-0 -mr-32 -mt-32 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" 
+        className="absolute top-0 right-0 -mr-32 -mt-32 w-96 h-96 bg-blue-500/10 rounded-full blur-xl pointer-events-none" 
       />
       <motion.div 
         animate={{ 
@@ -147,7 +147,7 @@ const Login: React.FC = () => {
           opacity: [0.1, 0.15, 0.1]
         }}
         transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-        className="absolute bottom-0 left-0 -ml-32 -mb-32 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" 
+        className="absolute bottom-0 left-0 -ml-32 -mb-32 w-96 h-96 bg-purple-500/10 rounded-full blur-xl pointer-events-none" 
       />
       
       <motion.div 
@@ -156,7 +156,7 @@ const Login: React.FC = () => {
         transition={{ duration: 0.5 }}
         className="max-w-md w-full relative z-10"
       >
-        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl space-y-8">
+        <div className="bg-white/95 dark:bg-slate-900/95 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl space-y-8">
           <div className="text-center space-y-2">
             <motion.div 
               whileHover={{ rotate: 0, scale: 1.05 }}

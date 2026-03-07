@@ -476,8 +476,8 @@ const PlayerChat: React.FC = () => {
 
   return (
     <div className="h-screen w-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center md:p-4 overflow-hidden relative">
-      <div className="absolute top-0 right-0 -mr-48 -mt-48 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 -ml-48 -mb-48 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-0 -mr-48 -mt-48 w-96 h-96 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 -ml-48 -mb-48 w-96 h-96 bg-purple-500/10 rounded-full blur-xl pointer-events-none" />
       
       {isLoggedIn ? (
         /* 
@@ -491,7 +491,7 @@ const PlayerChat: React.FC = () => {
           
           {/* Header */}
           <header className="px-4 md:px-8 py-3 md:py-5 border-b border-slate-100 dark:border-slate-800 
-            flex items-center justify-between bg-white/70 dark:bg-slate-900/70 backdrop-blur-md z-20">
+            flex items-center justify-between bg-white/95 dark:bg-slate-900/95 z-20">
             <div className="flex items-center gap-3 md:gap-4">
               <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl overflow-hidden shrink-0 shadow-sm border border-white dark:border-slate-800">
                 <img 
@@ -639,7 +639,7 @@ const PlayerChat: React.FC = () => {
             {showSettings && (
               <motion.div 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-40 flex items-center justify-center p-4"
+                className="absolute inset-0 bg-slate-900/60 z-40 flex items-center justify-center p-4"
               >
                 <motion.div 
                   initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}

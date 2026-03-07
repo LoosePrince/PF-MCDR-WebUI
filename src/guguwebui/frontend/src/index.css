@@ -29,6 +29,17 @@
   .animate-shake {
     animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
   }
+
+  /* Respect reduced motion preference to lower GPU usage */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-shake {
+      animation: none !important;
+    }
+    .animate-pulse {
+      animation: none !important;
+      opacity: 1;
+    }
+  }
 }
 
 @keyframes shake {

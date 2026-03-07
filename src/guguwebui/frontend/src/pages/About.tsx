@@ -48,8 +48,8 @@ const About: React.FC = () => {
         variants={itemVariants}
         className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm"
       >
-        <div className="absolute -right-20 -top-20 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl" />
-        <div className="absolute -left-16 -bottom-24 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl" />
+        <div className="absolute -right-20 -top-20 w-64 h-64 bg-blue-500/5 rounded-full blur-xl pointer-events-none" />
+        <div className="absolute -left-16 -bottom-24 w-64 h-64 bg-emerald-500/5 rounded-full blur-xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
           <div className="flex-shrink-0">
