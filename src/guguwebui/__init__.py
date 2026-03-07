@@ -7,30 +7,41 @@ from mcdreforged.api.command import Literal, Text
 from mcdreforged.api.event import LiteralEvent
 from mcdreforged.api.types import PluginServerInterface
 
-from guguwebui.PIM import PluginInstaller, create_installer
-from guguwebui.constant import user_db
-from guguwebui.utils.auth_util import change_account_command, create_account_command, get_temp_password_command, \
-    verify_chat_code_command
-from guguwebui.utils.chat_logger import ChatLogger
-from guguwebui.utils.file_util import amount_static_files
-from guguwebui.utils.mc_util import get_minecraft_path
-from guguwebui.utils.mc_util import get_plugins_info
-from guguwebui.utils.server_util import patch_asyncio
-from guguwebui.web_server import DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn, app, init_app, log_watcher
+import threading
+from guguwebui.utils.dependency_checker import check_and_install_dependencies
 
-# 全局变量声明
+# 全局变量声明（不在此处导入 constant/PIM/web_server，避免 import 阶段触发 passlib 导致加载失败）
 web_server_interface = None
 _mounted_to_fastapi_mcdr = False
-chat_logger: Optional[ChatLogger] = None
+chat_logger = None  # 在 _do_startup 中赋值为 ChatLogger 实例
 
 
-# ============================================================#
+def _bootstrap(server: PluginServerInterface):
+    """后台线程：先异步完成依赖检查与安装，再继续插件启动流程，避免阻塞 MCDR 看门狗。"""
+    try:
+        check_and_install_dependencies(server)
+    except Exception as e:
+        server.logger.error(f"依赖检查过程中发生错误: {e}")
+        server.logger.warning("将尝试继续启动，但可能会遇到导入错误")
+    _do_startup(server)
 
 
-def on_load(server: PluginServerInterface, _old):
-    global web_server_interface
+def _do_startup(server: PluginServerInterface):
+    """依赖就绪后执行完整启动流程（在后台线程中调用）。"""
+    global web_server_interface, chat_logger
 
-    server.logger.info("启动 WebUI 中...")
+    from guguwebui.constant import user_db
+    from guguwebui.PIM import PluginInstaller, create_installer
+    from guguwebui.utils.auth_util import (change_account_command,
+                                           create_account_command,
+                                           get_temp_password_command,
+                                           verify_chat_code_command)
+    from guguwebui.utils.chat_logger import ChatLogger
+    from guguwebui.utils.file_util import amount_static_files
+    from guguwebui.utils.mc_util import get_minecraft_path, get_plugins_info
+    from guguwebui.utils.server_util import patch_asyncio
+    from guguwebui.web_server import (DEFALUT_CONFIG, STATIC_PATH, ThreadedUvicorn,
+                                      app, init_app, log_watcher)
 
     # 检测并提示插件运行模式
     try:
@@ -47,22 +58,11 @@ def on_load(server: PluginServerInterface, _old):
     except Exception as e:
         server.logger.debug(f"检测插件运行模式时出错: {e}")
 
-    # 首先检查并安装依赖包
-    try:
-        from .utils.dependency_checker import check_and_install_dependencies
-        check_and_install_dependencies(server)
-    except Exception as e:
-        server.logger.error(f"依赖检查过程中发生错误: {e}")
-        server.logger.warning("将尝试继续启动，但可能会遇到导入错误")
-
     # 导入必需的模块
     try:
         import uvicorn
-        # 导入其他模块 - 明确导入需要的内容
         from fastapi.staticfiles import StaticFiles
-
         server.logger.info("所有模块导入成功")
-
     except ImportError as e:
         server.logger.error(f"导入模块时发生错误: {e}")
         server.logger.error("请检查依赖包是否正确安装")
@@ -72,7 +72,6 @@ def on_load(server: PluginServerInterface, _old):
         server.logger.error(f"导入模块时发生未知错误: {e}")
         return
 
-    # 在 Windows 平台应用 asyncio 补丁，防止连接重置错误
     if platform.system() == 'Windows':
         server.logger.debug("正在为 Windows 平台应用 asyncio 补丁...")
         patch_asyncio(server)
@@ -297,6 +296,15 @@ def on_load(server: PluginServerInterface, _old):
     register_gugubot_system(server)
 
 
+# ============================================================#
+
+
+def on_load(server: PluginServerInterface, _old):
+    """立即返回，依赖检查与完整启动在后台线程中异步执行，避免阻塞 MCDR 看门狗。"""
+    server.logger.info("启动 WebUI 中...")
+    threading.Thread(target=_bootstrap, args=(server,), daemon=False).start()
+
+
 def mount_to_fastapi_mcdr(server: PluginServerInterface, fastapi_mcdr):
     """挂载 WebUI 到 fastapi_mcdr 插件"""
     global _mounted_to_fastapi_mcdr
@@ -354,11 +362,13 @@ def on_plugin_loaded(server: PluginServerInterface, plugin_id: str):
 def start_standalone_server(server: PluginServerInterface):
     """启动独立服务器模式"""
     try:
-        from .web_server import app, init_app, DEFALUT_CONFIG
+        import os
+
+        import uvicorn
+
         from .utils.mc_util import get_plugins_info
         from .utils.server_util import ThreadedUvicorn
-        import uvicorn
-        import os
+        from .web_server import DEFALUT_CONFIG, app, init_app
 
         # 重新初始化应用程序
         init_app(server)
@@ -478,6 +488,7 @@ def start_self_update_checker(server: PluginServerInterface):
     """启动 WebUI 自身更新检查任务"""
     import threading
     import time
+
     from .utils.mc_util import check_self_update
     from .web_server import app
 
@@ -618,8 +629,10 @@ def on_unload(server: PluginServerInterface):
 
 
 def register_command(server: PluginServerInterface, host: str, port: int):
-    from .utils.auth_util import get_temp_password_command, create_account_command, change_account_command, \
-        verify_chat_code_command  # 在函数内部导入所有需要的命令函数
+    from .utils.auth_util import verify_chat_code_command  # 在函数内部导入所有需要的命令函数
+    from .utils.auth_util import (change_account_command,
+                                  create_account_command,
+                                  get_temp_password_command)
 
     # 注册指令
     server.register_command(
