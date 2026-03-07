@@ -19,7 +19,9 @@ import {
   Bot,
   User,
   AlertTriangle,
-  ArrowDown
+  ArrowDown,
+  Info,
+  ExternalLink
 } from 'lucide-react'
 
 // --- Interfaces ---
@@ -89,6 +91,10 @@ const Terminal: React.FC = () => {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [hasApiKey, setHasApiKey] = useState(false)
+
+  // AI Provider: 'xzt_free' = 树梢免费AI, 'custom' = 自定义 API Key
+  const [aiProvider, setAiProvider] = useState<'xzt_free' | 'custom'>('xzt_free')
+  const [showXztInfoModal, setShowXztInfoModal] = useState(false)
 
   // Notification
   const [notification, setNotification] = useState<{ msg: string, type: 'success' | 'error' | 'info' } | null>(null)
@@ -484,7 +490,6 @@ const Terminal: React.FC = () => {
     const context = selectedText || logs.slice(-200).map(l => l.content).join('\n')
 
     try {
-      // Deepseek (Self-hosted proxy in backend)
       const payload: any = {
         query: `${query}\n\nContext Logs:\n${context}`,
         system_prompt: t('page.terminal.msg.system_prompt'),
@@ -492,10 +497,15 @@ const Terminal: React.FC = () => {
       if (aiChatHistory.length > 0) {
         payload.chat_history = aiChatHistory
       }
+      if (aiProvider === 'xzt_free') {
+        payload.api_url = 'https://ai-api.xzt.plus/v1/chat/completions'
+        payload.api_key = ''
+        payload.model = ''
+      }
 
       const res = await api.post('/deepseek', payload)
       if (res.data.status === 'success') {
-        const answer = res.data.answer
+        const answer = res.data.choices?.[0]?.message?.content ?? res.data.answer ?? ''
         setAiChatHistory(prev => [
           ...prev,
           { role: 'user', content: query },
@@ -732,11 +742,35 @@ const Terminal: React.FC = () => {
       {/* AI Modal */}
       <Modal isOpen={showAIModal} onClose={() => setShowAIModal(false)} title={t('page.terminal.ai_modal.title')} maxWidth="max-w-3xl">
         <div className="space-y-4">
-          <div className="flex gap-2 mb-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit text-xs font-bold text-purple-600 dark:text-purple-400">
-            {t('page.terminal.ai_modal.mode_api')}
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{t('page.terminal.ai_modal.provider_label')}</span>
+            <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg items-center">
+              <button
+                type="button"
+                onClick={() => setAiProvider('xzt_free')}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${aiProvider === 'xzt_free' ? 'bg-purple-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              >
+                {t('page.terminal.ai_modal.provider_xzt_free')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowXztInfoModal(true)}
+                className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-purple-600 transition-colors"
+                title={t('page.terminal.ai_modal.xzt_info_title')}
+              >
+                <Info size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiProvider('custom')}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${aiProvider === 'custom' ? 'bg-purple-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              >
+                {t('page.terminal.ai_modal.provider_custom')}
+              </button>
+            </div>
           </div>
 
-          {!hasApiKey && (
+          {aiProvider === 'custom' && !hasApiKey && (
             <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 p-3 rounded-lg text-sm flex items-center gap-2">
               <AlertTriangle size={16} />
               <span>{t('page.terminal.ai_modal.api_unconfigured_warning')}</span>
@@ -808,6 +842,24 @@ const Terminal: React.FC = () => {
               <Send size={18} />
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* 树梢免费AI 说明弹窗 */}
+      <Modal isOpen={showXztInfoModal} onClose={() => setShowXztInfoModal(false)} title={t('page.terminal.ai_modal.xzt_info_title')}>
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            {t('page.terminal.ai_modal.xzt_info_intro')}
+          </p>
+          <a
+            href="https://ai-api.xzt.plus/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition-colors"
+          >
+            {t('page.terminal.ai_modal.xzt_info_link')}
+            <ExternalLink size={14} />
+          </a>
         </div>
       </Modal>
 

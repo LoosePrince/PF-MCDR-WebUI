@@ -124,7 +124,6 @@ const OnlinePlugins: React.FC = () => {
   const [readmeType, setReadmeType] = useState<'readme' | 'catalogue'>('readme');
   const [readmeUrl, setReadmeUrl] = useState<string>('');
   const [catalogueUrl, setCatalogueUrl] = useState<string>('');
-
   // 版本选择
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [availableVersions, setAvailableVersions] = useState<PluginVersion[]>([]);
@@ -525,7 +524,7 @@ const OnlinePlugins: React.FC = () => {
   };
 
   const sortedAndFilteredPlugins = useMemo(() => {
-    let result = plugins.filter(p => {
+    const result = plugins.filter(p => {
       const q = searchQuery.toLowerCase();
       const localizedDesc = (typeof p.description === 'object'
         ? Object.values(p.description).join(' ')
@@ -801,7 +800,10 @@ const OnlinePlugins: React.FC = () => {
       {/* Detail Modal */}
       <Modal
         isOpen={showDetailModal}
-        onClose={() => setShowDetailModal(false)}
+        onClose={() => {
+          setShowDetailModal(false);
+          setPluginHistory([]);
+        }}
         title={selectedPlugin?.name || ''}
       >
         <div className="space-y-5">
@@ -935,7 +937,7 @@ const OnlinePlugins: React.FC = () => {
                   </span>
                 )}
               </div>
-              <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 min-h-32 max-h-60 overflow-y-auto custom-scrollbar border border-slate-100 dark:border-slate-800 relative">
+              <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 min-h-32 max-h-60 overflow-hidden custom-scrollbar border border-slate-100 dark:border-slate-800 relative">
                 {loadingReadme ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="animate-spin text-purple-500" />
@@ -1073,7 +1075,7 @@ const OnlinePlugins: React.FC = () => {
         maxWidthClassName="max-w-6xl"
       >
         <div className="space-y-4">
-          {/* 文档类型切换按钮 + GitHub 跳转按钮 */}
+          {/* 文档类型切换 + GitHub */}
           {(catalogueUrl || githubRepoUrl) && (
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
               <div className="flex gap-2">
@@ -1115,7 +1117,6 @@ const OnlinePlugins: React.FC = () => {
             </div>
           )}
 
-          {/* 文档内容（渲染区域滚动） */}
           <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-6 min-h-[400px] max-h-[60vh] overflow-y-auto custom-scrollbar border border-slate-100 dark:border-slate-800">
             {loadingReadmeContent ? (
               <div className="flex flex-col items-center justify-center py-16">
