@@ -9,6 +9,7 @@
         "web_settings": "Web Settings",
         "about": "About",
         "logout": "Logout",
+        "server": "Server",
         "status_online": "Online",
         "status_offline": "Offline",
         "status_loading": "Loading",
@@ -41,6 +42,7 @@
         "add": "Add",
         "close": "Close",
         "save": "Save",
+        "refresh": "Refresh",
         "back": "Back",
         "send": "Send"
     },
@@ -106,7 +108,9 @@
             "install_failed_prefix": "Failed to install plugin: {{message}}",
             "install_failed": "Failed to install plugin",
             "load_versions_failed": "Failed to load versions list",
-            "unknown_date": "Unknown date"
+            "unknown_date": "Unknown date",
+            "page_not_found": "Plugin web page registration not found",
+            "load_page_failed": "Failed to load plugin web page"
         },
         "config_modal": {
             "title": "Plugin Config",
@@ -416,6 +420,56 @@
                 "pim_install_error_prefix": "Installation error: ",
                 "ai_save_success": "AI configuration saved successfully",
                 "public_chat_save_success": "Chat page settings saved successfully"
+            },
+            "multi_server": {
+                "title": "Multi-server Panel Merge",
+                "tip": "The master can proxy to slave panels; slaves can allow the master via panel tokens.",
+                "local_only_tip": "You are viewing a slave server: this section only reads/writes the local merge config. Other settings will be proxied to the current slave.",
+                "mode_quick": "Quick Mode",
+                "mode_config": "Config Mode",
+                "role": "Panel Role",
+                "role_master": "Master",
+                "role_slave": "Slave",
+                "slaves": "Slave Servers",
+                "actions": "Actions",
+                "connect": "Connect",
+                "connecting": "Connecting...",
+                "connect_pending": "Connection request sent. Please confirm on the slave.",
+                "waiting_slave": "Waiting for the slave to confirm...",
+                "connect_timeout": "Connection timed out (5 minutes)",
+                "connected": "Connected. Token saved.",
+                "denied": "Connection was denied by the slave",
+                "quick_edit_tip": "To edit name/URL, switch to Config Mode.",
+                "quick_edit_tip2": "To edit token name/value, switch to Config Mode.",
+                "auto_saved": "Actions above are saved automatically.",
+                "valid_tokens": "Valid Access Tokens",
+                "enable_pairing": "Start accepting connections",
+                "disable_pairing": "Stop accepting connections",
+                "accept_enabled": "Accepting connections enabled (5 minutes)",
+                "accept_disabled": "Accepting connections disabled",
+                "enabled_until": "Valid until: ",
+                "pending_requests": "Pending Requests",
+                "request_from": "From",
+                "master_name": "Master",
+                "accepted": "Accepted and token generated",
+                "save_changes": "Save changes",
+                "allowed_tokens": "Allowed Master Tokens",
+                "slave": {
+                    "id": "ID",
+                    "name": "Name",
+                    "base_url": "Panel URL",
+                    "token": "Token",
+                    "enabled": "Enabled",
+                    "required": "Please fill in ID / Panel URL / Token",
+                    "added": "Added. Remember to save."
+                },
+                "token": {
+                    "name": "Name",
+                    "token": "Token",
+                    "enabled": "Enabled",
+                    "required": "Please fill in Token",
+                    "added": "Added. Remember to save."
+                }
             },
             "network": {
                 "title": "Network Settings",

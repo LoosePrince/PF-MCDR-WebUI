@@ -9,6 +9,7 @@
         "web_settings": "Web设置",
         "about": "关于",
         "logout": "退出登录",
+        "server": "服务器",
         "status_online": "在线",
         "status_offline": "离线",
         "status_loading": "加载中",
@@ -42,6 +43,7 @@
         "add": "添加",
         "close": "关闭",
         "save": "保存",
+        "refresh": "刷新",
         "back": "返回",
         "send": "发送"
     },
@@ -107,7 +109,9 @@
             "install_failed_prefix": "安装插件失败: {{message}}",
             "install_failed": "安装插件失败",
             "load_versions_failed": "加载版本列表失败",
-            "unknown_date": "未知日期"
+            "unknown_date": "未知日期",
+            "page_not_found": "未找到插件网页注册信息",
+            "load_page_failed": "加载插件网页出错"
         },
         "config_modal": {
             "title": "插件配置",
@@ -421,6 +425,56 @@
                 "pim_install_error_prefix": "安装出错: ",
                 "ai_save_success": "AI配置保存成功",
                 "public_chat_save_success": "聊天页设置保存成功"
+            },
+            "multi_server": {
+                "title": "多服面板合并",
+                "tip": "主服可代理到子服；子服可配置允许主服调用的面板 token。",
+                "local_only_tip": "当前正在查看子服配置：本区域仅可读写本地多服合并配置，其它设置将代理到当前子服。",
+                "mode_quick": "快捷模式",
+                "mode_config": "配置模式",
+                "role": "面板角色",
+                "role_master": "主服",
+                "role_slave": "子服",
+                "slaves": "子服列表",
+                "actions": "操作",
+                "connect": "连接",
+                "connecting": "连接中...",
+                "connect_pending": "已发送连接请求，请到子服确认",
+                "waiting_slave": "等待子服确认连接...",
+                "connect_timeout": "连接超时（5分钟）",
+                "connected": "连接成功，已保存 token",
+                "denied": "子服已拒绝连接",
+                "quick_edit_tip": "修改名称/链接等请切换到配置模式。",
+                "quick_edit_tip2": "修改 token 名称/内容请切换到配置模式。",
+                "auto_saved": "以上操作将自动保存。",
+                "valid_tokens": "有效访问token",
+                "enable_pairing": "开始接受连接",
+                "disable_pairing": "停止接受连接",
+                "accept_enabled": "已开启接受连接（5分钟）",
+                "accept_disabled": "已停止接受连接",
+                "enabled_until": "有效期至：",
+                "pending_requests": "待确认连接",
+                "request_from": "来自",
+                "master_name": "主服",
+                "accepted": "已接受并生成 token",
+                "save_changes": "保存更改",
+                "allowed_tokens": "允许的主服 Token",
+                "slave": {
+                    "id": "ID",
+                    "name": "名称",
+                    "base_url": "面板地址",
+                    "token": "Token",
+                    "enabled": "启用",
+                    "required": "请填写 ID / 面板地址 / Token",
+                    "added": "已添加，记得点击保存"
+                },
+                "token": {
+                    "name": "名称",
+                    "token": "Token",
+                    "enabled": "启用",
+                    "required": "请填写 Token",
+                    "added": "已添加，记得点击保存"
+                }
             },
             "network": {
                 "title": "网络设置",

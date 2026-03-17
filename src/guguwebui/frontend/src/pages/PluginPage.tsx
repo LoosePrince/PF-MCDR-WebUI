@@ -4,6 +4,16 @@ import { useTranslation } from 'react-i18next';
 import { Puzzle, Loader2, AlertCircle } from 'lucide-react';
 import api from '../utils/api';
 
+function getErrorMessage(err: unknown): string | null {
+  if (!err || typeof err !== 'object') return null
+  const maybeResponse = (err as { response?: unknown }).response
+  if (!maybeResponse || typeof maybeResponse !== 'object') return null
+  const data = (maybeResponse as { data?: unknown }).data
+  if (!data || typeof data !== 'object') return null
+  const message = (data as { message?: unknown }).message
+  return typeof message === 'string' ? message : null
+}
+
 const PluginPage: React.FC = () => {
   const { pluginId } = useParams<{ pluginId: string }>();
   const { t } = useTranslation();
@@ -21,24 +31,24 @@ const PluginPage: React.FC = () => {
         // 先获取注册的页面信息
         const pagesResp = await api.get('/plugins/web_pages');
         const pages = pagesResp.data.pages || [];
-        const pageInfo = pages.find((p: any) => p.id === pluginId);
+        const pageInfo = (pages as Array<{ id?: unknown; path?: unknown }>).find((p) => p.id === pluginId);
         
         if (!pageInfo) {
-          setError(t('plugins.msg.page_not_found', '未找到插件网页注册信息'));
+          setError(t('plugins.msg.page_not_found'));
           setLoading(false);
           return;
         }
 
         // 加载 HTML 内容
-        const resp = await api.get(`/load_config?path=${encodeURIComponent(pageInfo.path)}&type=auto`);
+        const resp = await api.get(`/load_config?path=${encodeURIComponent(String(pageInfo.path || ''))}&type=auto`);
         if (resp.data && resp.data.type === 'html') {
           setHtmlContent(resp.data.content);
         } else {
-          setError(t('plugins.msg.load_page_failed', '加载插件网页失败，返回数据格式不正确'));
+          setError(t('plugins.msg.load_page_failed'));
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to load plugin page:', err);
-        setError(err.response?.data?.message || t('plugins.msg.load_page_failed', '加载插件网页出错'));
+        setError(getErrorMessage(err) || t('plugins.msg.load_page_failed'));
       } finally {
         setLoading(false);
       }

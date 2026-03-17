@@ -21,8 +21,8 @@ import {
 } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import api, { isCancel } from '../utils/api'
-import { getTargetServerId } from '../utils/api'
+import { NiceSelect } from '../components/NiceSelect'
+import api, { getTargetServerId, isCancel } from '../utils/api'
 
 interface Repository {
   name: string
@@ -106,7 +106,21 @@ const Settings: React.FC = () => {
     panel_master: PanelMasterConfig
   } | null>(null)
   const [panelMergeLoading, setPanelMergeLoading] = useState(false)
+  const [panelMergeDirty, setPanelMergeDirty] = useState(false)
   const targetServerId = getTargetServerId()
+  const [panelMergeMode, setPanelMergeMode] = useState<'quick' | 'config'>(() => {
+    try {
+      const v = localStorage.getItem('panel_merge_mode')
+      return v === 'config' ? 'config' : 'quick'
+    } catch {
+      return 'quick'
+    }
+  })
+  const [pairingEnabledUntil, setPairingEnabledUntil] = useState<string | null>(null)
+  const [pairingPending, setPairingPending] = useState<Array<{ request_id: string; ip: string; master_name?: string; created_at?: string }>>([])
+  const [connectId, setConnectId] = useState<string | null>(null)
+  const [connecting, setConnecting] = useState(false)
+  const connectStartedAtRef = React.useRef<number | null>(null)
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
@@ -129,10 +143,10 @@ const Settings: React.FC = () => {
     try {
       const { data } = await api.get('/get_web_config', { signal })
       setConfig(data)
-  } catch (error: unknown) {
+    } catch (error: unknown) {
       // 忽略取消的请求错误
-    const meta = getErrorMeta(error)
-    if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') {
+      const meta = getErrorMeta(error)
+      if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch config:', error)
@@ -155,12 +169,64 @@ const Settings: React.FC = () => {
           panel_slaves: Array.isArray(data.panel_slaves) ? data.panel_slaves : [],
           panel_master: data.panel_master || { allowed_tokens: [], allowed_master_ips: [] }
         })
+        setPanelMergeDirty(false)
       }
-  } catch (error: unknown) {
-    const meta = getErrorMeta(error)
-    if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') return
+    } catch (error: unknown) {
+      const meta = getErrorMeta(error)
+      if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') return
     } finally {
       setPanelMergeLoading(false)
+    }
+  }, [])
+
+  const persistPanelMergeConfig = useCallback(
+    async (
+      next: { panel_role: 'master' | 'slave'; panel_slaves: PanelSlave[]; panel_master: PanelMasterConfig },
+      opts: { silent?: boolean } = {}
+    ) => {
+      setPanelMergeLoading(true)
+      try {
+        const resp = await api.post('/panel_merge_config', next, {
+          headers: { 'X-Target-Server': 'local' }
+        })
+        const d = resp.data
+        if (d?.status === 'success') {
+          setPanelMergeConfig(next)
+          setPanelMergeDirty(false)
+          // 通知侧边栏服务器列表刷新
+          try {
+            window.dispatchEvent(new Event('gugu:serversChanged'))
+          } catch {
+            // ignore
+          }
+          if (!opts.silent) showNotification(d.message || t('common.save_success'), 'success')
+        } else {
+          if (!opts.silent) showNotification(t('page.settings.msg.save_failed_prefix') + (d?.message || ''), 'error')
+        }
+      } catch (error: unknown) {
+        if (!opts.silent) {
+          const meta = getErrorMeta(error)
+          showNotification(t('page.settings.msg.save_error_prefix') + (meta.message || ''), 'error')
+        }
+      } finally {
+        setPanelMergeLoading(false)
+      }
+    },
+    [showNotification, t]
+  )
+
+  const fetchPairingPending = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const { data } = await api.get('/pairing/pending', {
+        signal,
+        headers: { 'X-Target-Server': 'local' }
+      })
+      if (data?.status === 'success') {
+        setPairingPending(Array.isArray(data.pending) ? data.pending : [])
+      }
+    } catch (error: unknown) {
+      const meta = getErrorMeta(error)
+      if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') return
     }
   }, [])
 
@@ -173,10 +239,10 @@ const Settings: React.FC = () => {
         setPimStatus('not_installed')
         console.error('Failed to fetch PIM status:', data.message)
       }
-  } catch (error: unknown) {
+    } catch (error: unknown) {
       // 忽略取消的请求错误
-    const meta = getErrorMeta(error)
-    if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') {
+      const meta = getErrorMeta(error)
+      if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch PIM status:', error)
@@ -192,12 +258,100 @@ const Settings: React.FC = () => {
     fetchConfig(signal)
     fetchPimStatus(signal)
     fetchPanelMergeConfig(signal)
+    fetchPairingPending(signal)
 
     return () => {
       // 取消所有进行中的请求
       abortController.abort()
     }
-  }, [fetchConfig, fetchPimStatus, fetchPanelMergeConfig])
+  }, [fetchConfig, fetchPimStatus, fetchPanelMergeConfig, fetchPairingPending])
+
+  // 主服：连接请求状态自动轮询（5分钟超时）
+  useEffect(() => {
+    if (!connectId) return
+
+    if (!connectStartedAtRef.current) connectStartedAtRef.current = Date.now()
+
+    const timer = window.setInterval(async () => {
+      const startedAt = connectStartedAtRef.current || Date.now()
+      if (Date.now() - startedAt > 5 * 60 * 1000) {
+        window.clearInterval(timer)
+        connectStartedAtRef.current = null
+        setConnectId(null)
+        showNotification(t('page.settings.multi_server.connect_timeout'), 'error')
+        return
+      }
+
+      try {
+        const resp = await api.get('/pairing/connect_status', {
+          params: { connect_id: connectId },
+          headers: { 'X-Target-Server': 'local' }
+        })
+        if (resp.data?.status === 'accepted') {
+          window.clearInterval(timer)
+          connectStartedAtRef.current = null
+          showNotification(t('page.settings.multi_server.connected'), 'success')
+          setConnectId(null)
+          setNewSlave({ id: '', name: '', base_url: '', token: '', enabled: true, verify_tls: true })
+          fetchPanelMergeConfig()
+          // 通知侧边栏服务器列表刷新（新增第一个子服时需要立刻显示）
+          try {
+            window.dispatchEvent(new Event('gugu:serversChanged'))
+          } catch {
+            // ignore
+          }
+          return
+        }
+        if (resp.data?.status === 'denied') {
+          window.clearInterval(timer)
+          connectStartedAtRef.current = null
+          showNotification(t('page.settings.multi_server.denied'), 'error')
+          setConnectId(null)
+        }
+      } catch {
+        // 网络波动忽略，继续轮询
+      }
+    }, 2000)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [connectId, fetchPanelMergeConfig, showNotification, t])
+
+  // 子服：开启接受连接期间，自动轮询 pending（5分钟超时由后端控制窗口，这里仅做 UI 刷新）
+  useEffect(() => {
+    if ((panelMergeConfig?.panel_role || 'master') !== 'slave') return
+    if (!pairingEnabledUntil && pairingPending.length === 0) return
+
+    const timer = window.setInterval(() => {
+      fetchPairingPending()
+    }, 2000)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [fetchPairingPending, pairingEnabledUntil, pairingPending.length, panelMergeConfig?.panel_role])
+
+  // 子服：一旦收到连接请求（pending 出现），立即隐藏“有效期至”
+  useEffect(() => {
+    if ((panelMergeConfig?.panel_role || 'master') !== 'slave') return
+    if (pairingPending.length > 0 && pairingEnabledUntil) {
+      setPairingEnabledUntil(null)
+    }
+  }, [pairingPending.length, pairingEnabledUntil, panelMergeConfig?.panel_role])
+
+  // 子服：pairingEnabledUntil 到期后自动清理显示
+  useEffect(() => {
+    if (!pairingEnabledUntil) return
+    const expiresAtMs = Date.parse(pairingEnabledUntil)
+    if (!Number.isFinite(expiresAtMs)) return
+
+    const timer = window.setTimeout(() => {
+      setPairingEnabledUntil(null)
+    }, Math.max(0, expiresAtMs - Date.now()))
+
+    return () => window.clearTimeout(timer)
+  }, [pairingEnabledUntil])
 
   const handleSave = async (action: string, data: Record<string, unknown>) => {
     setSaving(action)
@@ -376,106 +530,361 @@ const Settings: React.FC = () => {
           <div className="flex items-center gap-3 text-slate-700 dark:text-slate-200">
             <Network className="w-6 h-6" />
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-              {t('page.settings.multi_server.title', '多服面板合并')}
+              {t('page.settings.multi_server.title')}
             </h2>
           </div>
           <p className="text-sm text-slate-500">
-            {t('page.settings.multi_server.tip', '主服可代理到子服；子服可配置允许主服调用的面板 token。')}
+            {t('page.settings.multi_server.tip')}
           </p>
           {targetServerId !== 'local' && (
             <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 rounded-2xl text-xs text-amber-700 dark:text-amber-300">
-              {t('page.settings.multi_server.local_only_tip', '当前正在查看子服配置：本区域仅可读写本地多服合并配置，其它设置将代理到当前子服。')}
+              {t('page.settings.multi_server.local_only_tip')}
             </div>
           )}
 
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              {t('page.settings.multi_server.role', '面板角色')}
-            </span>
-            <select
-              value={panelMergeConfig?.panel_role || 'master'}
-              onChange={(e) =>
-                setPanelMergeConfig((prev) => ({
-                  panel_role: (e.target.value as 'master' | 'slave') || 'master',
-                  panel_slaves: prev?.panel_slaves || [],
-                  panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
-                }))
-              }
-              className="px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm outline-none"
-            >
-              <option value="master">{t('page.settings.multi_server.role_master', '主服')}</option>
-              <option value="slave">{t('page.settings.multi_server.role_slave', '子服')}</option>
-            </select>
-
-            <div className="ml-auto">
+            <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
               <button
                 onClick={() => {
-                  const role = panelMergeConfig?.panel_role || 'master'
-
-                  const normalizedSlaves = [...(panelMergeConfig?.panel_slaves || [])]
-                  const pendingSlaveFilled =
-                    !!newSlave.id?.trim() && !!newSlave.base_url?.trim() && !!newSlave.token?.trim()
-                  if (role === 'master' && pendingSlaveFilled) {
-                    normalizedSlaves.push(newSlave)
-                  }
-
-                  const normalizedMaster = panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }
-                  const normalizedAllowedTokens = [...(normalizedMaster.allowed_tokens || [])]
-                  const pendingTokenFilled = !!newAllowedToken.token?.trim()
-                  if (role === 'slave' && pendingTokenFilled) {
-                    normalizedAllowedTokens.push(newAllowedToken)
-                  }
-
-                  setSaving('panel')
-                  api
-                    .post(
-                      '/panel_merge_config',
-                      {
-                        panel_role: role,
-                        panel_slaves: normalizedSlaves,
-                        panel_master: { ...normalizedMaster, allowed_tokens: normalizedAllowedTokens },
-                      },
-                      { headers: { 'X-Target-Server': 'local' } }
-                    )
-                    .then((resp) => {
-                      const d = resp.data
-                      if (d?.status === 'success') {
-                        showNotification(d.message || t('common.save_success'), 'success')
-                        fetchPanelMergeConfig()
-                      } else {
-                        showNotification(t('page.settings.msg.save_failed_prefix') + (d?.message || ''), 'error')
-                      }
-                    })
-                    .catch((error: unknown) => {
-                      const meta = getErrorMeta(error)
-                      showNotification(t('page.settings.msg.save_error_prefix') + (meta.message || ''), 'error')
-                    })
-                    .finally(() => setSaving(null))
+                  setPanelMergeMode('quick')
+                  try { localStorage.setItem('panel_merge_mode', 'quick') } catch { /* ignore */ }
                 }}
-                disabled={saving === 'panel' || panelMergeLoading}
-                className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 disabled:opacity-50 font-semibold rounded-2xl transition-all shadow-lg"
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${panelMergeMode === 'quick'
+                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400'
+                  }`}
               >
-                {saving === 'panel' || panelMergeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {t('common.save', '保存')}
+                {t('page.settings.multi_server.mode_quick')}
               </button>
+              <button
+                onClick={() => {
+                  setPanelMergeMode('config')
+                  try { localStorage.setItem('panel_merge_mode', 'config') } catch { /* ignore */ }
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${panelMergeMode === 'config'
+                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400'
+                  }`}
+              >
+                {t('page.settings.multi_server.mode_config')}
+              </button>
+            </div>
+            <select
+              value={panelMergeConfig?.panel_role || 'master'}
+              onChange={() => { }}
+              className="hidden"
+            />
+            <div className="min-w-[160px]">
+              <NiceSelect
+                value={panelMergeConfig?.panel_role || 'master'}
+                title={t('page.settings.multi_server.role')}
+                onChange={(v) => {
+                  const nextRole = (v as 'master' | 'slave') || 'master'
+                  const next = {
+                    panel_role: nextRole,
+                    panel_slaves: panelMergeConfig?.panel_slaves || [],
+                    panel_master: panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                  }
+                  setPanelMergeConfig(next)
+                  persistPanelMergeConfig(next, { silent: true })
+                }}
+                options={[
+                  { value: 'master', label: t('page.settings.multi_server.role_master') },
+                  { value: 'slave', label: t('page.settings.multi_server.role_slave') },
+                ]}
+              />
             </div>
           </div>
 
-          {(panelMergeConfig?.panel_role || 'master') === 'master' ? (
+          {panelMergeMode === 'quick' ? (
+            <div className="space-y-4">
+              {(panelMergeConfig?.panel_role || 'master') === 'master' ? (
+                <>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    {t('page.settings.multi_server.slaves')}
+                  </p>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <input
+                        value={newSlave.name}
+                        onChange={(e) => setNewSlave({ ...newSlave, name: e.target.value })}
+                        placeholder={t('page.settings.multi_server.slave.name')}
+                        className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none"
+                      />
+                      <input
+                        value={newSlave.base_url}
+                        onChange={(e) => setNewSlave({ ...newSlave, base_url: e.target.value })}
+                        placeholder={t('page.settings.multi_server.slave.base_url')}
+                        className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none"
+                      />
+                      <button
+                        disabled={connecting || !newSlave.name.trim() || !newSlave.base_url.trim()}
+                        onClick={async () => {
+                          setConnecting(true)
+                          try {
+                            const resp = await api.post(
+                              '/pairing/connect_request',
+                              { slave_name: newSlave.name.trim(), base_url: newSlave.base_url.trim() },
+                              { headers: { 'X-Target-Server': 'local' } }
+                            )
+                            if (resp.data?.status === 'pending') {
+                              setConnectId(resp.data.connect_id)
+                              showNotification(t('page.settings.multi_server.connect_pending'), 'success')
+                            } else {
+                              showNotification(resp.data?.message || t('page.settings.msg.save_failed_prefix'), 'error')
+                            }
+                          } catch (error: unknown) {
+                            const meta = getErrorMeta(error)
+                            showNotification(meta.message || t('page.settings.msg.save_error_prefix'), 'error')
+                          } finally {
+                            setConnecting(false)
+                          }
+                        }}
+                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-2xl transition-all shadow-lg shadow-blue-500/20"
+                      >
+                        {connecting ? t('page.settings.multi_server.connecting') : t('page.settings.multi_server.connect')}
+                      </button>
+                    </div>
+
+                    {connectId && (
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl flex items-center justify-between">
+                        <div className="text-xs text-slate-600 dark:text-slate-300">
+                          {t('page.settings.multi_server.waiting_slave')}
+                        </div>
+                        <button
+                          className="px-4 py-2 text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl"
+                          onClick={async () => {
+                            try {
+                              const resp = await api.get('/pairing/connect_status', {
+                                params: { connect_id: connectId },
+                                headers: { 'X-Target-Server': 'local' }
+                              })
+                              if (resp.data?.status === 'accepted') {
+                                showNotification(t('page.settings.multi_server.connected'), 'success')
+                                setConnectId(null)
+                                setNewSlave({ id: '', name: '', base_url: '', token: '', enabled: true, verify_tls: true })
+                                fetchPanelMergeConfig()
+                                // 通知侧边栏服务器列表刷新（新增第一个子服时需要立刻显示）
+                                try {
+                                  window.dispatchEvent(new Event('gugu:serversChanged'))
+                                } catch {
+                                  // ignore
+                                }
+                              } else if (resp.data?.status === 'denied') {
+                                showNotification(t('page.settings.multi_server.denied'), 'error')
+                                setConnectId(null)
+                              }
+                            } catch {
+                              // ignore
+                            }
+                          }}
+                        >
+                          {t('common.refresh')}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      {(panelMergeConfig?.panel_slaves || []).map((s) => (
+                        <div key={s.id} className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 dark:text-white text-sm truncate">{s.name || s.id}</div>
+                            <div className="text-xs text-slate-500 truncate">{s.base_url}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                const nextSlaves = (panelMergeConfig?.panel_slaves || []).map(x => x.id === s.id ? { ...x, enabled: !x.enabled } : x)
+                                const next = {
+                                  panel_role: panelMergeConfig?.panel_role || 'master',
+                                  panel_slaves: nextSlaves,
+                                  panel_master: panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                                }
+                                setPanelMergeConfig(next)
+                                persistPanelMergeConfig(next, { silent: true })
+                              }}
+                              className={`w-10 h-6 rounded-full p-1 transition-colors ${s.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                            >
+                              <motion.div animate={{ x: s.enabled ? 16 : 0 }} className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                const nextSlaves = (panelMergeConfig?.panel_slaves || []).filter(x => x.id !== s.id)
+                                const next = {
+                                  panel_role: panelMergeConfig?.panel_role || 'master',
+                                  panel_slaves: nextSlaves,
+                                  panel_master: panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                                }
+                                setPanelMergeConfig(next)
+                                persistPanelMergeConfig(next, { silent: true })
+                              }}
+                              className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="text-xs text-slate-500">
+                        {t('page.settings.multi_server.quick_edit_tip')}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {t('page.settings.multi_server.auto_saved')}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    {t('page.settings.multi_server.valid_tokens')}
+                  </p>
+                  <div className="flex flex-wrap gap-3 items-center">
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (pairingEnabledUntil) {
+                            await api.post('/pairing/disable', {}, { headers: { 'X-Target-Server': 'local' } })
+                            setPairingEnabledUntil(null)
+                            showNotification(t('page.settings.multi_server.accept_disabled'), 'success')
+                            return
+                          }
+                          const resp = await api.post('/pairing/enable', {}, { headers: { 'X-Target-Server': 'local' } })
+                          if (resp.data?.status === 'success') {
+                            setPairingEnabledUntil(resp.data.expires_at)
+                            showNotification(t('page.settings.multi_server.accept_enabled'), 'success')
+                          }
+                        } catch {
+                          // ignore
+                        }
+                      }}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-2xl shadow-lg shadow-blue-500/20"
+                    >
+                      {pairingEnabledUntil
+                        ? t('page.settings.multi_server.disable_pairing')
+                        : t('page.settings.multi_server.enable_pairing')}
+                    </button>
+                    {pairingEnabledUntil && pairingPending.length === 0 && (
+                      <span className="text-xs text-slate-500">
+                        {t('page.settings.multi_server.enabled_until')}{pairingEnabledUntil}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => fetchPairingPending()}
+                      className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-sm font-bold"
+                    >
+                      {t('common.refresh')}
+                    </button>
+                  </div>
+
+                  {pairingPending.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        {t('page.settings.multi_server.pending_requests')}
+                      </div>
+                      {pairingPending.map((p) => (
+                        <div key={p.request_id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
+                          <div className="text-sm">
+                            <div className="font-bold text-slate-900 dark:text-white">
+                              {t('page.settings.multi_server.request_from')} IP: {p.ip}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {p.master_name ? `${t('page.settings.multi_server.master_name')}: ${p.master_name}` : ''}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                await api.post('/pairing/deny', { request_id: p.request_id }, { headers: { 'X-Target-Server': 'local' } })
+                                fetchPairingPending()
+                              }}
+                              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-sm font-bold"
+                            >
+                              {t('common.cancel')}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await api.post('/pairing/accept', { request_id: p.request_id }, { headers: { 'X-Target-Server': 'local' } })
+                                showNotification(t('page.settings.multi_server.accepted'), 'success')
+                                fetchPairingPending()
+                                fetchPanelMergeConfig()
+                              }}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold"
+                            >
+                              {t('common.confirm')}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {(panelMergeConfig?.panel_master?.allowed_tokens || []).map((it) => (
+                      <div key={it.token} className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 dark:text-white text-sm truncate">{it.name || 'master'}</div>
+                          <div className="text-xs text-slate-500 font-mono truncate">{it.token}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              const nextAllowed = (panelMergeConfig?.panel_master?.allowed_tokens || []).map(x => x.token === it.token ? { ...x, enabled: !x.enabled } : x)
+                              const next = {
+                                panel_role: panelMergeConfig?.panel_role || 'slave',
+                                panel_slaves: panelMergeConfig?.panel_slaves || [],
+                                panel_master: { ...(panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: nextAllowed },
+                              }
+                              setPanelMergeConfig(next)
+                              persistPanelMergeConfig(next, { silent: true })
+                            }}
+                            className={`w-10 h-6 rounded-full p-1 transition-colors ${it.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                          >
+                            <motion.div animate={{ x: it.enabled ? 16 : 0 }} className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const nextAllowed = (panelMergeConfig?.panel_master?.allowed_tokens || []).filter(x => x.token !== it.token)
+                              const next = {
+                                panel_role: panelMergeConfig?.panel_role || 'slave',
+                                panel_slaves: panelMergeConfig?.panel_slaves || [],
+                                panel_master: { ...(panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: nextAllowed },
+                              }
+                              setPanelMergeConfig(next)
+                              persistPanelMergeConfig(next, { silent: true })
+                            }}
+                            className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="text-xs text-slate-500">
+                      {t('page.settings.multi_server.quick_edit_tip2')}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {t('page.settings.multi_server.auto_saved')}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : ((panelMergeConfig?.panel_role || 'master') === 'master' ? (
             <div className="space-y-4">
               <p className="text-sm font-bold text-slate-900 dark:text-white">
-                {t('page.settings.multi_server.slaves', '子服列表')}
+                {t('page.settings.multi_server.slaves')}
               </p>
               <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-medium">
                     <tr>
-                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.id', 'ID')}</th>
-                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.name', '名称')}</th>
-                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.base_url', '面板地址')}</th>
-                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.token', 'Token')}</th>
-                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.enabled', '启用')}</th>
-                      <th className="px-4 py-3 text-right">{t('page.settings.multi_server.actions', '操作')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.id')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.name')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.base_url')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.token')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.enabled')}</th>
+                      <th className="px-4 py-3 text-right">{t('page.settings.multi_server.actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -492,6 +901,7 @@ const Settings: React.FC = () => {
                                 panel_slaves: next,
                                 panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
                               }))
+                              setPanelMergeDirty(true)
                             }}
                             className="w-28 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
                           />
@@ -507,6 +917,7 @@ const Settings: React.FC = () => {
                                 panel_slaves: next,
                                 panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
                               }))
+                              setPanelMergeDirty(true)
                             }}
                             className="w-32 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
                           />
@@ -522,6 +933,7 @@ const Settings: React.FC = () => {
                                 panel_slaves: next,
                                 panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
                               }))
+                              setPanelMergeDirty(true)
                             }}
                             placeholder="http://127.0.0.1:8001"
                             className="min-w-[220px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
@@ -538,6 +950,7 @@ const Settings: React.FC = () => {
                                 panel_slaves: next,
                                 panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
                               }))
+                              setPanelMergeDirty(true)
                             }}
                             className="min-w-[240px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono"
                           />
@@ -547,11 +960,13 @@ const Settings: React.FC = () => {
                             onClick={() => {
                               const next = [...(panelMergeConfig?.panel_slaves || [])]
                               next[idx] = { ...next[idx], enabled: !next[idx].enabled }
-                              setPanelMergeConfig((prev) => ({
-                                panel_role: prev?.panel_role || 'master',
+                              const merged = {
+                                panel_role: panelMergeConfig?.panel_role || 'master',
                                 panel_slaves: next,
-                                panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
-                              }))
+                                panel_master: panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                              }
+                              setPanelMergeConfig(merged)
+                              persistPanelMergeConfig(merged, { silent: true })
                             }}
                             className={`w-10 h-6 rounded-full p-1 transition-colors ${s.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
                           >
@@ -562,11 +977,13 @@ const Settings: React.FC = () => {
                           <button
                             onClick={() => {
                               const next = (panelMergeConfig?.panel_slaves || []).filter((_, i) => i !== idx)
-                              setPanelMergeConfig((prev) => ({
-                                panel_role: prev?.panel_role || 'master',
+                              const merged = {
+                                panel_role: panelMergeConfig?.panel_role || 'master',
                                 panel_slaves: next,
-                                panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
-                              }))
+                                panel_master: panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                              }
+                              setPanelMergeConfig(merged)
+                              persistPanelMergeConfig(merged, { silent: true })
                             }}
                             className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"
                           >
@@ -620,17 +1037,19 @@ const Settings: React.FC = () => {
                         <button
                           onClick={() => {
                             if (!newSlave.id || !newSlave.base_url || !newSlave.token) {
-                              showNotification(t('page.settings.multi_server.slave.required', '请填写 ID / 面板地址 / Token'), 'error')
+                              showNotification(t('page.settings.multi_server.slave.required'), 'error')
                               return
                             }
-                            const next = [...(panelMergeConfig?.panel_slaves || []), newSlave]
-                            setPanelMergeConfig((prev) => ({
-                              panel_role: prev?.panel_role || 'master',
-                              panel_slaves: next,
-                              panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
-                            }))
+                            const nextSlaves = [...(panelMergeConfig?.panel_slaves || []), newSlave]
+                            const merged = {
+                              panel_role: panelMergeConfig?.panel_role || 'master',
+                              panel_slaves: nextSlaves,
+                              panel_master: panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                            }
+                            setPanelMergeConfig(merged)
+                            persistPanelMergeConfig(merged, { silent: true })
                             setNewSlave({ id: '', name: '', base_url: '', token: '', enabled: true, verify_tls: true })
-                            showNotification(t('page.settings.multi_server.slave.added', '已添加，记得点击保存'), 'success')
+                            showNotification(t('page.settings.multi_server.slave.added'), 'success')
                           }}
                           className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-sm"
                         >
@@ -641,20 +1060,35 @@ const Settings: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              {panelMergeDirty && (
+                <div className="flex justify-end">
+                  <button
+                    disabled={panelMergeLoading || !panelMergeConfig}
+                    onClick={() => {
+                      if (!panelMergeConfig) return
+                      persistPanelMergeConfig(panelMergeConfig)
+                    }}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 disabled:opacity-50 font-semibold rounded-2xl transition-all shadow-lg"
+                  >
+                    {panelMergeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {t('page.settings.multi_server.save_changes')}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
               <p className="text-sm font-bold text-slate-900 dark:text-white">
-                {t('page.settings.multi_server.allowed_tokens', '允许的主服 Token')}
+                {t('page.settings.multi_server.allowed_tokens')}
               </p>
               <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-medium">
                     <tr>
-                      <th className="px-4 py-3">{t('page.settings.multi_server.token.name', '名称')}</th>
-                      <th className="px-4 py-3">{t('page.settings.multi_server.token.token', 'Token')}</th>
-                      <th className="px-4 py-3">{t('page.settings.multi_server.token.enabled', '启用')}</th>
-                      <th className="px-4 py-3 text-right">{t('page.settings.multi_server.actions', '操作')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.token.name')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.token.token')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.token.enabled')}</th>
+                      <th className="px-4 py-3 text-right">{t('page.settings.multi_server.actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -671,6 +1105,7 @@ const Settings: React.FC = () => {
                                 panel_slaves: prev?.panel_slaves || [],
                                 panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
                               }))
+                              setPanelMergeDirty(true)
                             }}
                             className="w-40 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
                           />
@@ -686,6 +1121,7 @@ const Settings: React.FC = () => {
                                 panel_slaves: prev?.panel_slaves || [],
                                 panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
                               }))
+                              setPanelMergeDirty(true)
                             }}
                             className="min-w-[260px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono"
                           />
@@ -695,11 +1131,13 @@ const Settings: React.FC = () => {
                             onClick={() => {
                               const next = [...(panelMergeConfig?.panel_master?.allowed_tokens || [])]
                               next[idx] = { ...next[idx], enabled: !next[idx].enabled }
-                              setPanelMergeConfig((prev) => ({
-                                panel_role: prev?.panel_role || 'slave',
-                                panel_slaves: prev?.panel_slaves || [],
-                                panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
-                              }))
+                              const merged = {
+                                panel_role: panelMergeConfig?.panel_role || 'slave',
+                                panel_slaves: panelMergeConfig?.panel_slaves || [],
+                                panel_master: { ...(panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
+                              }
+                              setPanelMergeConfig(merged)
+                              persistPanelMergeConfig(merged, { silent: true })
                             }}
                             className={`w-10 h-6 rounded-full p-1 transition-colors ${it.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
                           >
@@ -710,11 +1148,13 @@ const Settings: React.FC = () => {
                           <button
                             onClick={() => {
                               const next = (panelMergeConfig?.panel_master?.allowed_tokens || []).filter((_, i) => i !== idx)
-                              setPanelMergeConfig((prev) => ({
-                                panel_role: prev?.panel_role || 'slave',
-                                panel_slaves: prev?.panel_slaves || [],
-                                panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
-                              }))
+                              const merged = {
+                                panel_role: panelMergeConfig?.panel_role || 'slave',
+                                panel_slaves: panelMergeConfig?.panel_slaves || [],
+                                panel_master: { ...(panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
+                              }
+                              setPanelMergeConfig(merged)
+                              persistPanelMergeConfig(merged, { silent: true })
                             }}
                             className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"
                           >
@@ -752,17 +1192,19 @@ const Settings: React.FC = () => {
                         <button
                           onClick={() => {
                             if (!newAllowedToken.token) {
-                              showNotification(t('page.settings.multi_server.token.required', '请填写 Token'), 'error')
+                              showNotification(t('page.settings.multi_server.token.required'), 'error')
                               return
                             }
                             const allowed = [...(panelMergeConfig?.panel_master?.allowed_tokens || []), newAllowedToken]
-                            setPanelMergeConfig((prev) => ({
-                              panel_role: prev?.panel_role || 'slave',
-                              panel_slaves: prev?.panel_slaves || [],
-                              panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: allowed },
-                            }))
+                            const merged = {
+                              panel_role: panelMergeConfig?.panel_role || 'slave',
+                              panel_slaves: panelMergeConfig?.panel_slaves || [],
+                              panel_master: { ...(panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: allowed },
+                            }
+                            setPanelMergeConfig(merged)
+                            persistPanelMergeConfig(merged, { silent: true })
                             setNewAllowedToken({ token: '', enabled: true, name: '' })
-                            showNotification(t('page.settings.multi_server.token.added', '已添加，记得点击保存'), 'success')
+                            showNotification(t('page.settings.multi_server.token.added'), 'success')
                           }}
                           className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-sm"
                         >
@@ -773,8 +1215,23 @@ const Settings: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              {panelMergeDirty && (
+                <div className="flex justify-end">
+                  <button
+                    disabled={panelMergeLoading || !panelMergeConfig}
+                    onClick={() => {
+                      if (!panelMergeConfig) return
+                      persistPanelMergeConfig(panelMergeConfig)
+                    }}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 disabled:opacity-50 font-semibold rounded-2xl transition-all shadow-lg"
+                  >
+                    {panelMergeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {t('page.settings.multi_server.save_changes')}
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </motion.div>
 
         {/* Network & Account Section */}

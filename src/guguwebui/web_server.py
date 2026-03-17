@@ -2,6 +2,8 @@ import asyncio
 import datetime
 import json
 import logging
+import secrets
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -140,7 +142,27 @@ def _is_proxy_candidate_path(path: str) -> bool:
     # 在线插件列表等大数据：永远走本地，避免无意义传输
     if path in ["/api/online-plugins"]:
         return False
+    # 配对连接：永远走本地（避免跨服代理导致握手混乱）
+    if path.startswith("/api/pairing/"):
+        return False
     return True
+
+
+def _now_utc() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def _get_pairing_state(app_: FastAPI) -> dict:
+    state = getattr(app_.state, "pairing_state", None)
+    if state is None:
+        state = {
+            "enabled_until": None,  # datetime
+            "pending": {},  # request_id -> {ip,name,created_at}
+            "results": {},  # request_id -> {status, token?}
+            "connects": {},  # connect_id -> {base_url, request_id, slave_name, created_at}
+        }
+        app_.state.pairing_state = state
+    return state
 
 
 def _is_admin_api_path(path: str) -> bool:
@@ -787,6 +809,307 @@ async def api_save_panel_merge_config(
         return JSONResponse(
             {"status": "error", "message": f"保存多服配置失败: {str(e)}"}, status_code=500
         )
+
+
+# ============================================================#
+# 配对连接（快捷模式）
+# ============================================================#
+
+
+@app.post("/api/pairing/enable")
+async def api_pairing_enable(request: Request, admin: dict = Depends(get_current_admin)):
+    """子服：开始接受连接（5分钟）；收到第一个连接请求后自动关闭。"""
+    cfg = request.app.state.config_service.get_config()
+    if cfg.get("panel_role", "master") != "slave":
+        return JSONResponse(
+            {"status": "error", "message": "仅子服模式可开启接受连接"},
+            status_code=400,
+        )
+    st = _get_pairing_state(request.app)
+    expires_at = _now_utc() + datetime.timedelta(minutes=5)
+    st["enabled_until"] = expires_at
+    return JSONResponse(
+        {"status": "success", "expires_at": expires_at.isoformat()},
+        status_code=200,
+    )
+
+
+@app.post("/api/pairing/disable")
+async def api_pairing_disable(request: Request, admin: dict = Depends(get_current_admin)):
+    """子服：停止接受连接。"""
+    cfg = request.app.state.config_service.get_config()
+    if cfg.get("panel_role", "master") != "slave":
+        return JSONResponse(
+            {"status": "error", "message": "仅子服模式可停止接受连接"},
+            status_code=400,
+        )
+    st = _get_pairing_state(request.app)
+    st["enabled_until"] = None
+    return JSONResponse({"status": "success"})
+
+
+@app.post("/api/pairing/request")
+async def api_pairing_request(request: Request):
+    """主服 -> 子服：发起连接请求（无需登录，但仅在子服开启接受连接窗口时有效）。"""
+    cfg = request.app.state.config_service.get_config()
+    if cfg.get("panel_role", "master") != "slave":
+        return JSONResponse(
+            {"status": "error", "message": "仅子服模式可接受连接请求"},
+            status_code=400,
+        )
+    st = _get_pairing_state(request.app)
+    enabled_until = st.get("enabled_until")
+    if not enabled_until or _now_utc() > enabled_until:
+        st["enabled_until"] = None
+        return JSONResponse(
+            {"status": "error", "message": "当前未开启接受连接或已超时"},
+            status_code=403,
+        )
+
+    data = {}
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    master_name = str(data.get("master_name", "")).strip()
+    slave_name = str(data.get("slave_name", "")).strip()
+    request_id = uuid.uuid4().hex
+    ip = request.client.host if request.client else ""
+    st["pending"][request_id] = {
+        "request_id": request_id,
+        "ip": ip,
+        "master_name": master_name,
+        "slave_name": slave_name,
+        "created_at": _now_utc().isoformat(),
+    }
+    st["results"][request_id] = {"status": "pending"}
+    # 收到第一个请求后关闭
+    st["enabled_until"] = None
+    return JSONResponse({"status": "pending", "request_id": request_id})
+
+
+@app.get("/api/pairing/pending")
+async def api_pairing_pending(request: Request, admin: dict = Depends(get_current_admin)):
+    """子服：获取待确认的连接请求列表。"""
+    st = _get_pairing_state(request.app)
+    pending = list(st.get("pending", {}).values())
+    return JSONResponse({"status": "success", "pending": pending})
+
+
+@app.post("/api/pairing/deny")
+async def api_pairing_deny(request: Request, admin: dict = Depends(get_current_admin)):
+    """子服：拒绝连接请求。"""
+    body = await request.json()
+    request_id = str(body.get("request_id", "")).strip()
+    st = _get_pairing_state(request.app)
+    st.get("pending", {}).pop(request_id, None)
+    st["results"][request_id] = {"status": "denied"}
+    return JSONResponse({"status": "success"})
+
+
+@app.post("/api/pairing/accept")
+async def api_pairing_accept(request: Request, admin: dict = Depends(get_current_admin)):
+    """子服：接受连接请求，生成 token，保存到 panel_master.allowed_tokens。"""
+    cfg = request.app.state.config_service.get_config()
+    if cfg.get("panel_role", "master") != "slave":
+        return JSONResponse(
+            {"status": "error", "message": "仅子服模式可接受连接"},
+            status_code=400,
+        )
+    body = await request.json()
+    request_id = str(body.get("request_id", "")).strip()
+    st = _get_pairing_state(request.app)
+    pending = st.get("pending", {}).get(request_id)
+    if not pending:
+        return JSONResponse(
+            {"status": "error", "message": "连接请求不存在或已处理"},
+            status_code=404,
+        )
+
+    token = secrets.token_hex(16)
+    panel_master = cfg.get("panel_master") or {"allowed_tokens": [], "allowed_master_ips": []}
+    allowed = panel_master.get("allowed_tokens") or []
+    allowed.append(
+        {
+            "token": token,
+            "enabled": True,
+            "name": pending.get("master_name") or "master",
+            "created_at": _now_utc().isoformat(),
+        }
+    )
+    panel_master["allowed_tokens"] = allowed
+    cfg["panel_master"] = panel_master
+
+    # 写入配置文件（与 panel_merge_config 一致的落盘路径）
+    try:
+        config_dir = request.app.state.server_interface.get_data_folder()
+        Path(config_dir).mkdir(parents=True, exist_ok=True)
+        config_path = Path(config_dir) / "config.json"
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logger = getattr(
+            request.app.state.server_interface, "logger", logging.getLogger(__name__)
+        )
+        logger.error(f"保存子服配对配置失败: {e}", exc_info=True)
+        return JSONResponse(
+            {"status": "error", "message": "保存配置失败"}, status_code=500
+        )
+
+    st.get("pending", {}).pop(request_id, None)
+    st["results"][request_id] = {"status": "accepted", "token": token}
+    return JSONResponse({"status": "success", "request_id": request_id})
+
+
+@app.get("/api/pairing/status")
+async def api_pairing_status(request: Request, request_id: str):
+    """主服/外部：查询连接请求状态。accepted 时返回 token。"""
+    st = _get_pairing_state(request.app)
+    res = st.get("results", {}).get(request_id)
+    if not res:
+        return JSONResponse({"status": "unknown"}, status_code=404)
+    return JSONResponse(res)
+
+
+@app.post("/api/pairing/connect_request")
+async def api_pairing_connect_request(
+    request: Request, admin: dict = Depends(get_current_admin)
+):
+    """主服：向子服发起连接请求（服务端到服务端，避免浏览器跨域）。"""
+    cfg = request.app.state.config_service.get_config()
+    if cfg.get("panel_role", "master") != "master":
+        return JSONResponse(
+            {"status": "error", "message": "仅主服模式可发起连接"},
+            status_code=400,
+        )
+    body = await request.json()
+    slave_name = str(body.get("slave_name", "")).strip()
+    base_url = str(body.get("base_url", "")).strip().rstrip("/")
+    master_name = str(body.get("master_name", "master")).strip()
+    if not slave_name or not base_url:
+        return JSONResponse(
+            {"status": "error", "message": "slave_name/base_url 不能为空"},
+            status_code=400,
+        )
+
+    connect_id = uuid.uuid4().hex
+    session: aiohttp.ClientSession = request.app.state.http_session
+    try:
+        async with session.post(
+            f"{base_url}/api/pairing/request",
+            json={"master_name": master_name, "slave_name": slave_name},
+        ) as resp:
+            data = await resp.json()
+            if resp.status != 200 or data.get("status") != "pending":
+                return JSONResponse(
+                    {"status": "error", "message": data.get("message", "连接请求失败")},
+                    status_code=502,
+                )
+            request_id = data.get("request_id")
+    except Exception as e:
+        return JSONResponse(
+            {"status": "error", "message": f"连接请求失败: {str(e)}"},
+            status_code=502,
+        )
+
+    st = _get_pairing_state(request.app)
+    st["connects"][connect_id] = {
+        "connect_id": connect_id,
+        "request_id": request_id,
+        "base_url": base_url,
+        "slave_name": slave_name,
+        "created_at": _now_utc().isoformat(),
+    }
+    return JSONResponse(
+        {"status": "pending", "connect_id": connect_id, "request_id": request_id}
+    )
+
+
+@app.get("/api/pairing/connect_status")
+async def api_pairing_connect_status(
+    request: Request, connect_id: str, admin: dict = Depends(get_current_admin)
+):
+    """主服：轮询子服状态；accepted 后自动保存子服配置（含 token）。"""
+    st = _get_pairing_state(request.app)
+    rec = st.get("connects", {}).get(connect_id)
+    if not rec:
+        return JSONResponse(
+            {"status": "error", "message": "connect_id 不存在"}, status_code=404
+        )
+    base_url = rec["base_url"]
+    request_id = rec["request_id"]
+    session: aiohttp.ClientSession = request.app.state.http_session
+    try:
+        async with session.get(
+            f"{base_url}/api/pairing/status", params={"request_id": request_id}
+        ) as resp:
+            data = await resp.json()
+    except Exception as e:
+        return JSONResponse(
+            {"status": "error", "message": f"查询子服状态失败: {str(e)}"},
+            status_code=502,
+        )
+
+    if data.get("status") == "pending":
+        return JSONResponse({"status": "pending"})
+    if data.get("status") == "denied":
+        st.get("connects", {}).pop(connect_id, None)
+        return JSONResponse({"status": "denied"})
+    if data.get("status") != "accepted":
+        return JSONResponse({"status": "error", "message": "状态异常"}, status_code=502)
+
+    token = str(data.get("token", "")).strip()
+    if not token:
+        return JSONResponse(
+            {"status": "error", "message": "子服未返回 token"}, status_code=502
+        )
+
+    # 自动保存到 panel_slaves
+    cfg = request.app.state.config_service.get_config()
+    slaves = cfg.get("panel_slaves") or []
+    if not isinstance(slaves, list):
+        slaves = []
+
+    # 生成 id：基于名称，保证唯一
+    base_id = "".join([c.lower() if c.isalnum() else "_" for c in rec["slave_name"]]).strip("_") or "slave"
+    existing_ids = {str(s.get("id")) for s in slaves if isinstance(s, dict)}
+    sid = base_id
+    i = 1
+    while sid in existing_ids:
+        i += 1
+        sid = f"{base_id}_{i}"
+
+    slaves.append(
+        {
+            "id": sid,
+            "name": rec["slave_name"],
+            "base_url": base_url,
+            "token": token,
+            "enabled": True,
+            "verify_tls": True,
+        }
+    )
+    cfg["panel_slaves"] = slaves
+
+    try:
+        config_dir = request.app.state.server_interface.get_data_folder()
+        Path(config_dir).mkdir(parents=True, exist_ok=True)
+        config_path = Path(config_dir) / "config.json"
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        return JSONResponse(
+            {"status": "error", "message": f"保存主服配置失败: {str(e)}"},
+            status_code=500,
+        )
+
+    st.get("connects", {}).pop(connect_id, None)
+    return JSONResponse(
+        {
+            "status": "accepted",
+            "server": {"id": sid, "name": rec["slave_name"], "base_url": base_url},
+        }
+    )
 
 
 @app.get("/api/servers")

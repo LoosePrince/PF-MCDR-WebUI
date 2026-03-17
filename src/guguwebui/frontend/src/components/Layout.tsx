@@ -19,7 +19,7 @@ import {
   X,
   Zap
 } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -28,6 +28,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
 import api, { getTargetServerId, setTargetServerId } from '../utils/api'
 import { fetchNotice, type NoticeData } from '../utils/notice'
+import { NiceSelect } from './NiceSelect'
 import VersionFooter from './VersionFooter'
 
 interface LayoutProps {
@@ -59,6 +60,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [targetServerId, setTargetServerIdState] = useState<string>(getTargetServerId())
   const [noticeData, setNoticeData] = useState<NoticeData | null>(null)
   const [noticeModalOpen, setNoticeModalOpen] = useState(false)
+  const hasSlaves = servers.some(s => !s.isLocal && s.id !== 'local' && !!s.enabled)
+
+  const fetchServers = useCallback(async () => {
+    try {
+      const resp = await api.get('/servers')
+      if (resp.data?.status === 'success' && Array.isArray(resp.data.servers)) {
+        setServers(resp.data.servers)
+        // 如果当前选择不在列表中，回退到 local
+        const ids = new Set((resp.data.servers as TargetServer[]).map(s => s.id))
+        if (!ids.has(targetServerId)) {
+          setTargetServerId('local')
+          setTargetServerIdState('local')
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [targetServerId])
 
   useEffect(() => {
     fetchNotice().then(setNoticeData)
@@ -80,24 +99,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, [targetServerId])
 
   useEffect(() => {
-    const fetchServers = async () => {
-      try {
-        const resp = await api.get('/servers')
-        if (resp.data?.status === 'success' && Array.isArray(resp.data.servers)) {
-          setServers(resp.data.servers)
-          // 如果当前选择不在列表中，回退到 local
-          const ids = new Set((resp.data.servers as TargetServer[]).map(s => s.id))
-          if (!ids.has(targetServerId)) {
-            setTargetServerId('local')
-            setTargetServerIdState('local')
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
     fetchServers()
-  }, [targetServerId])
+  }, [fetchServers])
+
+  useEffect(() => {
+    const handler = () => fetchServers()
+    window.addEventListener('gugu:serversChanged', handler)
+    return () => window.removeEventListener('gugu:serversChanged', handler)
+  }, [fetchServers])
 
   useEffect(() => {
     const fetchPluginPages = async () => {
@@ -215,7 +224,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 >
                   <span className="flex items-center gap-2">
                     <Puzzle size={14} className="group-hover:rotate-12 transition-transform" />
-                    {t('plugins.plugin_web_pages', '插件网页')}
+                    {t('plugins.plugin_web_pages')}
                   </span>
                   <ChevronDown
                     size={14}
@@ -381,30 +390,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
 
             {/* Target server selector (sidebar) */}
+          {hasSlaves && (
             <div className="px-2">
-              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                  {t('nav.server', '服务器')}
-                </span>
-                <select
-                  value={targetServerId}
-                  onChange={(e) => {
-                    const sid = e.target.value
-                    setTargetServerIdState(sid)
-                    setTargetServerId(sid)
-                  }}
-                  className="text-xs font-bold bg-transparent text-slate-700 dark:text-slate-200 outline-none"
-                >
-                  {servers
-                    .filter(s => s.enabled || s.id === 'local')
-                    .map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name || s.id}
-                      </option>
-                    ))}
-                </select>
-              </div>
+              <NiceSelect
+                value={targetServerId}
+                onChange={(sid) => {
+                  setTargetServerIdState(sid)
+                  setTargetServerId(sid)
+                }}
+                title={t('nav.server')}
+                options={servers
+                  .filter(s => s.enabled || s.id === 'local')
+                  .map(s => ({ value: s.id, label: s.name || s.id }))}
+              />
             </div>
+          )}
 
             <button
               onClick={logout}

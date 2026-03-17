@@ -10,9 +10,10 @@ interface NiceSelectProps {
   value: string;
   onChange: (v: string) => void;
   options: NiceSelectOption[];
+  title?: string;
 }
 
-export const NiceSelect: React.FC<NiceSelectProps> = ({ value, onChange, options }) => {
+export const NiceSelect: React.FC<NiceSelectProps> = ({ value, onChange, options, title }) => {
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.value === value) || options[0];
 
@@ -23,7 +24,14 @@ export const NiceSelect: React.FC<NiceSelectProps> = ({ value, onChange, options
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-sm text-slate-900 dark:text-white hover:border-blue-400 hover:bg-blue-50/60 dark:hover:bg-slate-800 transition-all"
       >
-        <span className="truncate">{selected?.label}</span>
+        <span className="flex items-center gap-2 min-w-0">
+          {title && (
+            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 shrink-0">
+              {title}
+            </span>
+          )}
+          <span className="truncate">{selected?.label}</span>
+        </span>
         <ChevronRight
           size={16}
           className={`text-slate-400 transition-transform ${open ? 'rotate-90' : ''}`}
