@@ -57,6 +57,10 @@ class SaveConfig(BaseModel):
     chat_session_expire_hours: Optional[int] = None
     force_standalone: Optional[bool] = None
     icp_records: Optional[list] = None
+    # 多服面板合并
+    panel_role: Optional[str] = None  # "master" | "slave"
+    panel_slaves: Optional[list] = None
+    panel_master: Optional[dict] = None
 
 
 # Pip包管理相关模型

@@ -25,6 +25,33 @@ const instance = axios.create({
   timeout: 30000,
 })
 
+const TARGET_SERVER_KEY = 'target_server_id'
+
+export const getTargetServerId = (): string => {
+  try {
+    return localStorage.getItem(TARGET_SERVER_KEY) || 'local'
+  } catch {
+    return 'local'
+  }
+}
+
+export const setTargetServerId = (serverId: string) => {
+  try {
+    localStorage.setItem(TARGET_SERVER_KEY, serverId || 'local')
+  } catch {}
+}
+
+// 请求拦截器：注入目标服务器（多服面板合并）
+instance.interceptors.request.use((config) => {
+  const sid = getTargetServerId()
+  const existing = (config.headers as any)?.['X-Target-Server']
+  if (!existing && sid && sid !== 'local') {
+    config.headers = config.headers || {}
+    ;(config.headers as any)['X-Target-Server'] = sid
+  }
+  return config
+})
+
 // 响应拦截器：处理 401 未授权错误
 instance.interceptors.response.use(
   (response) => response,

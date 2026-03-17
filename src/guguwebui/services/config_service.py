@@ -126,6 +126,13 @@ class ConfigService:
             "super_admin_account": config["super_admin_account"],
             "disable_admin_login_web": config["disable_other_admin"],
             "enable_temp_login_password": config["allow_temp_password"],
+            # 多服面板合并
+            "panel_role": config.get("panel_role", "master"),
+            "panel_slaves": config.get("panel_slaves", []) or [],
+            "panel_master": config.get(
+                "panel_master", {"allowed_tokens": [], "allowed_master_ips": []}
+            )
+            or {"allowed_tokens": [], "allowed_master_ips": []},
             "ai_api_key": "",
             "ai_api_key_configured": ai_api_key_configured,
             "ai_model": config.get("ai_model", "deepseek-chat"),
@@ -210,6 +217,13 @@ class ConfigService:
                 web_config["force_standalone"] = config_info.force_standalone
             if config_info.icp_records is not None:
                 web_config["icp_records"] = config_info.icp_records
+            # 多服面板合并
+            if config_info.panel_role is not None:
+                web_config["panel_role"] = config_info.panel_role
+            if config_info.panel_slaves is not None:
+                web_config["panel_slaves"] = config_info.panel_slaves
+            if config_info.panel_master is not None:
+                web_config["panel_master"] = config_info.panel_master
             response = {"status": "success", "message": "配置已保存，修改后生效情况请查看页面提示"}
         elif action in ["disable_admin_login_web", "enable_temp_login_password"]:
             config_map = {

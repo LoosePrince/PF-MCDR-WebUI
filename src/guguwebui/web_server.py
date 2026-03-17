@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import aiohttp
 from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.responses import (
     FileResponse,
@@ -18,6 +19,7 @@ from mcdreforged.api.types import PluginServerInterface
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import Response
 
 from guguwebui.constant import *
 from guguwebui.dependencies.auth import get_current_admin, get_current_user
@@ -96,6 +98,185 @@ def serve_spa_index(request: Request) -> HTMLResponse:
 
 # 全局LogWatcher实例
 log_watcher = LogWatcher()
+
+# ============================================================#
+# HTTP client session (for proxy)
+@app.on_event("startup")
+async def _startup_http_session():
+    if not hasattr(app.state, "http_session") or app.state.http_session is None:
+        timeout = aiohttp.ClientTimeout(total=30)
+        app.state.http_session = aiohttp.ClientSession(timeout=timeout)
+
+
+@app.on_event("shutdown")
+async def _shutdown_http_session():
+    session = getattr(app.state, "http_session", None)
+    if session is not None:
+        try:
+            await session.close()
+        except Exception:
+            pass
+        app.state.http_session = None
+
+
+def _get_target_server_id(request: Request) -> str:
+    # header 优先，其次 query
+    sid = (request.headers.get("X-Target-Server") or "").strip()
+    if not sid:
+        sid = (request.query_params.get("serverId") or "").strip()
+    return sid or "local"
+
+
+def _is_proxy_candidate_path(path: str) -> bool:
+    # 只代理 /api/*，并排除主服本地必须处理的少量端点
+    if not path.startswith("/api/"):
+        return False
+    # 登录/登出/校验登录：必须由主服本地处理（cookie 建立在主服域）
+    if path in ["/api/login", "/api/logout", "/api/checkLogin", "/api/servers", "/api/panel_merge_config"]:
+        return False
+    # OpenAPI 文档与语言列表也保持主服本地（避免跨服混淆）
+    if path in ["/api/langs"]:
+        return False
+    # 在线插件列表等大数据：永远走本地，避免无意义传输
+    if path in ["/api/online-plugins"]:
+        return False
+    return True
+
+
+def _is_admin_api_path(path: str) -> bool:
+    # 近似映射：需要管理员权限的接口集合（与路由 Depends(get_current_admin) 对齐）
+    admin_exact = {
+        "/api/toggle_plugin",
+        "/api/reload_plugin",
+        "/api/save_config",
+        "/api/setup_rcon",
+        "/api/save_file",
+        "/api/save_config_file",
+        "/api/control_server",
+        "/api/send_command",
+        "/api/self_update",
+        "/api/pip/list",
+        "/api/pip/install",
+        "/api/pip/uninstall",
+        "/api/pip/task_status",
+        "/api/pim/install_plugin",
+        "/api/pim/uninstall_plugin",
+        "/api/pim/update_plugin",
+        "/api/chat/clear_messages",
+        "/api/install_pim_plugin",
+        "/api/check_pim_status",
+        "/api/deepseek",
+        "/api/online-plugins",
+    }
+    if path in admin_exact:
+        return True
+    # /api/pim/* 基本都是管理员
+    if path.startswith("/api/pim/"):
+        return True
+    # 兜底：pip 相关均视为管理员
+    if path.startswith("/api/pip/"):
+        return True
+    return False
+
+
+async def _proxy_request_to_slave(request: Request, slave: dict, sub_path: str) -> Response:
+    """
+    将主服请求代理到子服的 /api/{sub_path}
+    - 注入 X-Panel-Token
+    - 不透传 Cookie / Set-Cookie
+    """
+    base_url = str(slave.get("base_url", "")).rstrip("/")
+    target_url = f"{base_url}/api/{sub_path.lstrip('/')}"
+
+    # query：移除 serverId，避免子服再处理
+    query = list(request.query_params.multi_items())
+    query = [(k, v) for (k, v) in query if k != "serverId"]
+
+    body = await request.body()
+
+    headers = {}
+    for k, v in request.headers.items():
+        lk = k.lower()
+        if lk in {"host", "content-length", "cookie"}:
+            continue
+        headers[k] = v
+
+    headers["X-Panel-Token"] = str(slave.get("token", "")).strip()
+    headers["X-Forwarded-For"] = request.client.host if request.client else ""
+
+    verify_tls = bool(slave.get("verify_tls", True))
+    session: aiohttp.ClientSession = app.state.http_session
+    async with session.request(
+        method=request.method,
+        url=target_url,
+        params=query,
+        data=body if body else None,
+        headers=headers,
+        ssl=verify_tls,
+    ) as resp:
+        resp_body = await resp.read()
+        # 过滤 set-cookie，避免子服 cookie 覆盖主服
+        out_headers = {}
+        for k, v in resp.headers.items():
+            lk = k.lower()
+            if lk in {"set-cookie", "content-length", "transfer-encoding", "connection"}:
+                continue
+            out_headers[k] = v
+        return Response(content=resp_body, status_code=resp.status, headers=out_headers)
+
+
+class ApiProxyDispatchMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        try:
+            server_id = _get_target_server_id(request)
+            if server_id == "local":
+                return await call_next(request)
+
+            # 仅主服模式启用代理
+            config_service: ConfigService = getattr(request.app.state, "config_service", None)
+            if config_service is None:
+                return await call_next(request)
+            server_config = config_service.get_config()
+            if server_config.get("panel_role", "master") != "master":
+                return await call_next(request)
+
+            if not _is_proxy_candidate_path(request.url.path):
+                return await call_next(request)
+
+            # 主服本地先做权限判定（你的设想：权限在主服判定）
+            if _is_admin_api_path(request.url.path):
+                current_user = await get_current_user(request)
+                await get_current_admin(request, current_user=current_user)
+            else:
+                await get_current_user(request)
+
+            # 查找子服
+            slaves = server_config.get("panel_slaves") or []
+            slave = None
+            for s in slaves:
+                if not isinstance(s, dict):
+                    continue
+                if not s.get("enabled", True):
+                    continue
+                if str(s.get("id", "")).strip() == server_id:
+                    slave = s
+                    break
+            if slave is None:
+                return JSONResponse(
+                    {"status": "error", "message": f"Unknown serverId: {server_id}"},
+                    status_code=400,
+                )
+
+            sub_path = request.url.path[len("/api/") :]
+            return await _proxy_request_to_slave(request, slave, sub_path)
+        except HTTPException:
+            raise
+        except Exception as e:
+            request.app.state.server_interface.logger.error(f"代理请求失败: {e}", exc_info=True)
+            return JSONResponse(
+                {"status": "error", "message": "Proxy request failed"},
+                status_code=502,
+            )
 
 
 # 尝试迁移旧配置
@@ -340,6 +521,7 @@ class SessionTokenSyncMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SessionTokenSyncMiddleware)
+app.add_middleware(ApiProxyDispatchMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 
@@ -536,6 +718,97 @@ async def api_get_icp_records(request: Request):
 async def api_get_web_config(request: Request, user: dict = Depends(get_current_user)):
     """获取Web配置"""
     return JSONResponse(await request.app.state.config_service.get_web_config())
+
+
+@app.get("/api/panel_merge_config")
+async def api_get_panel_merge_config(
+    request: Request, user: dict = Depends(get_current_user)
+):
+    """获取多服面板合并配置（仅本地，不参与代理）。"""
+    cfg = request.app.state.config_service.get_config()
+    return JSONResponse(
+        {
+            "status": "success",
+            "panel_role": cfg.get("panel_role", "master"),
+            "panel_slaves": cfg.get("panel_slaves", []) or [],
+            "panel_master": cfg.get(
+                "panel_master", {"allowed_tokens": [], "allowed_master_ips": []}
+            )
+            or {"allowed_tokens": [], "allowed_master_ips": []},
+        }
+    )
+
+
+@app.post("/api/panel_merge_config")
+async def api_save_panel_merge_config(
+    request: Request, admin: dict = Depends(get_current_admin)
+):
+    """保存多服面板合并配置（仅本地，不参与代理）。"""
+    body = await request.json()
+    config_service: ConfigService = request.app.state.config_service
+    web_config = config_service.get_config()
+
+    panel_role = body.get("panel_role")
+    if panel_role is not None:
+        web_config["panel_role"] = panel_role
+    panel_slaves = body.get("panel_slaves")
+    if panel_slaves is not None:
+        web_config["panel_slaves"] = panel_slaves if isinstance(panel_slaves, list) else []
+    panel_master = body.get("panel_master")
+    if panel_master is not None:
+        web_config["panel_master"] = (
+            panel_master
+            if isinstance(panel_master, dict)
+            else {"allowed_tokens": [], "allowed_master_ips": []}
+        )
+
+    try:
+        config_dir = request.app.state.server_interface.get_data_folder()
+        Path(config_dir).mkdir(parents=True, exist_ok=True)
+        config_path = Path(config_dir) / "config.json"
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(web_config, f, ensure_ascii=False, indent=4)
+        return JSONResponse(
+            {
+                "status": "success",
+                "message": "多服配置已保存",
+                "data": {
+                    "panel_role": web_config.get("panel_role", "master"),
+                    "panel_slaves": web_config.get("panel_slaves", []) or [],
+                    "panel_master": web_config.get("panel_master", {}) or {},
+                },
+            }
+        )
+    except Exception as e:
+        logger = getattr(
+            request.app.state.server_interface, "logger", logging.getLogger(__name__)
+        )
+        logger.error(f"保存多服配置文件时出错: {e}", exc_info=True)
+        return JSONResponse(
+            {"status": "error", "message": f"保存多服配置失败: {str(e)}"}, status_code=500
+        )
+
+
+@app.get("/api/servers")
+async def api_list_servers(request: Request, user: dict = Depends(get_current_user)):
+    """获取可用的服务器列表（主服 + 子服）"""
+    config_service: ConfigService = request.app.state.config_service
+    cfg = config_service.get_config()
+    servers = [{"id": "local", "name": "local", "enabled": True, "isLocal": True}]
+    for s in (cfg.get("panel_slaves") or []):
+        if not isinstance(s, dict):
+            continue
+        servers.append(
+            {
+                "id": str(s.get("id", "")).strip(),
+                "name": s.get("name") or s.get("id") or "",
+                "enabled": bool(s.get("enabled", True)),
+                "isLocal": False,
+            }
+        )
+    # 过滤空 id
+    servers = [x for x in servers if x.get("id")]
+    return JSONResponse({"status": "success", "servers": servers})
 
 
 @app.post("/api/save_web_config")

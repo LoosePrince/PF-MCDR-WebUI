@@ -1,31 +1,53 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Network,
-  Shield,
-  Lock,
-  User,
+  AlertCircle,
   Bot,
-  Database,
-  MessageSquare,
-  Plug,
-  Save,
   CheckCircle,
+  Database,
   Eye,
   EyeOff,
-  Plus,
-  Trash2,
   Info,
   Loader2,
-  AlertCircle,
+  Lock,
+  MessageSquare,
+  Network,
+  Plug,
+  Plus,
+  Save,
+  Shield,
+  Trash2,
+  User,
   X
 } from 'lucide-react'
+import React, { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import api, { isCancel } from '../utils/api'
+import { getTargetServerId } from '../utils/api'
 
 interface Repository {
   name: string
   url: string
+}
+
+interface PanelSlave {
+  id: string
+  name: string
+  base_url: string
+  token: string
+  enabled: boolean
+  verify_tls?: boolean
+}
+
+interface PanelAllowedToken {
+  token: string
+  enabled: boolean
+  name?: string
+  created_at?: string
+}
+
+interface PanelMasterConfig {
+  allowed_tokens: PanelAllowedToken[]
+  allowed_master_ips?: string[]
 }
 
 interface WebConfig {
@@ -51,6 +73,7 @@ interface WebConfig {
   chat_message_count: number
   force_standalone: boolean
   icp_records: { icp: string; url: string }[]
+  // 多服合并配置改为单独接口读取（避免在子服视图下误改本地多服配置）
 }
 
 const Settings: React.FC = () => {
@@ -64,8 +87,38 @@ const Settings: React.FC = () => {
   const [pimStatus, setPimStatus] = useState<'installed' | 'not_installed' | 'installing' | 'loading'>('loading')
   const [newRepo, setNewRepo] = useState<Repository>({ name: '', url: '' })
   const [newIcp, setNewIcp] = useState({ icp: '', url: '' })
+  const [newSlave, setNewSlave] = useState<PanelSlave>({
+    id: '',
+    name: '',
+    base_url: '',
+    token: '',
+    enabled: true,
+    verify_tls: true
+  })
+  const [newAllowedToken, setNewAllowedToken] = useState<PanelAllowedToken>({
+    token: '',
+    enabled: true,
+    name: ''
+  })
+  const [panelMergeConfig, setPanelMergeConfig] = useState<{
+    panel_role: 'master' | 'slave'
+    panel_slaves: PanelSlave[]
+    panel_master: PanelMasterConfig
+  } | null>(null)
+  const [panelMergeLoading, setPanelMergeLoading] = useState(false)
+  const targetServerId = getTargetServerId()
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  const getErrorMeta = (err: unknown): { name?: string; code?: string; message?: string } => {
+    if (!err || typeof err !== 'object') return {}
+    const rec = err as Record<string, unknown>
+    return {
+      name: typeof rec.name === 'string' ? rec.name : undefined,
+      code: typeof rec.code === 'string' ? rec.code : undefined,
+      message: typeof rec.message === 'string' ? rec.message : undefined,
+    }
+  }
 
   const showNotification = useCallback((message: string, type: 'success' | 'error') => {
     setNotification({ message, type })
@@ -76,9 +129,10 @@ const Settings: React.FC = () => {
     try {
       const { data } = await api.get('/get_web_config', { signal })
       setConfig(data)
-    } catch (error: any) {
+  } catch (error: unknown) {
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+    const meta = getErrorMeta(error)
+    if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch config:', error)
@@ -87,6 +141,28 @@ const Settings: React.FC = () => {
       setLoading(false)
     }
   }, [t, showNotification])
+
+  const fetchPanelMergeConfig = useCallback(async (signal?: AbortSignal) => {
+    setPanelMergeLoading(true)
+    try {
+      const { data } = await api.get('/panel_merge_config', {
+        signal,
+        headers: { 'X-Target-Server': 'local' }
+      })
+      if (data?.status === 'success') {
+        setPanelMergeConfig({
+          panel_role: (data.panel_role || 'master') as 'master' | 'slave',
+          panel_slaves: Array.isArray(data.panel_slaves) ? data.panel_slaves : [],
+          panel_master: data.panel_master || { allowed_tokens: [], allowed_master_ips: [] }
+        })
+      }
+  } catch (error: unknown) {
+    const meta = getErrorMeta(error)
+    if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') return
+    } finally {
+      setPanelMergeLoading(false)
+    }
+  }, [])
 
   const fetchPimStatus = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -97,9 +173,10 @@ const Settings: React.FC = () => {
         setPimStatus('not_installed')
         console.error('Failed to fetch PIM status:', data.message)
       }
-    } catch (error: any) {
+  } catch (error: unknown) {
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+    const meta = getErrorMeta(error)
+    if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch PIM status:', error)
@@ -114,14 +191,15 @@ const Settings: React.FC = () => {
 
     fetchConfig(signal)
     fetchPimStatus(signal)
+    fetchPanelMergeConfig(signal)
 
     return () => {
       // 取消所有进行中的请求
       abortController.abort()
     }
-  }, [fetchConfig, fetchPimStatus])
+  }, [fetchConfig, fetchPimStatus, fetchPanelMergeConfig])
 
-  const handleSave = async (action: string, data: any) => {
+  const handleSave = async (action: string, data: Record<string, unknown>) => {
     setSaving(action)
     try {
       const payload = { action, ...data }
@@ -132,9 +210,10 @@ const Settings: React.FC = () => {
       } else {
         showNotification(t('page.settings.msg.save_failed_prefix') + resp.message, 'error')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const meta = getErrorMeta(error)
       console.error('Save failed:', error)
-      showNotification(t('page.settings.msg.save_error_prefix') + error.message, 'error')
+      showNotification(t('page.settings.msg.save_error_prefix') + (meta.message || ''), 'error')
     } finally {
       setSaving(null)
     }
@@ -150,8 +229,9 @@ const Settings: React.FC = () => {
       } else {
         showNotification(t('page.settings.msg.toggle_failed_prefix') + resp.message, 'error')
       }
-    } catch (error: any) {
-      showNotification(t('page.settings.msg.toggle_error_prefix') + error.message, 'error')
+    } catch (error: unknown) {
+      const meta = getErrorMeta(error)
+      showNotification(t('page.settings.msg.toggle_error_prefix') + (meta.message || ''), 'error')
     } finally {
       setSaving(null)
     }
@@ -176,8 +256,9 @@ const Settings: React.FC = () => {
       } else {
         showNotification(t('page.settings.msg.api_key_validate_failed_prefix') + (data.message || ''), 'error')
       }
-    } catch (error: any) {
-      showNotification(t('page.settings.msg.api_key_validate_error_prefix') + error.message, 'error')
+    } catch (error: unknown) {
+      const meta = getErrorMeta(error)
+      showNotification(t('page.settings.msg.api_key_validate_error_prefix') + (meta.message || ''), 'error')
     } finally {
       setValidatingAiKey(false)
     }
@@ -240,8 +321,9 @@ const Settings: React.FC = () => {
         showNotification(t('page.settings.msg.pim_install_failed_prefix') + (data.message || ''), 'error')
         setPimStatus('not_installed')
       }
-    } catch (error: any) {
-      showNotification(t('page.settings.msg.pim_install_error_prefix') + error.message, 'error')
+    } catch (error: unknown) {
+      const meta = getErrorMeta(error)
+      showNotification(t('page.settings.msg.pim_install_error_prefix') + (meta.message || ''), 'error')
       setPimStatus('not_installed')
     }
   }
@@ -289,6 +371,412 @@ const Settings: React.FC = () => {
         animate="visible"
         className="grid grid-cols-1 lg:grid-cols-2 gap-6"
       >
+        {/* Multi-server panel merge */}
+        <motion.div variants={itemVariants} className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          <div className="flex items-center gap-3 text-slate-700 dark:text-slate-200">
+            <Network className="w-6 h-6" />
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              {t('page.settings.multi_server.title', '多服面板合并')}
+            </h2>
+          </div>
+          <p className="text-sm text-slate-500">
+            {t('page.settings.multi_server.tip', '主服可代理到子服；子服可配置允许主服调用的面板 token。')}
+          </p>
+          {targetServerId !== 'local' && (
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 rounded-2xl text-xs text-amber-700 dark:text-amber-300">
+              {t('page.settings.multi_server.local_only_tip', '当前正在查看子服配置：本区域仅可读写本地多服合并配置，其它设置将代理到当前子服。')}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              {t('page.settings.multi_server.role', '面板角色')}
+            </span>
+            <select
+              value={panelMergeConfig?.panel_role || 'master'}
+              onChange={(e) =>
+                setPanelMergeConfig((prev) => ({
+                  panel_role: (e.target.value as 'master' | 'slave') || 'master',
+                  panel_slaves: prev?.panel_slaves || [],
+                  panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                }))
+              }
+              className="px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm outline-none"
+            >
+              <option value="master">{t('page.settings.multi_server.role_master', '主服')}</option>
+              <option value="slave">{t('page.settings.multi_server.role_slave', '子服')}</option>
+            </select>
+
+            <div className="ml-auto">
+              <button
+                onClick={() => {
+                  const role = panelMergeConfig?.panel_role || 'master'
+
+                  const normalizedSlaves = [...(panelMergeConfig?.panel_slaves || [])]
+                  const pendingSlaveFilled =
+                    !!newSlave.id?.trim() && !!newSlave.base_url?.trim() && !!newSlave.token?.trim()
+                  if (role === 'master' && pendingSlaveFilled) {
+                    normalizedSlaves.push(newSlave)
+                  }
+
+                  const normalizedMaster = panelMergeConfig?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }
+                  const normalizedAllowedTokens = [...(normalizedMaster.allowed_tokens || [])]
+                  const pendingTokenFilled = !!newAllowedToken.token?.trim()
+                  if (role === 'slave' && pendingTokenFilled) {
+                    normalizedAllowedTokens.push(newAllowedToken)
+                  }
+
+                  setSaving('panel')
+                  api
+                    .post(
+                      '/panel_merge_config',
+                      {
+                        panel_role: role,
+                        panel_slaves: normalizedSlaves,
+                        panel_master: { ...normalizedMaster, allowed_tokens: normalizedAllowedTokens },
+                      },
+                      { headers: { 'X-Target-Server': 'local' } }
+                    )
+                    .then((resp) => {
+                      const d = resp.data
+                      if (d?.status === 'success') {
+                        showNotification(d.message || t('common.save_success'), 'success')
+                        fetchPanelMergeConfig()
+                      } else {
+                        showNotification(t('page.settings.msg.save_failed_prefix') + (d?.message || ''), 'error')
+                      }
+                    })
+                    .catch((error: unknown) => {
+                      const meta = getErrorMeta(error)
+                      showNotification(t('page.settings.msg.save_error_prefix') + (meta.message || ''), 'error')
+                    })
+                    .finally(() => setSaving(null))
+                }}
+                disabled={saving === 'panel' || panelMergeLoading}
+                className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 disabled:opacity-50 font-semibold rounded-2xl transition-all shadow-lg"
+              >
+                {saving === 'panel' || panelMergeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {t('common.save', '保存')}
+              </button>
+            </div>
+          </div>
+
+          {(panelMergeConfig?.panel_role || 'master') === 'master' ? (
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                {t('page.settings.multi_server.slaves', '子服列表')}
+              </p>
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-medium">
+                    <tr>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.id', 'ID')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.name', '名称')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.base_url', '面板地址')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.token', 'Token')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.slave.enabled', '启用')}</th>
+                      <th className="px-4 py-3 text-right">{t('page.settings.multi_server.actions', '操作')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {(panelMergeConfig?.panel_slaves || []).map((s, idx) => (
+                      <tr key={`${s.id}-${idx}`}>
+                        <td className="px-4 py-3">
+                          <input
+                            value={s.id}
+                            onChange={(e) => {
+                              const next = [...(panelMergeConfig?.panel_slaves || [])]
+                              next[idx] = { ...next[idx], id: e.target.value }
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'master',
+                                panel_slaves: next,
+                                panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                              }))
+                            }}
+                            className="w-28 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            value={s.name}
+                            onChange={(e) => {
+                              const next = [...(panelMergeConfig?.panel_slaves || [])]
+                              next[idx] = { ...next[idx], name: e.target.value }
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'master',
+                                panel_slaves: next,
+                                panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                              }))
+                            }}
+                            className="w-32 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            value={s.base_url}
+                            onChange={(e) => {
+                              const next = [...(panelMergeConfig?.panel_slaves || [])]
+                              next[idx] = { ...next[idx], base_url: e.target.value }
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'master',
+                                panel_slaves: next,
+                                panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                              }))
+                            }}
+                            placeholder="http://127.0.0.1:8001"
+                            className="min-w-[220px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            value={s.token}
+                            onChange={(e) => {
+                              const next = [...(panelMergeConfig?.panel_slaves || [])]
+                              next[idx] = { ...next[idx], token: e.target.value }
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'master',
+                                panel_slaves: next,
+                                panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                              }))
+                            }}
+                            className="min-w-[240px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => {
+                              const next = [...(panelMergeConfig?.panel_slaves || [])]
+                              next[idx] = { ...next[idx], enabled: !next[idx].enabled }
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'master',
+                                panel_slaves: next,
+                                panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                              }))
+                            }}
+                            className={`w-10 h-6 rounded-full p-1 transition-colors ${s.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                          >
+                            <motion.div animate={{ x: s.enabled ? 16 : 0 }} className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => {
+                              const next = (panelMergeConfig?.panel_slaves || []).filter((_, i) => i !== idx)
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'master',
+                                panel_slaves: next,
+                                panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                              }))
+                            }}
+                            className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-slate-50/30 dark:bg-slate-800/30">
+                      <td className="px-4 py-3">
+                        <input
+                          value={newSlave.id}
+                          onChange={(e) => setNewSlave({ ...newSlave, id: e.target.value })}
+                          placeholder="s1"
+                          className="w-28 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          value={newSlave.name}
+                          onChange={(e) => setNewSlave({ ...newSlave, name: e.target.value })}
+                          placeholder="Server 1"
+                          className="w-32 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          value={newSlave.base_url}
+                          onChange={(e) => setNewSlave({ ...newSlave, base_url: e.target.value })}
+                          placeholder="http://127.0.0.1:8001"
+                          className="min-w-[220px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          value={newSlave.token}
+                          onChange={(e) => setNewSlave({ ...newSlave, token: e.target.value })}
+                          placeholder="子服面板 token"
+                          className="min-w-[240px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => setNewSlave({ ...newSlave, enabled: !newSlave.enabled })}
+                          className={`w-10 h-6 rounded-full p-1 transition-colors ${newSlave.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                        >
+                          <motion.div animate={{ x: newSlave.enabled ? 16 : 0 }} className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => {
+                            if (!newSlave.id || !newSlave.base_url || !newSlave.token) {
+                              showNotification(t('page.settings.multi_server.slave.required', '请填写 ID / 面板地址 / Token'), 'error')
+                              return
+                            }
+                            const next = [...(panelMergeConfig?.panel_slaves || []), newSlave]
+                            setPanelMergeConfig((prev) => ({
+                              panel_role: prev?.panel_role || 'master',
+                              panel_slaves: next,
+                              panel_master: prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] },
+                            }))
+                            setNewSlave({ id: '', name: '', base_url: '', token: '', enabled: true, verify_tls: true })
+                            showNotification(t('page.settings.multi_server.slave.added', '已添加，记得点击保存'), 'success')
+                          }}
+                          className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                {t('page.settings.multi_server.allowed_tokens', '允许的主服 Token')}
+              </p>
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-medium">
+                    <tr>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.token.name', '名称')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.token.token', 'Token')}</th>
+                      <th className="px-4 py-3">{t('page.settings.multi_server.token.enabled', '启用')}</th>
+                      <th className="px-4 py-3 text-right">{t('page.settings.multi_server.actions', '操作')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {(panelMergeConfig?.panel_master?.allowed_tokens || []).map((it, idx) => (
+                      <tr key={`${it.token}-${idx}`}>
+                        <td className="px-4 py-3">
+                          <input
+                            value={it.name || ''}
+                            onChange={(e) => {
+                              const next = [...(panelMergeConfig?.panel_master?.allowed_tokens || [])]
+                              next[idx] = { ...next[idx], name: e.target.value }
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'slave',
+                                panel_slaves: prev?.panel_slaves || [],
+                                panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
+                              }))
+                            }}
+                            className="w-40 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            value={it.token}
+                            onChange={(e) => {
+                              const next = [...(panelMergeConfig?.panel_master?.allowed_tokens || [])]
+                              next[idx] = { ...next[idx], token: e.target.value }
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'slave',
+                                panel_slaves: prev?.panel_slaves || [],
+                                panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
+                              }))
+                            }}
+                            className="min-w-[260px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => {
+                              const next = [...(panelMergeConfig?.panel_master?.allowed_tokens || [])]
+                              next[idx] = { ...next[idx], enabled: !next[idx].enabled }
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'slave',
+                                panel_slaves: prev?.panel_slaves || [],
+                                panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
+                              }))
+                            }}
+                            className={`w-10 h-6 rounded-full p-1 transition-colors ${it.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                          >
+                            <motion.div animate={{ x: it.enabled ? 16 : 0 }} className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => {
+                              const next = (panelMergeConfig?.panel_master?.allowed_tokens || []).filter((_, i) => i !== idx)
+                              setPanelMergeConfig((prev) => ({
+                                panel_role: prev?.panel_role || 'slave',
+                                panel_slaves: prev?.panel_slaves || [],
+                                panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: next },
+                              }))
+                            }}
+                            className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-slate-50/30 dark:bg-slate-800/30">
+                      <td className="px-4 py-3">
+                        <input
+                          value={newAllowedToken.name || ''}
+                          onChange={(e) => setNewAllowedToken({ ...newAllowedToken, name: e.target.value })}
+                          placeholder="master"
+                          className="w-40 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          value={newAllowedToken.token}
+                          onChange={(e) => setNewAllowedToken({ ...newAllowedToken, token: e.target.value })}
+                          placeholder="面板 token"
+                          className="min-w-[260px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => setNewAllowedToken({ ...newAllowedToken, enabled: !newAllowedToken.enabled })}
+                          className={`w-10 h-6 rounded-full p-1 transition-colors ${newAllowedToken.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                        >
+                          <motion.div animate={{ x: newAllowedToken.enabled ? 16 : 0 }} className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => {
+                            if (!newAllowedToken.token) {
+                              showNotification(t('page.settings.multi_server.token.required', '请填写 Token'), 'error')
+                              return
+                            }
+                            const allowed = [...(panelMergeConfig?.panel_master?.allowed_tokens || []), newAllowedToken]
+                            setPanelMergeConfig((prev) => ({
+                              panel_role: prev?.panel_role || 'slave',
+                              panel_slaves: prev?.panel_slaves || [],
+                              panel_master: { ...(prev?.panel_master || { allowed_tokens: [], allowed_master_ips: [] }), allowed_tokens: allowed },
+                            }))
+                            setNewAllowedToken({ token: '', enabled: true, name: '' })
+                            showNotification(t('page.settings.multi_server.token.added', '已添加，记得点击保存'), 'success')
+                          }}
+                          className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
         {/* Network & Account Section */}
         <div className="space-y-6">
           {/* Network Settings */}

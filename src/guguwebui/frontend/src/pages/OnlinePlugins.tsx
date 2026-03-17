@@ -29,6 +29,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
@@ -66,7 +67,7 @@ interface LocalPlugin {
   id: string;
   version: string;
   version_latest: string;
-  instance?: any;
+  instance?: unknown;
 }
 
 interface Repository {
@@ -85,6 +86,9 @@ interface PluginVersion {
   version: string;
   installed: boolean;
   processing?: boolean;
+  prerelease?: boolean;
+  date?: string;
+  downloads?: number;
 }
 
 // --- 组件实现 ---
@@ -155,6 +159,16 @@ const OnlinePlugins: React.FC = () => {
     setTimeout(() => setShowNotification(false), 3000);
   };
 
+  const getErrorMeta = (err: unknown): { name?: string; code?: string; message?: string } => {
+    if (!err || typeof err !== 'object') return {}
+    const rec = err as Record<string, unknown>
+    return {
+      name: typeof rec.name === 'string' ? rec.name : undefined,
+      code: typeof rec.code === 'string' ? rec.code : undefined,
+      message: typeof rec.message === 'string' ? rec.message : undefined,
+    }
+  }
+
   // 获取本地插件以比对安装状态
   const fetchLocalPlugins = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -162,9 +176,10 @@ const OnlinePlugins: React.FC = () => {
       if (resp.data && resp.data.plugins) {
         setLocalPlugins(resp.data.plugins);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      const meta = getErrorMeta(error)
+      if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to fetch local plugins:', error);
@@ -173,7 +188,7 @@ const OnlinePlugins: React.FC = () => {
 
   const fetchRepositories = useCallback(async (signal?: AbortSignal) => {
     try {
-      const resp = await api.get('/get_web_config', { signal });
+      const resp = await api.get('/get_web_config', { signal, headers: { 'X-Target-Server': 'local' } });
       const data = resp.data;
       const pfCatalogueUrl = data.pf_plugin_catalogue_url || '';
       const repos: Repository[] = [
@@ -181,17 +196,18 @@ const OnlinePlugins: React.FC = () => {
         { name: t('page.settings.repo.loose_repo'), url: pfCatalogueUrl, repoId: 1 },
       ];
       if (data.repositories) {
-        data.repositories.forEach((r: any, index: number) => {
-          if (r.url !== pfCatalogueUrl) {
+        (data.repositories as Array<{ name: string; url: string }>).forEach((r, index) => {
+          if (r?.url && r.url !== pfCatalogueUrl) {
             repos.push({ name: r.name, url: r.url, repoId: index + 2 });
           }
         });
       }
       setRepositories(repos);
       if (!selectedRepo && repos.length > 0) setSelectedRepo(repos[0].url);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      const meta = getErrorMeta(error)
+      if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to fetch repositories:', error);
@@ -204,12 +220,14 @@ const OnlinePlugins: React.FC = () => {
     try {
       const resp = await api.get('/online-plugins', {
         params: { repo_url: selectedRepo || undefined },
+        headers: { 'X-Target-Server': 'local' },
         signal
       });
       setPlugins(resp.data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      const meta = getErrorMeta(error)
+      if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to fetch online plugins:', error);
@@ -367,11 +385,11 @@ const OnlinePlugins: React.FC = () => {
         params: { plugin_id: plugin.id, repo_url: selectedRepo || undefined }
       });
       if (resp.data.success) {
-        const versions = resp.data.versions.map((v: any) => ({
-          version: v.version,
+        const versions = (resp.data.versions as Array<Record<string, unknown>>).map((v) => ({
+          version: String(v.version ?? ''),
           installed: v.version === local?.version,
           prerelease: !!v.prerelease,
-          date: v.date || v.release_date || v.time || v.published_at || '',
+          date: String(v.date ?? v.release_date ?? v.time ?? v.published_at ?? ''),
           downloads: typeof v.downloads === 'number' ? v.downloads : (typeof v.download_count === 'number' ? v.download_count : 0)
         }));
         setAvailableVersions(versions);
@@ -1152,7 +1170,7 @@ const OnlinePlugins: React.FC = () => {
 const OnlinePluginCard: React.FC<{
   plugin: OnlinePlugin;
   status: 'not_installed' | 'installed' | 'updatable'; // 扩展状态
-  t: any;
+  t: TFunction;
   onInstall: () => void;
   onSelectVersion: () => void;
   onViewDetails: () => void;

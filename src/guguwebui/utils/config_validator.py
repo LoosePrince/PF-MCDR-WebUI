@@ -101,19 +101,47 @@ class ConfigValidator:
         # 验证字符串配置
         string_configs = [
             'ai_api_key', 'ai_model', 'ai_api_url', 'mcdr_plugins_url',
-            'ssl_certfile', 'ssl_keyfile', 'ssl_keyfile_password'
+            'ssl_certfile', 'ssl_keyfile', 'ssl_keyfile_password',
+            'panel_role'
         ]
         for key in string_configs:
             value = config.get(key)
             if not isinstance(value, str):
                 self.warnings.append(f"{key} 类型错误，期望 str，实际: {type(value)}")
                 validated_config[key] = DEFALUT_CONFIG[key]
+            elif key == "panel_role" and value not in ["master", "slave"]:
+                self.warnings.append(f"panel_role 值无效，期望 master/slave，实际: {value}")
+                validated_config[key] = DEFALUT_CONFIG["panel_role"]
 
         # 验证列表配置
         repositories = config.get('repositories')
         if not isinstance(repositories, list):
             self.warnings.append(f"repositories 类型错误，期望 list，实际: {type(repositories)}")
             validated_config['repositories'] = DEFALUT_CONFIG['repositories']
+
+        panel_slaves = config.get('panel_slaves')
+        if panel_slaves is None:
+            panel_slaves = []
+        if not isinstance(panel_slaves, list):
+            self.warnings.append(f"panel_slaves 类型错误，期望 list，实际: {type(panel_slaves)}")
+            validated_config['panel_slaves'] = DEFALUT_CONFIG['panel_slaves']
+
+        panel_master = config.get('panel_master')
+        if panel_master is None:
+            panel_master = DEFALUT_CONFIG.get('panel_master', {})
+        if not isinstance(panel_master, dict):
+            self.warnings.append(f"panel_master 类型错误，期望 dict，实际: {type(panel_master)}")
+            validated_config['panel_master'] = DEFALUT_CONFIG.get('panel_master', {"allowed_tokens": [], "allowed_master_ips": []})
+        else:
+            allowed_tokens = panel_master.get("allowed_tokens", [])
+            if not isinstance(allowed_tokens, list):
+                self.warnings.append(f"panel_master.allowed_tokens 类型错误，期望 list，实际: {type(allowed_tokens)}")
+                panel_master["allowed_tokens"] = []
+            allowed_master_ips = panel_master.get("allowed_master_ips", [])
+            if not isinstance(allowed_master_ips, list):
+                self.warnings.append(f"panel_master.allowed_master_ips 类型错误，期望 list，实际: {type(allowed_master_ips)}")
+                panel_master["allowed_master_ips"] = []
+            validated_config['panel_master'] = panel_master
 
         # 验证ICP备案配置
         icp_records = config.get('icp_records')

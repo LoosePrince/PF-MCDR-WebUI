@@ -68,12 +68,21 @@ DEFALUT_CONFIG = {
     "public_chat_to_game_enabled": False,  # 公开聊天页发送消息到游戏
     "chat_verification_expire_minutes": 10,  # 聊天页验证码过期时间（分钟）
     "chat_session_expire_hours": 24,  # 聊天页会话过期时间（小时）
-    "icp_records": []  # ICP备案信息，最多两个，每个包含 icp 和 url 字段
+    "icp_records": [],  # ICP备案信息，最多两个，每个包含 icp 和 url 字段
     # 示例配置（请在 config.json 中添加）：
     # "icp_records": [
     #     {"icp": "浙ICP备12345678号", "url": "https://beian.miit.gov.cn/"},
     #     {"icp": "浙公网安备33010602000123号", "url": "https://www.beian.gov.cn/"}
     # ]
+    
+    "panel_role": "master", # "master" (主服模式) | "slave" (子服模式)
+    # 主服模式：子服连接信息列表
+    # item: {id, name, base_url, token, enabled, verify_tls}
+    "panel_slaves": [], # 子服连接信息列表
+    # 子服模式：允许的主服调用 token 列表
+    # allowed_tokens item: {token, enabled, name, created_at}
+    # allowed_master_ips: 可选限制主服来源 IP（空表示不限制）
+    "panel_master": {"allowed_tokens": [], "allowed_master_ips": []},
 }
 
 user_db = Table(USER_DB_PATH, default_content=DEFALUT_DB)
