@@ -19,7 +19,11 @@
         "lang_short": "中",
         "server_online": "服务器在线",
         "slave_offline_title": "子服离线",
-        "slave_offline_tip": "已切换为本地数据源，请检查子服网络或 WebUI 是否已启动。"
+        "slave_offline_tip": "已切换为本地数据源，请检查子服网络或 WebUI 是否已启动。",
+        "breadcrumb_plugin_pages": "插件",
+        "topbar_settings_label": "设置",
+        "topbar_about_label": "关于",
+        "topbar_notice_label": "公告"
     },
     "lang": {
         "zh-CN": "简体中文",

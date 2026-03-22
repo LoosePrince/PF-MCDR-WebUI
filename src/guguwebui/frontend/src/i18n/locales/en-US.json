@@ -19,7 +19,11 @@
         "lang_short": "中",
         "server_online": "Server Online",
         "slave_offline_title": "Slave server offline",
-        "slave_offline_tip": "Switched to local data source. Check the slave network or that its WebUI is running."
+        "slave_offline_tip": "Switched to local data source. Check the slave network or that its WebUI is running.",
+        "breadcrumb_plugin_pages": "Plugins",
+        "topbar_settings_label": "Settings",
+        "topbar_about_label": "About",
+        "topbar_notice_label": "Notice"
     },
     "lang": {
         "zh-CN": "简体中文",

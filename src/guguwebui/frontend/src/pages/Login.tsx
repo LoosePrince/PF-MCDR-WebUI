@@ -73,7 +73,7 @@ const Login: React.FC = () => {
               </div>
             )}
           </button>
-          <div className="absolute z-30 mt-2 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+          <div className="absolute z-30 mt-2 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
             {(['light', 'system', 'dark'] as const).map((opt) => (
               <button
                 key={opt}
@@ -112,7 +112,7 @@ const Login: React.FC = () => {
               {i18n.language === 'zh-CN' ? t('nav.lang_short') : 'EN'}
             </span>
           </button>
-          <div className="absolute z-30 mt-2 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+          <div className="absolute z-30 mt-2 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
             {[
               { code: 'zh-CN', label: t('lang.zh-CN') },
               { code: 'en-US', label: t('lang.en-US') },

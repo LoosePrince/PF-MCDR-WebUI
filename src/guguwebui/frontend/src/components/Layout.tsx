@@ -166,7 +166,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/about', key: 'nav.about', icon: Info },
   ]
 
+  /** 侧栏不展示设置/关于（已移至顶栏） */
+  const sidebarNavItems = navItems.filter(
+    (item) => item.path !== '/settings' && item.path !== '/about'
+  )
+
   const activeNavItem = navItems.find(item => item.path === location.pathname) || navItems[0]
+
+  const pluginPageRouteMatch = /^\/plugin-page\/([^/]+)/.exec(location.pathname)
+  const pluginPageId = pluginPageRouteMatch?.[1] ?? null
 
   const sidebarVariants = {
     open: { x: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
@@ -175,15 +183,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <NoticeModalProvider value={noticeModalValue}>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex transition-colors duration-300">
-        {/* Sidebar */}
+      <div className="h-screen min-h-0 overflow-hidden bg-slate-50 dark:bg-slate-950 flex transition-colors duration-300">
+        {/* Sidebar：桌面端限制为视口高度，导航区单独滚动 */}
         <motion.aside
           initial={window.innerWidth >= 1024 ? "open" : "closed"}
           animate={sidebarOpen ? "open" : "closed"}
           variants={sidebarVariants}
-          className="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shadow-xl lg:shadow-none lg:relative"
+          className="fixed inset-y-0 left-0 z-50 w-64 min-h-0 max-h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-xl lg:shadow-none lg:relative lg:h-screen lg:shrink-0"
         >
-          <div className="p-6 flex items-center gap-3">
+          <div className="p-6 flex items-center gap-3 shrink-0">
             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
               <Zap className="w-6 h-6 fill-current" />
             </div>
@@ -203,8 +211,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </button>
           </div>
 
-          <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
-            {navItems.map((item) => {
+          <nav className="flex-1 min-h-0 px-4 py-2 space-y-1 overflow-y-auto overscroll-contain">
+            {sidebarNavItems.map((item) => {
               const isActive = location.pathname === item.path
               return (
                 <Link
@@ -278,7 +286,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             )}
           </nav>
 
-          <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-3 shrink-0">
             <div className="flex items-center gap-3 px-2">
               {(() => {
                 // 判断是否是QQ号（纯数字，长度5-11位）
@@ -342,7 +350,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </div>
                   )}
                 </button>
-                <div className="absolute z-20 bottom-11 left-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+                <div className="absolute z-20 bottom-11 left-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
                   {(['light', 'system', 'dark'] as const).map((opt) => (
                     <button
                       key={opt}
@@ -382,7 +390,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     {i18n.language === 'zh-CN' ? '中' : 'EN'}
                   </span>
                 </button>
-                <div className="absolute z-20 bottom-11 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+                <div className="absolute z-20 bottom-11 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
                   {[
                     { code: 'zh-CN', label: '简体中文' },
                     { code: 'en-US', label: 'English' },
@@ -447,7 +455,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
           {/* Header */}
-          <header className="h-16 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-8 shrink-0">
+          <header className="min-h-16 py-2 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-8 shrink-0">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -455,28 +463,93 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 <Menu className="w-6 h-6" />
               </button>
-              <nav className="flex items-center text-sm font-medium text-slate-500">
-                <span className="hidden sm:inline hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer" onClick={() => navigate('/index')}>
+              <nav className="flex items-center text-sm font-medium text-slate-500 min-w-0 flex-1">
+                <span className="hidden sm:inline hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer shrink-0" onClick={() => navigate('/index')}>
                   {t('nav.dashboard')}
                 </span>
-                <ChevronRight className="hidden sm:block w-4 h-4 mx-2 text-slate-300" />
-                <span className="text-slate-900 dark:text-white truncate max-w-[150px]">
-                  {t(activeNavItem.key)}
-                </span>
+                {pluginPageId ? (
+                  <>
+                    <ChevronRight className="hidden sm:block w-4 h-4 mx-2 text-slate-300 shrink-0" />
+                    <span className="hidden sm:inline text-slate-500 shrink-0">{t('nav.breadcrumb_plugin_pages')}</span>
+                    <ChevronRight className="hidden sm:block w-4 h-4 mx-2 text-slate-300 shrink-0" />
+                    <span className="text-slate-900 dark:text-white truncate max-w-[min(40vw,12rem)] font-mono text-xs uppercase" title={pluginPageId}>
+                      {pluginPageId}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronRight className="hidden sm:block w-4 h-4 mx-2 text-slate-300 shrink-0" />
+                    <span className="text-slate-900 dark:text-white truncate max-w-[150px]">
+                      {t(activeNavItem.key)}
+                    </span>
+                  </>
+                )}
               </nav>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className={`hidden sm:flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusColors[serverStatus]}`}>
-                <span className={`w-1.5 h-1.5 rounded-full mr-2 ${serverStatus === 'online' ? 'bg-green-500 animate-pulse' : serverStatus === 'offline' ? 'bg-slate-400' : serverStatus === 'error' ? 'bg-rose-500' : 'bg-blue-500 animate-pulse'}`} />
-                {t(`nav.status_${serverStatus}`)}
-              </div>
-              <button
-                onClick={() => setNoticeModalOpen(true)}
-                className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative"
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0 min-w-0">
+              <div
+                className={`flex items-center max-w-[min(42vw,9rem)] sm:max-w-none shrink-0 px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold border ${statusColors[serverStatus]}`}
+                title={t(`nav.status_${serverStatus}`)}
               >
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full border-2 border-white dark:border-slate-900" />
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 mr-1.5 sm:mr-2 ${serverStatus === 'online' ? 'bg-green-500 animate-pulse' : serverStatus === 'offline' ? 'bg-slate-400' : serverStatus === 'error' ? 'bg-rose-500' : 'bg-blue-500 animate-pulse'}`}
+                />
+                <span className="truncate">{t(`nav.status_${serverStatus}`)}</span>
+              </div>
+              <Link
+                to="/settings"
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-[3rem] ${
+                  location.pathname === '/settings'
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                }`}
+                title={t('nav.web_settings')}
+              >
+                <Sliders className="w-5 h-5 shrink-0" />
+                <span
+                  className={`text-[10px] leading-tight text-center max-w-[4rem] truncate ${
+                    location.pathname === '/settings'
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  {t('nav.topbar_settings_label')}
+                </span>
+              </Link>
+              <Link
+                to="/about"
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-[3rem] ${
+                  location.pathname === '/about'
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                }`}
+                title={t('nav.about')}
+              >
+                <Info className="w-5 h-5 shrink-0" />
+                <span
+                  className={`text-[10px] leading-tight text-center max-w-[4rem] truncate ${
+                    location.pathname === '/about'
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  {t('nav.topbar_about_label')}
+                </span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setNoticeModalOpen(true)}
+                className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-[3rem] text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                title={t('page.index.notice')}
+              >
+                <span className="relative inline-flex shrink-0">
+                  <Bell className="w-5 h-5" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-600 rounded-full border-2 border-white dark:border-slate-900" />
+                </span>
+                <span className="text-[10px] leading-tight text-center text-slate-500 dark:text-slate-400 max-w-[4rem] truncate">
+                  {t('nav.topbar_notice_label')}
+                </span>
               </button>
             </div>
           </header>
