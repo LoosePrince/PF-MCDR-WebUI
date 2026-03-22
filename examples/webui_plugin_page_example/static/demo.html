@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebUI 插件页示例</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; }
+    body { margin: 1rem; line-height: 1.5; }
+    button { margin: 0.25rem 0.5rem 0.25rem 0; padding: 0.4rem 0.75rem; cursor: pointer; }
+    pre { background: #f4f4f5; padding: 0.75rem; border-radius: 6px; overflow: auto; max-height: 320px; }
+    .muted { color: #64748b; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <h1>WebUI 插件页示例</h1>
+  <p class="muted">
+    本页由 <code>register_plugin_page</code> 注册；下方请求走
+    <code>/api/plugin/webui_plugin_page_example/...</code>，需已登录 WebUI（Cookie）。
+  </p>
+  <p>
+    <button type="button" id="btn-hello">GET hello</button>
+    <button type="button" id="btn-echo">POST echo</button>
+    <button type="button" id="btn-status">GET status</button>
+  </p>
+  <h2>响应</h2>
+  <pre id="out">（点击按钮）</pre>
+
+  <script>
+    function apiRoot() {
+      try {
+        var cfg = window.parent && window.parent.__GUGU_CONFIG__;
+        var root = (cfg && cfg.root_path) ? String(cfg.root_path) : '';
+        return root.replace(/\/$/, '') + '/api';
+      } catch (e) {
+        return '/api';
+      }
+    }
+
+    function pluginBase() {
+      return apiRoot() + '/plugin/webui_plugin_page_example';
+    }
+
+    async function show(label, p) {
+      var el = document.getElementById('out');
+      el.textContent = label + '\n' + JSON.stringify(p, null, 2);
+    }
+
+    document.getElementById('btn-hello').onclick = async function () {
+      try {
+        var r = await fetch(pluginBase() + '/hello?q=demo', {
+          credentials: 'include',
+        });
+        var t = await r.text();
+        try { t = JSON.parse(t); } catch (e) {}
+        await show('GET hello → ' + r.status, t);
+      } catch (e) {
+        await show('错误', String(e));
+      }
+    };
+
+    document.getElementById('btn-echo').onclick = async function () {
+      try {
+        var r = await fetch(pluginBase() + '/echo', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ping: 'pong', at: Date.now() }),
+        });
+        var t = await r.text();
+        try { t = JSON.parse(t); } catch (e) {}
+        await show('POST echo → ' + r.status, t);
+      } catch (e) {
+        await show('错误', String(e));
+      }
+    };
+
+    document.getElementById('btn-status').onclick = async function () {
+      try {
+        var r = await fetch(pluginBase() + '/status', { credentials: 'include' });
+        var t = await r.text();
+        try { t = JSON.parse(t); } catch (e) {}
+        await show('GET status → ' + r.status, t);
+      } catch (e) {
+        await show('错误', String(e));
+      }
+    };
+  </script>
+</body>
+</html>

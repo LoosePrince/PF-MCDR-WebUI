@@ -2,7 +2,7 @@ import asyncio
 import os
 import platform
 import threading
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from mcdreforged.api.command import Literal, Text
 from mcdreforged.api.event import LiteralEvent
@@ -716,16 +716,27 @@ def send_message_to_webui(server_interface, source: str, message, message_type: 
     return _send_message_to_webui(server_interface, source, message, message_type, target_players, metadata, is_rtext)
 
 
-def register_plugin_page(plugin_id: str, html_path: str):
+def register_plugin_page(
+    plugin_id: str,
+    html_path: str,
+    *,
+    api_handler: Optional[Callable[..., Any]] = None,
+):
     """
-    供其他插件调用的函数，用于注册其自定义网页
+    供其他插件调用的函数，用于注册其自定义网页，并可选择注册后端 API 处理器。
 
     Args:
         plugin_id: 插件ID
         html_path: 网页 HTML 文件的完整路径或相对于 config 目录的路径
+        api_handler: 可选。接收 (url_path, params) 的处理函数；params 含 method、query、body。
+            前端请求 ``GET/POST ... /api/plugin/{plugin_id}/{子路径}`` 时由 WebUI 转发至此。
     """
-    from guguwebui.constant import REGISTERED_PLUGIN_PAGES
-    REGISTERED_PLUGIN_PAGES[plugin_id] = html_path
+    from guguwebui.state import PluginPageEntry, REGISTERED_PLUGIN_PAGES
+
+    REGISTERED_PLUGIN_PAGES[plugin_id] = PluginPageEntry(
+        html_path=html_path,
+        api_handler=api_handler,
+    )
 
 
 def register_gugubot_system(server: PluginServerInterface):

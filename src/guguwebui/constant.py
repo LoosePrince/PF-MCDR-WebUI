@@ -86,6 +86,3 @@ DEFALUT_CONFIG = {
 }
 
 user_db = Table(USER_DB_PATH, default_content=DEFALUT_DB)
-
-# 已注册的插件网页列表 (插件ID: HTML文件相对于插件config目录的路径)
-REGISTERED_PLUGIN_PAGES: dict[str, str] = {}

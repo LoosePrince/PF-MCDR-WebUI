@@ -1,0 +1,16 @@
+{
+    "id": "webui_plugin_page_example",
+    "version": "1.0.0",
+    "name": "WebUI Plugin Page Example",
+    "description": {
+        "en_us": "Example: register a WebUI plugin page, sidebar entry, and optional /api/plugin/... handler.",
+        "zh_cn": "示例：注册 WebUI 插件网页、侧边栏入口及可选的 /api/plugin/... 后端处理器。"
+    },
+    "author": [
+        "PF-MCDR-WebUI"
+    ],
+    "link": "https://github.com/PFingan-Code/PF-MCDR-WebUI",
+    "dependencies": {
+        "guguwebui": ">=1.7.0"
+    }
+}

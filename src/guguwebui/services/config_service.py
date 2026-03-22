@@ -318,6 +318,15 @@ class ConfigService:
                         )
                         for k, v in config.items()
                     }
+                elif path_obj.suffix == ".html":
+                    # 直接加载插件页等 HTML（无 main.json 映射时仍走此分支）
+                    return {
+                        "status": "success",
+                        "type": "html",
+                        "content": raw_text or "",
+                    }
+                else:
+                    config = {}
         except Exception:
             config = {}
 

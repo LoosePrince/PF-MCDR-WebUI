@@ -81,7 +81,7 @@
 WebUI 提供事件分发机制，允许其他插件监听或向 WebUI 发送消息：
 - 核心事件: `webui.chat_message_sent`
 - 详细参考: [WebUI 事件系统文档](docs/WebUI事件系统.md)
-- 示例代码: [examples/](examples/)
+- 示例代码: [examples/](examples/)（含 [插件网页 + 侧边栏 + 自定义 API](examples/webui_plugin_page_example/)）
 
 ### 框架兼容
 - **fastapi_mcdr**: 检测到该插件时，WebUI 将自动挂载为其子应用。

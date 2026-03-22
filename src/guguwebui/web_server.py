@@ -1,11 +1,12 @@
 import asyncio
 import datetime
+import inspect
 import json
 import logging
 import secrets
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import aiohttp
 from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request, status
@@ -34,7 +35,12 @@ from guguwebui.services.file_service import FileService
 from guguwebui.services.pip_service import PipService
 from guguwebui.services.plugin_service import PluginService
 from guguwebui.services.server_service import ServerService
-from guguwebui.state import RCON_ONLINE_CACHE, REGISTERED_PLUGIN_PAGES, pip_tasks
+from guguwebui.state import (
+    PluginApiHandlerParams,
+    RCON_ONLINE_CACHE,
+    REGISTERED_PLUGIN_PAGES,
+    pip_tasks,
+)
 from guguwebui.structures import (
     BusinessException,
     ConfigData,
@@ -742,8 +748,128 @@ async def get_registered_web_pages(
     request: Request, user: dict = Depends(get_current_user)
 ):
     """获取所有已注册的插件网页列表"""
-    pages = [{"id": pid, "path": path} for pid, path in REGISTERED_PLUGIN_PAGES.items()]
+    pages = [
+        {"id": pid, "path": entry.html_path}
+        for pid, entry in REGISTERED_PLUGIN_PAGES.items()
+    ]
     return JSONResponse({"status": "success", "pages": pages})
+
+
+_PLUGIN_API_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD")
+
+
+def _query_params_to_dict(request: Request) -> dict[str, str | list[str]]:
+    out: dict[str, str | list[str]] = {}
+    for key in request.query_params.keys():
+        values = request.query_params.getlist(key)
+        if len(values) == 1:
+            out[key] = values[0]
+        else:
+            out[key] = values
+    return out
+
+
+async def _parse_plugin_api_body(request: Request) -> tuple[Any, Optional[int]]:
+    """
+    解析插件 API 请求体。支持 application/json 与表单；其余返回 (None, 415)。
+    GET/HEAD 等无体方法返回 (None, None)。
+    """
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None, None
+
+    content_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if not content_type:
+        return None, None
+
+    if content_type == "application/json":
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError):
+            return None, 400
+        return body, None
+
+    if content_type in (
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+    ):
+        form = await request.form()
+        result: dict[str, Any] = {}
+        for key in form.keys():
+            val = form.get(key)
+            if hasattr(val, "read"):
+                return None, 415
+            result[key] = val
+        return result, None
+
+    return None, 415
+
+
+async def _dispatch_plugin_api(
+    plugin_id: str,
+    url_path: str,
+    request: Request,
+) -> Response:
+    entry = REGISTERED_PLUGIN_PAGES.get(plugin_id)
+    if entry is None or entry.api_handler is None:
+        raise HTTPException(status_code=404, detail="Plugin API handler not registered")
+
+    body, err_status = await _parse_plugin_api_body(request)
+    if err_status is not None:
+        if err_status == 415:
+            raise HTTPException(
+                status_code=415,
+                detail="Unsupported Content-Type; use application/json or form",
+            )
+        raise HTTPException(status_code=err_status, detail="Invalid JSON body")
+
+    params: PluginApiHandlerParams = {
+        "method": request.method,
+        "query": _query_params_to_dict(request),
+        "body": body,
+    }
+
+    handler = entry.api_handler
+    try:
+        if inspect.iscoroutinefunction(handler):
+            result = await handler(url_path, params)
+        else:
+            result = await asyncio.to_thread(handler, url_path, params)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).exception("Plugin API handler error: %s", plugin_id)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    if isinstance(result, Response):
+        return result
+    return JSONResponse(result)
+
+
+@app.api_route(
+    "/api/plugin/{plugin_id}",
+    methods=list(_PLUGIN_API_METHODS),
+)
+async def plugin_api_root(
+    plugin_id: str,
+    request: Request,
+    _user: dict = Depends(get_current_user),
+):
+    """插件 API 代理：子路径为空。"""
+    return await _dispatch_plugin_api(plugin_id, "", request)
+
+
+@app.api_route(
+    "/api/plugin/{plugin_id}/{subpath:path}",
+    methods=list(_PLUGIN_API_METHODS),
+)
+async def plugin_api_subpath(
+    plugin_id: str,
+    subpath: str,
+    request: Request,
+    _user: dict = Depends(get_current_user),
+):
+    """插件 API 代理：子路径为 url_path（如 abc 或 foo/bar）。"""
+    return await _dispatch_plugin_api(plugin_id, subpath, request)
 
 
 @app.get("/api/pim/plugin_repository")

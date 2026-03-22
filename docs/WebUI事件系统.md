@@ -203,16 +203,36 @@ def on_load(server, old):
         # html_path: HTML 文件路径，可为绝对路径或相对于 MCDR 工作目录的路径
         webui_plugin.register_plugin_page(
             plugin_id="your_plugin_id",
-            html_path="config/your_plugin/dashboard.html"
+            html_path="config/your_plugin/dashboard.html",
+            # 可选：注册后端 API，由 WebUI 转发到 /api/plugin/your_plugin_id/...
+            # api_handler=your_handler,
         )
 ```
 
 ### 函数说明
 
-**`register_plugin_page(plugin_id: str, html_path: str)`**
+**`register_plugin_page(plugin_id: str, html_path: str, *, api_handler: Optional[Callable] = None)`**
 
 - **plugin_id**：插件标识，会出现在侧边栏文案和访问路径 `/plugin-page/<plugin_id>` 中，建议与你的 MCDR 插件 ID 一致。
 - **html_path**：网页 HTML 文件的路径，可为**绝对路径**或**相对于 MCDR 工作目录**的路径（如 `config/你的插件名/页面.html`）。前端通过 `/api/load_config?path=<html_path>&type=auto` 加载内容；当前后端在 `type=auto` 下会优先根据 HTML 所在目录的 `main.json` 映射返回 HTML（将 `path` 的文件名作为 key，值设为同目录下的 HTML 文件名即可，例如 `{"页面.html": "页面.html"}`）。
+- **api_handler**（可选）：后端处理函数。用户已登录 WebUI 时，请求 `GET/POST ... /api/plugin/<plugin_id>/<子路径>` 会由 WebUI 调用该函数。签名为 `(url_path: str, params: dict)`，其中 `params` 含 `method`、`query`、`body`，详见 `docs/WebApi.md`「插件后端 API 代理」。
+
+示例（同步或异步均可）：
+
+```python
+async def my_plugin_api(url_path: str, params: dict):
+    if url_path == "hello" and params["method"] == "GET":
+        return {"message": "ok", "q": params["query"]}
+    return {"error": "not found"}
+
+# register_plugin_page(..., api_handler=my_plugin_api)
+```
+
+前端从插件页内调用示例（与站点同源、带 Cookie）：
+
+```text
+GET /api/plugin/your_plugin_id/hello?x=1
+```
 
 ### 前端行为
 
@@ -223,7 +243,7 @@ def on_load(server, old):
 ### 注意事项（侧边栏注册）
 
 1. 确保在 WebUI 插件加载完成后再调用 `register_plugin_page`（例如在 `on_load` 中调用即可，WebUI 通常先于多数插件加载）。
-2. 同一 `plugin_id` 重复注册会覆盖之前的 `html_path`。
+2. 同一 `plugin_id` 重复注册会覆盖之前的页面与 `api_handler` 配置。
 3. `/api/plugins/web_pages` 与 `/api/load_config` 均需要用户已登录 WebUI。
 
 ## 注意事项
