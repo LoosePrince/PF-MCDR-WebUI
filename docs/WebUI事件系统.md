@@ -2,257 +2,168 @@
 
 ## 概述
 
-WebUI 提供事件系统与扩展接口，供其他 MCDR 插件：
+WebUI 提供 **LiteralEvent** 事件与 **侧边栏注册** 扩展点，供其他 MCDR 插件：
 
-- **事件系统**：监听 WebUI 的聊天消息发送等活动
-- **侧边栏注册**：在 WebUI 侧边栏中注册自定义插件网页入口
+- **事件系统**：监听聊天相关活动（当前仅 `webui.chat_message_sent`）
+- **侧边栏注册**：在 WebUI 侧边栏「插件网页」中注册自定义页面入口，并在可选情况下注册 `/api/plugin/{plugin_id}/...` 后端处理器
 
-本功能尚处于测试开发阶段，可能会随时更新，请注意本文档的更新情况。
+与 HTTP API 相关的路径、权限与 `api_handler` 约定见 **`docs/WebApi.md`**（「插件后端 API 代理」「获取已注册的插件网页列表」等）。
+
+本功能会持续演进，请以仓库内实现为准。
+
+---
 
 ## 可用事件
 
-### WebUI 聊天消息事件
+### `webui.chat_message_sent`
 
-**事件名称**: `webui.chat_message_sent`
+**事件类型**：`LiteralEvent("webui.chat_message_sent")`（`from mcdreforged.api.event import LiteralEvent`）
 
-**触发时机**: 
-- 当用户通过 WebUI 聊天页面发送消息到游戏时
-- 当其他插件调用 `send_message_to_webui` 函数发送消息时
+**触发时机**（两处实现，负载结构一致为 **长度为 6 的元组**）：
 
-**事件数据**:
+1. **公开聊天页**：玩家在 WebUI 中发送消息到游戏时，由 `ChatService.send_message` 在通过校验且将发往游戏（或仅落库）之前分发。  
+   - 实现：`src/guguwebui/services/chat_service.py`
+2. **其它插件调用 `send_message_to_webui`**：在广播到游戏与写入聊天日志之前分发。  
+   - 实现：`src/guguwebui/utils/mc_util.py` 中 `send_message_to_webui`
 
-```python
-# 事件监听器接收的参数顺序：
-# args[0] = source          # 事件来源（"webui" 或插件名称）
-# args[1] = player_id       # 发送消息的玩家ID（WebUI消息）或插件名称（插件消息）
-# args[2] = player_uuid     # 玩家的UUID（WebUI消息）或插件标识（插件消息）
-# args[3] = message         # 实际发送的消息内容
-# args[4] = session_id      # WebUI会话ID（WebUI消息）或插件会话ID（插件消息）
-# args[5] = timestamp       # 事件发生时间（Unix时间戳，整数）
-# 注意：WebUI发送的聊天消息现在会自动保存为RText格式，以便前端正确渲染
-```
+**事件负载（元组下标与含义）**：
 
-**注意**: 
-- WebUI用户发送的消息会同步到游戏中（如果有玩家在线）
-- 插件发送的消息也会同步到游戏中（如果有玩家在线）
-- 所有消息都会记录到聊天日志中，可以在WebUI的聊天界面中查看
+| 索引 | WebUI 聊天发送 | `send_message_to_webui`（插件） |
+|------|----------------|----------------------------------|
+| `[0]` | 固定字符串 `"webui"` | 插件传入的 `source`（插件名/来源标识） |
+| `[1]` | 游戏内玩家 ID（`player_id`） | **再次为** `source`（与 `[0]` 相同） |
+| `[2]` | 玩家 UUID 字符串，解析失败时为 `"未知"` | 固定为 `f"plugin_{source}"`（占位，非 Mojang UUID） |
+| `[3]` | 用户输入的纯文本消息 | `processed_message`（纯文本或 RText 转字符串/JSON 后的展示串） |
+| `[4]` | 聊天会话 `session_id` | 固定为 `f"plugin_{source}"`（占位，非 WebUI session） |
+| `[5]` | `int(time.time())`（Unix 秒） | `int(datetime.now(timezone.utc).timestamp())`（Unix 秒） |
 
-## 发送消息到WebUI
+**说明**：
 
-其他插件可以使用以下方式发送消息到WebUI：
+- 插件路径下 `[0]`、`[1]` 均为 `source`，便于与 WebUI 路径统一按「发送方标识」读取；若需区分两条路径，请判断 `[0] == "webui"`。
+- WebUI 侧 `[5]` 使用 `time.time()`，插件侧使用 UTC `datetime` 时间戳；均为 Unix 秒。
+- 消息写入聊天日志、RText 广播等逻辑在事件分发**之后**执行；监听器内请勿假设日志中已可见该条消息。
 
-**重要说明**: 推荐使用插件管理器方式调用，这样可以避免循环依赖问题，并且更符合MCDR的插件架构设计。
+---
 
-### 通过插件管理器调用
+## 监听示例
 
 ```python
-from mcdreforged.api.all import PluginServerInterface, LiteralEvent
+from mcdreforged.api.event import LiteralEvent
 
-# 获取WebUI插件实例
-webui_plugin = server.get_plugin_instance("guguwebui")
-if webui_plugin and hasattr(webui_plugin, 'send_message_to_webui'):
-    webui_plugin.send_message_to_webui(
-        server_interface=server,
-        source="your_plugin_name",
-        message="消息内容",
-        message_type="info"
-    )
-```
 
-### 发送RText消息到WebUI
+def on_webui_chat_message(server, event):
+    # MCDR 将事件负载作为第二个参数传入；此处为 6 元组
+    src, pid, puuid, text, sess, ts = event
+    if src == "webui":
+        server.logger.info(f"[WebUI] {pid}: {text}")
+    else:
+        server.logger.info(f"[Plugin:{src}] {text}")
 
-```python
-from mcdreforged.api.all import PluginServerInterface, RText, RTextList, RColor, RStyle
-
-# 获取WebUI插件实例
-webui_plugin = server.get_plugin_instance("guguwebui")
-if webui_plugin and hasattr(webui_plugin, 'send_message_to_webui'):
-    # 方式1：发送JSON格式的RText消息
-    rtext_data = {
-        "text": "这是一条",
-        "color": "red",
-        "bold": True,
-        "extra": [
-            {"text": "彩色", "color": "blue"},
-            {"text": "消息", "color": "green", "italic": True}
-        ]
-    }
-    webui_plugin.send_message_to_webui(
-        server_interface=server,
-        source="your_plugin_name",
-        message=rtext_data,
-        message_type="info",
-        is_rtext=True
-    )
-    
-    # 方式2：发送MCDR RText对象消息
-    mcdr_rtext = RTextList(
-        RText("这是", color=RColor.red, styles=RStyle.bold),
-        RText("一条", color=RColor.blue),
-        RText("MCDR", color=RColor.green, styles=RStyle.italic),
-        RText("RText", color=RColor.gold, styles=RStyle.underlined),
-        RText("消息", color=RColor.aqua)
-    )
-    webui_plugin.send_message_to_webui(
-        server_interface=server,
-        source="your_plugin_name",
-        message=mcdr_rtext,
-        message_type="info",
-        is_rtext=True
-    )
-```
-
-### 函数参数说明
-
-**`send_message_to_webui` 函数参数**:
-
-- `server_interface`: MCDR服务器接口
-- `source`: 消息来源（插件名称等）
-- `message`: 消息内容（字符串、RText对象或RText数据）
-- `message_type`: 消息类型（info, warning, error, success）
-- `target_players`: 目标玩家列表，None表示所有玩家
-- `metadata`: 额外的元数据
-- `is_rtext`: 是否为RText格式，如果为True，message应该是RText对象或JSON字符串
-
-**返回值**: `bool` - 是否成功发送
-
-**重要说明**: 
-- 现在使用统一的 `send_message_to_webui` 函数发送所有类型的消息
-- 通过 `is_rtext=True` 参数指定消息为RText格式
-- 支持JSON格式和MCDR RText对象格式
-- 消息会同步到游戏中（如果有玩家在线）
-- 插件发送消息时会触发 `webui.chat_message_sent` 事件
-
-### RText格式支持
-
-WebUI支持两种RText格式：
-
-#### JSON格式RText
-```python
-# 单个组件
-rtext_data = {
-    "text": "消息内容",
-    "color": "red",
-    "bold": True,
-    "italic": True,
-    "underlined": True,
-    "clickEvent": {
-        "action": "run_command",
-        "value": "/say Hello!"
-    },
-    "hoverEvent": {
-        "action": "show_text",
-        "value": "悬停提示"
-    }
-}
-
-# 复合组件
-rtext_data = [
-    {"text": "欢迎", "color": "green", "bold": True},
-    {"text": "使用", "color": "blue"},
-    {"text": "RText", "color": "gold", "italic": True, "underlined": True}
-]
-```
-
-#### MCDR RText对象格式
-```python
-from mcdreforged.api.all import RText, RTextList, RColor, RStyle, RAction
-
-# 单个RText对象
-rtext = RText("消息内容", color=RColor.red, styles=[RStyle.bold, RStyle.italic])
-rtext.c(RAction.run_command, "/say Hello!")
-rtext.h("悬停提示")
-
-# 复合RText对象
-rtext_list = RTextList(
-    RText("欢迎", color=RColor.green, styles=RStyle.bold),
-    RText("使用", color=RColor.blue),
-    RText("RText", color=RColor.gold, styles=[RStyle.italic, RStyle.underlined])
-)
-```
-
-## 注册事件监听器
-
-在你的插件中注册事件监听器：
-
-```python
-from mcdreforged.api.all import LiteralEvent
 
 def on_load(server, old):
-    # 注册WebUI聊天消息事件监听器
     server.register_event_listener(
-        LiteralEvent("webui.chat_message_sent"), 
-        on_webui_chat_message
+        LiteralEvent("webui.chat_message_sent"),
+        on_webui_chat_message,
     )
 ```
 
-## 侧边栏注册接口
+具体监听器参数形式以当前 MCDR 版本为准；若第二参数为元组，按上表解包即可。
 
-其他插件可以在 WebUI 侧边栏中注册自定义网页入口，用户登录后会在侧边栏「插件网页」下看到对应链接，点击后在 WebUI 内以 iframe 形式展示你的 HTML 页面。
+---
 
-### 通过插件实例注册
+## 向 WebUI 发送消息：`send_message_to_webui`
 
-在插件加载时获取 WebUI 插件实例并调用 `register_plugin_page`：
+其它插件应通过 **WebUI 插件模块** 上的入口调用（与 `register_plugin_page` 相同，使用 `server.get_plugin_instance("guguwebui")` 获取实例后调用模块级函数），以避免硬编码包内路径。
+
+### 推荐调用方式
 
 ```python
-def on_load(server, old):
-    webui_plugin = server.get_plugin_instance("guguwebui")
-    if webui_plugin and hasattr(webui_plugin, 'register_plugin_page'):
-        # 注册一个自定义页面，显示在侧边栏「插件网页」中
-        # plugin_id: 用于侧边栏显示和路由，建议与插件 ID 一致
-        # html_path: HTML 文件路径，可为绝对路径或相对于 MCDR 工作目录的路径
-        webui_plugin.register_plugin_page(
-            plugin_id="your_plugin_id",
-            html_path="config/your_plugin/dashboard.html",
-            # 可选：注册后端 API，由 WebUI 转发到 /api/plugin/your_plugin_id/...
-            # api_handler=your_handler,
+from mcdreforged.api.types import PluginServerInterface
+
+def on_load(server: PluginServerInterface, old):
+    webui = server.get_plugin_instance("guguwebui")
+    if webui is None:
+        return
+    if hasattr(webui, "send_message_to_webui"):
+        webui.send_message_to_webui(
+            server_interface=server,
+            source="your_plugin_id",
+            message="纯文本或 RText",
+            message_type="info",
         )
 ```
 
-### 函数说明
-
-**`register_plugin_page(plugin_id: str, html_path: str, *, api_handler: Optional[Callable] = None)`**
-
-- **plugin_id**：插件标识，会出现在侧边栏文案和访问路径 `/plugin-page/<plugin_id>` 中，建议与你的 MCDR 插件 ID 一致。
-- **html_path**：网页 HTML 文件的路径，可为**绝对路径**或**相对于 MCDR 工作目录**的路径（如 `config/你的插件名/页面.html`）。前端通过 `/api/load_config?path=<html_path>&type=auto` 加载内容；当前后端在 `type=auto` 下会优先根据 HTML 所在目录的 `main.json` 映射返回 HTML（将 `path` 的文件名作为 key，值设为同目录下的 HTML 文件名即可，例如 `{"页面.html": "页面.html"}`）。
-- **api_handler**（可选）：后端处理函数。用户已登录 WebUI 时，请求 `GET/POST ... /api/plugin/<plugin_id>/<子路径>` 会由 WebUI 调用该函数。签名为 `(url_path: str, params: dict)`，其中 `params` 含 `method`、`query`、`body`，详见 `docs/WebApi.md`「插件后端 API 代理」。
-
-示例（同步或异步均可）：
-
-```python
-async def my_plugin_api(url_path: str, params: dict):
-    if url_path == "hello" and params["method"] == "GET":
-        return {"message": "ok", "q": params["query"]}
-    return {"error": "not found"}
-
-# register_plugin_page(..., api_handler=my_plugin_api)
-```
-
-前端从插件页内调用示例（与站点同源、带 Cookie）：
+### 函数签名（`guguwebui.__init__.py`）
 
 ```text
-GET /api/plugin/your_plugin_id/hello?x=1
+send_message_to_webui(
+    server_interface,
+    source: str,
+    message,
+    message_type: str = "info",
+    target_players: list = None,
+    metadata: dict = None,
+    is_rtext: bool = False,
+) -> bool
 ```
 
-### 前端行为
+| 参数 | 说明 |
+|------|------|
+| `server_interface` | MCDR `PluginServerInterface` |
+| `source` | 来源标识，会出现在事件 `[0]`、`[1]` 及游戏内展示逻辑中 |
+| `message` | 字符串、RText 对象、或 RText JSON（`dict`/`list`/`str`） |
+| `message_type` | 保留参数，当前实现未参与分支逻辑 |
+| `target_players` | **当前实现未使用**，保留兼容 |
+| `metadata` | **当前实现未使用**，保留兼容 |
+| `is_rtext` | `True` 时按 RText 解析（`to_json_object` / JSON / `create_rtext_from_data`） |
 
-- 登录后，前端会请求 `GET /api/plugins/web_pages` 获取已注册的 `(id, path)` 列表。
-- 侧边栏在「插件网页」折叠区中为每项生成链接，指向 `/plugin-page/<plugin_id>`。
-- 打开后，页面会请求对应 `path` 的 HTML 内容并放入 iframe 中展示。
+**返回值**：成功为 `True`，异常为 `False`。
 
-### 注意事项（侧边栏注册）
+**行为概要**（`mc_util.send_message_to_webui`）：
 
-1. 确保在 WebUI 插件加载完成后再调用 `register_plugin_page`（例如在 `on_load` 中调用即可，WebUI 通常先于多数插件加载）。
-2. 同一 `plugin_id` 重复注册会覆盖之前的页面与 `api_handler` 配置。
-3. `/api/plugins/web_pages` 与 `/api/load_config` 均需要用户已登录 WebUI。
+1. 构造 RText 并 **分发** `webui.chat_message_sent`
+2. **`server_interface.broadcast(rtext_message)`** 同步到游戏内聊天
+3. 写入 WebUI 聊天日志（`ChatLogger`，`message_type=2` 表示插件来源）
 
-## 注意事项
+### RText 与 JSON
 
-1. **事件顺序**: 事件按照注册顺序依次处理，但不保证严格的执行顺序
-2. **事件数据**: 事件数据是只读的
-3. **插件依赖**: 确保你的插件在 WebUI 插件加载后再加载，或在 WebUI 未加载时不处理事件
-4. **错误隔离**: 一个插件的错误不会影响其他插件的正常处理
-5. **时间戳格式**: 时间戳使用Unix时间戳格式（整数），表示UTC时间
-6. **RText支持**: 插件发送的RText消息会同步到游戏中，支持所有Minecraft文本组件功能
-7. **性能优化**: 插件发送的消息不会进行网络请求获取UUID，使用插件标识作为UUID
-8. **事件触发**: 插件调用 `send_message_to_webui` 时也会触发 `webui.chat_message_sent` 事件
+- `is_rtext=True` 且 `message` 为 MCDR RText / 可 `to_json_object()`：生成 JSON 用于日志与展示。
+- `is_rtext=True` 且为 `dict`/`list`：作为 JSON 组件树处理。
+- `is_rtext=True` 且为 `str`：尝试 `json.loads` 为 RText 数据，失败则退化为纯文本。
+
+JSON 组件字段（`clickEvent` / `hoverEvent` / `extra` 等）与前端解析见 `guguwebui.utils.mc_util` 与 `frontend` 内 RText 解析逻辑。
+
+---
+
+## 注册插件网页：`register_plugin_page`
+
+```python
+def register_plugin_page(
+    plugin_id: str,
+    html_path: str,
+    *,
+    api_handler: Optional[Callable[..., Any]] = None,
+) -> None
+```
+
+- **`plugin_id`**：侧边栏与前端路由 `/plugin-page/<plugin_id>` 使用的标识，建议与 `mcdreforged.plugin.json` 的 `id` 一致。
+- **`html_path`**：HTML 文件的**绝对路径**，或相对 **`config` 目录**的路径（见 `guguwebui.__init__` 文档字符串）。实际打开时会经 `SafePath.get_safe_path` 与 `get_base_dirs` 校验，禁止越权路径。
+- **`api_handler`**：可选。已登录用户访问 `/api/plugin/{plugin_id}/...` 时由 WebUI 转发，签名与返回值见 **`docs/WebApi.md`**。
+
+前端行为简述：
+
+1. `GET /api/plugins/web_pages` 拉取 `{ id, path }` 列表（需登录）。
+2. 侧栏链接打开 `/plugin-page/:pluginId`（React 路由）。
+3. 页面内再请求 `/api/load_config?path=<注册的 path>&type=auto`；若同目录存在 **`main.json`**，且其中 **以当前文件名为 key** 映射到同目录下另一 `.html`，则加载映射目标文件；否则直接读取该路径对应 HTML。
+
+iframe 使用 `srcDoc` 注入 HTML 内容（见 `frontend/src/pages/PluginPage.tsx`）。
+
+---
+
+## 其它说明
+
+1. **加载顺序**：请在 WebUI 插件已加载后再调用 `register_plugin_page` / `send_message_to_webui`；若 `get_plugin_instance("guguwebui")` 为 `None`，应跳过或延迟重试。
+2. **重复注册**：同一 `plugin_id` 会覆盖 `REGISTERED_PLUGIN_PAGES` 中的页面与 `api_handler`。
+3. **事件与异常**：监听器内异常可能影响 MCDR 事件分发行为，请自行 try/except；不要假设「其它插件监听器一定与本插件错误隔离」。
+4. **时间戳**：事件 `[5]` 为 Unix 秒；WebUI 与插件路径取值方式略有不同，见上表。
+5. **多服面板**：主服对子服的 API 代理不改变 LiteralEvent 的订阅方式；事件仅在执行 `dispatch_event` 的 **当前 MCDR 进程** 内触发。
