@@ -1,32 +1,320 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
   <title>WebUI 插件页示例</title>
   <style>
-    :root { font-family: system-ui, sans-serif; }
-    body { margin: 1rem; line-height: 1.5; }
-    button { margin: 0.25rem 0.5rem 0.25rem 0; padding: 0.4rem 0.75rem; cursor: pointer; }
-    pre { background: #f4f4f5; padding: 0.75rem; border-radius: 6px; overflow: auto; max-height: 320px; }
-    .muted { color: #64748b; font-size: 0.875rem; }
+    :root {
+      color-scheme: light dark;
+      --gb-bg: #ffffff;
+      --gb-bg-muted: #f8fafc;
+      --gb-text: #0f172a;
+      --gb-text-muted: #64748b;
+      --gb-border: #e2e8f0;
+      --gb-link: #2563eb;
+      --gb-link-hover: #1d4ed8;
+      --gb-code-bg: #e2e8f0;
+      --gb-pre-bg: #ffffff;
+      --gb-pre-border: #e2e8f0;
+      --gb-btn-bg: #ffffff;
+      --gb-btn-border: #cbd5e1;
+      --gb-btn-hover: #f1f5f9;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--gb-text);
+      line-height: 1.55;
+      background: var(--gb-bg);
+    }
+
+    html[data-theme="dark"] {
+      --gb-bg: #0f1419;
+      --gb-bg-muted: #161b22;
+      --gb-text: #e6edf3;
+      --gb-text-muted: #8b949e;
+      --gb-border: #30363d;
+      --gb-link: #58a6ff;
+      --gb-link-hover: #79b8ff;
+      --gb-code-bg: #21262d;
+      --gb-pre-bg: #161b22;
+      --gb-pre-border: #30363d;
+      --gb-btn-bg: #21262d;
+      --gb-btn-border: #30363d;
+      --gb-btn-hover: #30363d;
+    }
+
+    body {
+      margin: 0;
+      padding: 1.25rem 1.5rem;
+      max-width: 52rem;
+      background: var(--gb-bg);
+      color: var(--gb-text);
+    }
+
+    h1 {
+      font-size: 1.35rem;
+      margin: 0 0 0.35rem;
+      font-weight: 600;
+    }
+
+    h2 {
+      font-size: 1rem;
+      margin: 1rem 0 0.5rem;
+      font-weight: 600;
+    }
+
+    .lead {
+      color: var(--gb-text-muted);
+      font-size: 0.95rem;
+      margin: 0 0 1.25rem;
+    }
+
+    a {
+      color: var(--gb-link);
+      text-decoration: none;
+    }
+
+    a:hover {
+      color: var(--gb-link-hover);
+      text-decoration: underline;
+    }
+
+    .card {
+      border: 1px solid var(--gb-border);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1rem;
+      background: var(--gb-bg-muted);
+    }
+
+    button {
+      margin: 0 0.5rem 0.5rem 0;
+      padding: 0.45rem 0.85rem;
+      cursor: pointer;
+      border-radius: 6px;
+      border: 1px solid var(--gb-btn-border);
+      background: var(--gb-btn-bg);
+      color: var(--gb-text);
+      font-size: 0.9rem;
+    }
+
+    button:hover {
+      background: var(--gb-btn-hover);
+    }
+
+    pre {
+      margin: 0.75rem 0 0;
+      padding: 0.75rem;
+      background: var(--gb-pre-bg);
+      border: 1px solid var(--gb-pre-border);
+      border-radius: 6px;
+      overflow: auto;
+      max-height: 360px;
+      font-size: 0.8rem;
+      color: var(--gb-text);
+    }
+
+    .muted {
+      color: var(--gb-text-muted);
+      font-size: 0.85rem;
+    }
+
+    code {
+      font-size: 0.85em;
+      background: var(--gb-code-bg);
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+      color: var(--gb-text);
+    }
   </style>
+  <script>
+    (function () {
+      function syncTheme() {
+        var dark = false;
+        try {
+          var p = window.parent && window.parent.document;
+          if (p && p.documentElement) {
+            var el = p.documentElement;
+            var body = p.body;
+            if (el.classList.contains('dark') || (body && body.classList.contains('dark'))) {
+              dark = true;
+            } else if (el.getAttribute('data-theme') === 'dark' || el.getAttribute('data-mui-color-scheme') === 'dark') {
+              dark = true;
+            } else if (el.getAttribute('data-theme') === 'light' || el.getAttribute('data-mui-color-scheme') === 'light') {
+              document.documentElement.setAttribute('data-theme', 'light');
+              return;
+            }
+          }
+        } catch (e) { }
+        if (!dark && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          dark = true;
+        }
+        if (dark) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      }
+
+      function observeParentTheme() {
+        try {
+          var root = window.parent && window.parent.document && window.parent.document.documentElement;
+          if (!root) return;
+          var obs = new MutationObserver(syncTheme);
+          obs.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme', 'data-mui-color-scheme'] });
+        } catch (e) { }
+      }
+
+      syncTheme();
+      observeParentTheme();
+      try {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
+      } catch (e) {
+        window.matchMedia('(prefers-color-scheme: dark)').addListener(syncTheme);
+      }
+    })();
+  </script>
 </head>
+
 <body>
-  <h1>WebUI 插件页示例</h1>
-  <p class="muted">
+  <h1 id="el-title">WebUI 插件页示例</h1>
+  <p class="lead" id="el-intro">
     本页由 <code>register_plugin_page</code> 注册；下方请求走
     <code>/api/plugin/webui_plugin_page_example/...</code>，需已登录 WebUI（Cookie）。
   </p>
-  <p>
-    <button type="button" id="btn-hello">GET hello</button>
-    <button type="button" id="btn-echo">POST echo</button>
-    <button type="button" id="btn-status">GET status</button>
-  </p>
-  <h2>响应</h2>
-  <pre id="out">（点击按钮）</pre>
+  <div class="card">
+    <h2 id="el-h2-actions" style="margin-top:0">请求</h2>
+    <p>
+      <button type="button" id="btn-hello">GET hello</button>
+      <button type="button" id="btn-echo">POST echo</button>
+      <button type="button" id="btn-status">GET status</button>
+    </p>
+  </div>
+  <div class="card">
+    <h2 id="el-h2-response">响应</h2>
+    <pre id="out">（点击按钮）</pre>
+  </div>
 
   <script>
+    var I18N = {
+      'zh-CN': {
+        title: 'WebUI 插件页示例',
+        introBefore: '本页由 ',
+        introCode1: 'register_plugin_page',
+        introMid: ' 注册；下方请求走 ',
+        introCode2: '/api/plugin/webui_plugin_page_example/...',
+        introAfter: '，需已登录 WebUI（Cookie）。',
+        h2Actions: '请求',
+        h2Response: '响应',
+        btnHello: 'GET hello',
+        btnEcho: 'POST echo',
+        btnStatus: 'GET status',
+        prePlaceholder: '（点击按钮）',
+        err: '错误',
+        labelHello: 'GET hello → ',
+        labelEcho: 'POST echo → ',
+        labelStatus: 'GET status → '
+      },
+      'en-US': {
+        title: 'WebUI plugin page demo',
+        introBefore: 'This page is registered via ',
+        introCode1: 'register_plugin_page',
+        introMid: '; API calls go to ',
+        introCode2: '/api/plugin/webui_plugin_page_example/...',
+        introAfter: '. You must be logged into WebUI (Cookie).',
+        h2Actions: 'Requests',
+        h2Response: 'Response',
+        btnHello: 'GET hello',
+        btnEcho: 'POST echo',
+        btnStatus: 'GET status',
+        prePlaceholder: '(Click a button)',
+        err: 'Error',
+        labelHello: 'GET hello → ',
+        labelEcho: 'POST echo → ',
+        labelStatus: 'GET status → '
+      }
+    };
+
+    function resolveLang() {
+      var fallback = 'zh-CN';
+      try {
+        var p = window.parent && window.parent.document;
+        if (p && p.documentElement) {
+          var l = p.documentElement.getAttribute('lang') || '';
+          if (l === 'en-US' || l.indexOf('en') === 0) return 'en-US';
+          if (l === 'zh-CN' || l.indexOf('zh') === 0) return 'zh-CN';
+        }
+      } catch (e) { }
+      try {
+        var ls = localStorage.getItem('language');
+        if (ls === 'en-US' || ls === 'zh-CN') return ls;
+      } catch (e) { }
+      return fallback;
+    }
+
+    function applyI18n() {
+      var lang = resolveLang();
+      var t = I18N[lang] || I18N['zh-CN'];
+      document.documentElement.lang = lang;
+
+      document.title = t.title;
+      var titleEl = document.getElementById('el-title');
+      if (titleEl) titleEl.textContent = t.title;
+
+      var intro = document.getElementById('el-intro');
+      if (intro) {
+        intro.innerHTML = '';
+        intro.appendChild(document.createTextNode(t.introBefore));
+        var c1 = document.createElement('code');
+        c1.textContent = t.introCode1;
+        intro.appendChild(c1);
+        intro.appendChild(document.createTextNode(t.introMid));
+        var c2 = document.createElement('code');
+        c2.textContent = t.introCode2;
+        intro.appendChild(c2);
+        intro.appendChild(document.createTextNode(t.introAfter));
+      }
+
+      var h2a = document.getElementById('el-h2-actions');
+      if (h2a) h2a.textContent = t.h2Actions;
+      var h2r = document.getElementById('el-h2-response');
+      if (h2r) h2r.textContent = t.h2Response;
+
+      var b1 = document.getElementById('btn-hello');
+      var b2 = document.getElementById('btn-echo');
+      var b3 = document.getElementById('btn-status');
+      if (b1) b1.textContent = t.btnHello;
+      if (b2) b2.textContent = t.btnEcho;
+      if (b3) b3.textContent = t.btnStatus;
+
+      var out = document.getElementById('out');
+      if (out && (out.textContent === '（点击按钮）' || out.textContent === '(Click a button)')) {
+        out.textContent = t.prePlaceholder;
+      }
+
+      window.__demoI18n = t;
+      window.__demoLang = lang;
+    }
+
+    function observeParentLang() {
+      try {
+        var root = window.parent && window.parent.document && window.parent.document.documentElement;
+        if (!root) return;
+        var obs = new MutationObserver(applyI18n);
+        obs.observe(root, { attributes: true, attributeFilter: ['lang'] });
+      } catch (e) { }
+    }
+
+    try {
+      window.addEventListener('storage', function (e) {
+        if (e.key === 'language') applyI18n();
+      });
+    } catch (e) { }
+
+    applyI18n();
+    observeParentLang();
+
     function apiRoot() {
       try {
         var cfg = window.parent && window.parent.__GUGU_CONFIG__;
@@ -47,19 +335,21 @@
     }
 
     document.getElementById('btn-hello').onclick = async function () {
+      var t = window.__demoI18n || I18N['zh-CN'];
       try {
         var r = await fetch(pluginBase() + '/hello?q=demo', {
           credentials: 'include',
         });
-        var t = await r.text();
-        try { t = JSON.parse(t); } catch (e) {}
-        await show('GET hello → ' + r.status, t);
+        var text = await r.text();
+        try { text = JSON.parse(text); } catch (e) { }
+        await show(t.labelHello + r.status, text);
       } catch (e) {
-        await show('错误', String(e));
+        await show(t.err, String(e));
       }
     };
 
     document.getElementById('btn-echo').onclick = async function () {
+      var t = window.__demoI18n || I18N['zh-CN'];
       try {
         var r = await fetch(pluginBase() + '/echo', {
           method: 'POST',
@@ -67,24 +357,26 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ping: 'pong', at: Date.now() }),
         });
-        var t = await r.text();
-        try { t = JSON.parse(t); } catch (e) {}
-        await show('POST echo → ' + r.status, t);
+        var text = await r.text();
+        try { text = JSON.parse(text); } catch (e) { }
+        await show(t.labelEcho + r.status, text);
       } catch (e) {
-        await show('错误', String(e));
+        await show(t.err, String(e));
       }
     };
 
     document.getElementById('btn-status').onclick = async function () {
+      var t = window.__demoI18n || I18N['zh-CN'];
       try {
         var r = await fetch(pluginBase() + '/status', { credentials: 'include' });
-        var t = await r.text();
-        try { t = JSON.parse(t); } catch (e) {}
-        await show('GET status → ' + r.status, t);
+        var text = await r.text();
+        try { text = JSON.parse(text); } catch (e) { }
+        await show(t.labelStatus + r.status, text);
       } catch (e) {
-        await show('错误', String(e));
+        await show(t.err, String(e));
       }
     };
   </script>
 </body>
+
 </html>
