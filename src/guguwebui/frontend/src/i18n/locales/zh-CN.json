@@ -17,7 +17,9 @@
         "user": "用户",
         "lang": "切换语言",
         "lang_short": "中",
-        "server_online": "服务器在线"
+        "server_online": "服务器在线",
+        "slave_offline_title": "子服离线",
+        "slave_offline_tip": "已切换为本地数据源，请检查子服网络或 WebUI 是否已启动。"
     },
     "lang": {
         "zh-CN": "简体中文",

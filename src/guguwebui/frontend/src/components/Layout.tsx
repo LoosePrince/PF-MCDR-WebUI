@@ -26,7 +26,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { NoticeModalProvider } from '../context/NoticeModalContext'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
-import api, { getTargetServerId, setTargetServerId } from '../utils/api'
+import api, { getTargetServerId, setTargetServerId, SLAVE_OFFLINE_EVENT } from '../utils/api'
 import { fetchNotice, type NoticeData } from '../utils/notice'
 import { NiceSelect } from './NiceSelect'
 import VersionFooter from './VersionFooter'
@@ -60,6 +60,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [targetServerId, setTargetServerIdState] = useState<string>(getTargetServerId())
   const [noticeData, setNoticeData] = useState<NoticeData | null>(null)
   const [noticeModalOpen, setNoticeModalOpen] = useState(false)
+  const [slaveOfflineToast, setSlaveOfflineToast] = useState(false)
   const hasSlaves = servers.some(s => !s.isLocal && s.id !== 'local' && !!s.enabled)
 
   const fetchServers = useCallback(async () => {
@@ -87,10 +88,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const fetchServerStatus = async () => {
       try {
         const resp = await api.get('/get_server_status')
-        const status = resp.data?.status === 'online' || resp.data?.status === 'offline' ? resp.data.status : 'error'
-        setServerStatus(status)
+        const s = resp.data?.status
+        setServerStatus(s === 'online' || s === 'offline' ? s : 'offline')
       } catch {
-        setServerStatus('error')
+        setServerStatus('offline')
       }
     }
     fetchServerStatus()
@@ -106,6 +107,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const handler = () => fetchServers()
     window.addEventListener('gugu:serversChanged', handler)
     return () => window.removeEventListener('gugu:serversChanged', handler)
+  }, [fetchServers])
+
+  // 子服离线（502 slave_offline）：拦截器已切回 localStorage，此处同步 UI 并提示
+  useEffect(() => {
+    const onSlaveOffline = () => {
+      setTargetServerIdState('local')
+      setSlaveOfflineToast(true)
+      void fetchServers()
+      window.setTimeout(() => setSlaveOfflineToast(false), 5000)
+    }
+    window.addEventListener(SLAVE_OFFLINE_EVENT, onSlaveOffline)
+    return () => window.removeEventListener(SLAVE_OFFLINE_EVENT, onSlaveOffline)
   }, [fetchServers])
 
   useEffect(() => {
@@ -481,6 +494,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </motion.div>
           </main>
         </div>
+
+        {slaveOfflineToast && (
+          <div className="fixed bottom-6 right-6 z-[70] max-w-sm px-4 py-3 rounded-2xl shadow-lg flex items-start gap-2 text-sm bg-amber-500 text-white border border-amber-400/30">
+            <Info className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold">{t('nav.slave_offline_title')}</p>
+              <p className="text-white/90 text-xs mt-1">{t('nav.slave_offline_tip')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSlaveOfflineToast(false)}
+              className="text-white/80 hover:text-white shrink-0"
+              aria-label={t('common.close')}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Notice Modal */}
         {noticeModalOpen && createPortal(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Dict, List, Tuple
 
 import aiohttp
@@ -124,17 +125,36 @@ async def proxy_request_to_slave(request: Request, slave: dict, sub_path: str) -
 
     verify_tls = bool(slave.get("verify_tls", True))
     session: aiohttp.ClientSession = request.app.state.http_session
-    async with session.request(
-        method=request.method,
-        url=target_url,
-        params=query,
-        data=body if body else None,
-        headers=headers,
-        ssl=verify_tls,
-    ) as resp:
-        resp_body = await resp.read()
-        out_headers = _filter_inbound_response_headers(resp.headers)
-        return Response(content=resp_body, status_code=resp.status, headers=out_headers)
+    log = getattr(
+        getattr(request.app.state, "server_interface", None), "logger", None
+    )
+
+    try:
+        async with session.request(
+            method=request.method,
+            url=target_url,
+            params=query,
+            data=body if body else None,
+            headers=headers,
+            ssl=verify_tls,
+        ) as resp:
+            resp_body = await resp.read()
+            out_headers = _filter_inbound_response_headers(resp.headers)
+            return Response(
+                content=resp_body, status_code=resp.status, headers=out_headers
+            )
+    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+        # 子服未启动、拒绝连接、超时、DNS 等：预期内情况，不打 ERROR + traceback
+        if log:
+            log.debug("代理子服不可达 %s: %s", target_url, e)
+        return JSONResponse(
+            {
+                "status": "error",
+                "message": "Slave unreachable",
+                "code": "slave_offline",
+            },
+            status_code=502,
+        )
 
 
 class ApiProxyDispatchMiddleware(BaseHTTPMiddleware):
@@ -186,6 +206,7 @@ class ApiProxyDispatchMiddleware(BaseHTTPMiddleware):
         except HTTPException:
             raise
         except Exception as e:
+            # 未预料的异常仍记录完整栈，便于排查
             request.app.state.server_interface.logger.error(
                 f"代理请求失败: {e}", exc_info=True
             )

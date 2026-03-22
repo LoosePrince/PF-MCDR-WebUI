@@ -41,6 +41,32 @@ export const setTargetServerId = (serverId: string) => {
   } catch {}
 }
 
+/** 主服代理子服不可达时后端返回的 JSON（见 panel_merge/proxy.py） */
+export const SLAVE_OFFLINE_EVENT = 'gugu:slaveOffline'
+
+function isSlaveOfflineResponse(error: unknown): boolean {
+  const ax = error as {
+    response?: { status?: number; data?: unknown }
+  }
+  if (ax.response?.status !== 502) return false
+  const d = ax.response.data
+  if (!d || typeof d !== 'object') return false
+  const o = d as Record<string, unknown>
+  if (o.code === 'slave_offline') return true
+  if (o.message === 'Slave unreachable') return true
+  return false
+}
+
+function requestExplicitlyLocal(config: { headers?: unknown } | undefined): boolean {
+  const h = config?.headers as Record<string, unknown> | undefined
+  if (!h) return false
+  const v = h['X-Target-Server'] ?? h['x-target-server']
+  return v === 'local'
+}
+
+let lastSlaveOfflineSwitchAt = 0
+const SLAVE_OFFLINE_DEBOUNCE_MS = 1500
+
 // 请求拦截器：注入目标服务器（多服面板合并）
 instance.interceptors.request.use((config) => {
   const sid = getTargetServerId()
@@ -52,7 +78,7 @@ instance.interceptors.request.use((config) => {
   return config
 })
 
-// 响应拦截器：处理 401 未授权错误
+// 响应拦截器：处理 401 未授权错误；子服离线时切回本地并提示
 instance.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -60,6 +86,21 @@ instance.interceptors.response.use(
       // 如果未授权且不在登录页，跳转到登录页
       if (!window.location.pathname.endsWith('/login')) {
         window.location.href = `${getBasePath()}/login`
+      }
+    } else if (
+      isSlaveOfflineResponse(error) &&
+      !requestExplicitlyLocal(error.config) &&
+      getTargetServerId() !== 'local'
+    ) {
+      setTargetServerId('local')
+      const now = Date.now()
+      if (now - lastSlaveOfflineSwitchAt >= SLAVE_OFFLINE_DEBOUNCE_MS) {
+        lastSlaveOfflineSwitchAt = now
+        try {
+          window.dispatchEvent(new CustomEvent(SLAVE_OFFLINE_EVENT))
+        } catch {
+          /* ignore */
+        }
       }
     }
     return Promise.reject(error)

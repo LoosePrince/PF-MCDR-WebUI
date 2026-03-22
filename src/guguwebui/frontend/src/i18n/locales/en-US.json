@@ -17,7 +17,9 @@
         "user": "User",
         "lang": "Language",
         "lang_short": "中",
-        "server_online": "Server Online"
+        "server_online": "Server Online",
+        "slave_offline_title": "Slave server offline",
+        "slave_offline_tip": "Switched to local data source. Check the slave network or that its WebUI is running."
     },
     "lang": {
         "zh-CN": "简体中文",
