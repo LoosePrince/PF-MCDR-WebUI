@@ -39,4 +39,24 @@ RCON_ONLINE_CACHE: Dict[str, Any] = {
 pip_tasks: Dict[str, Any] = {}
 
 # 已注册的插件网页 (插件ID -> 页面路径与可选 API 处理器)
+# 注意：实际数据在 init_app 时绑定到 PluginServerInterface 上，见 bind_plugin_pages_registry_to_server
 REGISTERED_PLUGIN_PAGES: Dict[str, PluginPageEntry] = {}
+
+# 挂在 MCDR server 上的属性名；跨 guguwebui 插件重载保留同一张表
+PLUGIN_PAGES_SERVER_ATTR = "_guguwebui_registered_plugin_pages"
+
+
+def bind_plugin_pages_registry_to_server(server: Any) -> None:
+    """
+    将 REGISTERED_PLUGIN_PAGES 与 MCDR 进程中的 PluginServerInterface 实例绑定。
+
+    guguwebui 插件重载会重新执行本模块，REGISTERED_PLUGIN_PAGES 名字会指向新 dict；
+    但 server 对象为同一实例，其上保存的 dict 仍保留其它插件已注册的条目与 api_handler 引用。
+    """
+    global REGISTERED_PLUGIN_PAGES
+
+    prev = getattr(server, PLUGIN_PAGES_SERVER_ATTR, None)
+    if isinstance(prev, dict):
+        REGISTERED_PLUGIN_PAGES = prev
+        return
+    setattr(server, PLUGIN_PAGES_SERVER_ATTR, REGISTERED_PLUGIN_PAGES)

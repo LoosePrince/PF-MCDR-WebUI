@@ -4,8 +4,10 @@
 
 WebUI 提供 **LiteralEvent** 事件与 **侧边栏注册** 扩展点，供其他 MCDR 插件：
 
-- **事件系统**：监听聊天相关活动（当前仅 `webui.chat_message_sent`）
+- **事件系统**：如 `webui.chat_message_sent`（聊天）
 - **侧边栏注册**：在 WebUI 侧边栏「插件网页」中注册自定义页面入口，并在可选情况下注册 `/api/plugin/{plugin_id}/...` 后端处理器
+
+**持久化（MCDR 进程内）**：`init_app` 会把注册表绑定到 **MCDR 的 `PluginServerInterface` 实例**（属性名 `_guguwebui_registered_plugin_pages`）。仅重载 `guguwebui` 时 **不会** 丢失其它插件已注册的 `html_path` 与 `api_handler` 引用（同一 MCDR 进程、同一 `server` 对象）。
 
 与 HTTP API 相关的路径、权限与 `api_handler` 约定见 **`docs/WebApi.md`**（「插件后端 API 代理」「获取已注册的插件网页列表」等）。
 
@@ -163,7 +165,8 @@ iframe 使用 `srcDoc` 注入 HTML 内容（见 `frontend/src/pages/PluginPage.t
 ## 其它说明
 
 1. **加载顺序**：请在 WebUI 插件已加载后再调用 `register_plugin_page` / `send_message_to_webui`；若 `get_plugin_instance("guguwebui")` 为 `None`，应跳过或延迟重试。
-2. **重复注册**：同一 `plugin_id` 会覆盖 `REGISTERED_PLUGIN_PAGES` 中的页面与 `api_handler`。
-3. **事件与异常**：监听器内异常可能影响 MCDR 事件分发行为，请自行 try/except；不要假设「其它插件监听器一定与本插件错误隔离」。
-4. **时间戳**：事件 `[5]` 为 Unix 秒；WebUI 与插件路径取值方式略有不同，见上表。
-5. **多服面板**：主服对子服的 API 代理不改变 LiteralEvent 的订阅方式；事件仅在执行 `dispatch_event` 的 **当前 MCDR 进程** 内触发。
+2. **WebUI 重载**：注册表已绑定到 `server`，一般无需在重载后再次注册；若仍丢失，请检查是否在 `init_app` 前注册。
+3. **重复注册**：同一 `plugin_id` 会覆盖 `REGISTERED_PLUGIN_PAGES` 中的页面与 `api_handler`。
+4. **事件与异常**：监听器内异常可能影响 MCDR 事件分发行为，请自行 try/except；不要假设「其它插件监听器一定与本插件错误隔离」。
+5. **时间戳**（`webui.chat_message_sent`）：事件 `[5]` 为 Unix 秒；WebUI 与插件路径取值方式略有不同，见上表。
+6. **多服面板**：主服对子服的 API 代理不改变 LiteralEvent 的订阅方式；事件仅在执行 `dispatch_event` 的 **当前 MCDR 进程** 内触发。

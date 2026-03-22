@@ -38,9 +38,10 @@ from guguwebui.services.server_service import ServerService
 from guguwebui.state import (
     PluginApiHandlerParams,
     RCON_ONLINE_CACHE,
-    REGISTERED_PLUGIN_PAGES,
+    bind_plugin_pages_registry_to_server,
     pip_tasks,
 )
+import guguwebui.state as gugu_state
 from guguwebui.structures import (
     BusinessException,
     ConfigData,
@@ -146,6 +147,9 @@ def init_app(server_instance):
 
     # 存储服务器接口
     app.state.server_interface = server_instance
+
+    # 插件网页注册表挂在 MCDR server 上，避免仅重载 guguwebui 时丢失其它插件的注册
+    bind_plugin_pages_registry_to_server(server_instance)
 
     # 初始化自更新信息
     app.state.self_update_info = {"available": False}
@@ -750,7 +754,7 @@ async def get_registered_web_pages(
     """获取所有已注册的插件网页列表"""
     pages = [
         {"id": pid, "path": entry.html_path}
-        for pid, entry in REGISTERED_PLUGIN_PAGES.items()
+        for pid, entry in gugu_state.REGISTERED_PLUGIN_PAGES.items()
     ]
     return JSONResponse({"status": "success", "pages": pages})
 
@@ -809,7 +813,7 @@ async def _dispatch_plugin_api(
     url_path: str,
     request: Request,
 ) -> Response:
-    entry = REGISTERED_PLUGIN_PAGES.get(plugin_id)
+    entry = gugu_state.REGISTERED_PLUGIN_PAGES.get(plugin_id)
     if entry is None or entry.api_handler is None:
         raise HTTPException(status_code=404, detail="Plugin API handler not registered")
 

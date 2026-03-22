@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { AlertCircle, Loader2, Puzzle } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Puzzle, Loader2, AlertCircle } from 'lucide-react';
+import { useParams } from 'react-router-dom';
 import api from '../utils/api';
+
+/** 插件页 iframe 内容区最大高度（超出则在 iframe 内滚动） */
+const IFRAME_MAX_HEIGHT_CSS = 'min(85vh, 1200px)'
 
 function getErrorMessage(err: unknown): string | null {
   if (!err || typeof err !== 'object') return null
@@ -20,11 +23,45 @@ const PluginPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [htmlContent, setHtmlContent] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeResizeObserverRef = useRef<ResizeObserver | null>(null);
+  const [iframeHeightPx, setIframeHeightPx] = useState(320);
+
+  const measureIframeContentHeight = useCallback(() => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!doc?.documentElement) return;
+    const h = Math.max(
+      doc.documentElement.scrollHeight,
+      doc.body?.scrollHeight ?? 0,
+      doc.documentElement.offsetHeight,
+    );
+    if (h > 0) {
+      setIframeHeightPx(Math.max(Math.ceil(h), 120));
+    }
+  }, []);
+
+  const teardownIframeObservers = useCallback(() => {
+    iframeResizeObserverRef.current?.disconnect();
+    iframeResizeObserverRef.current = null;
+  }, []);
+
+  const setupIframeObservers = useCallback(() => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!doc?.documentElement) return;
+    teardownIframeObservers();
+    measureIframeContentHeight();
+    const ro = new ResizeObserver(() => measureIframeContentHeight());
+    iframeResizeObserverRef.current = ro;
+    ro.observe(doc.documentElement);
+    if (doc.body) ro.observe(doc.body);
+  }, [measureIframeContentHeight, teardownIframeObservers]);
 
   useEffect(() => {
     const fetchPluginPage = async () => {
       if (!pluginId) return;
-      
+
       setLoading(true);
       setError(null);
       try {
@@ -32,7 +69,7 @@ const PluginPage: React.FC = () => {
         const pagesResp = await api.get('/plugins/web_pages');
         const pages = pagesResp.data.pages || [];
         const pageInfo = (pages as Array<{ id?: unknown; path?: unknown }>).find((p) => p.id === pluginId);
-        
+
         if (!pageInfo) {
           setError(t('plugins.msg.page_not_found'));
           setLoading(false);
@@ -57,6 +94,10 @@ const PluginPage: React.FC = () => {
     fetchPluginPage();
   }, [pluginId, t]);
 
+  useEffect(() => {
+    return () => teardownIframeObservers();
+  }, [teardownIframeObservers]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
@@ -77,7 +118,7 @@ const PluginPage: React.FC = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-12rem)] min-h-[600px] flex flex-col space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="flex flex-col space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-8">
       <div className="flex items-center gap-3 px-2">
         <div className="p-2 bg-blue-500/10 text-blue-500 rounded-xl">
           <Puzzle size={20} />
@@ -89,12 +130,22 @@ const PluginPage: React.FC = () => {
           <p className="text-xs text-slate-500">{t('plugins.config_modal.web_view')}</p>
         </div>
       </div>
-      
-      <div className="flex-1 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+
+      <div
+        className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden"
+        style={{ maxHeight: IFRAME_MAX_HEIGHT_CSS }}
+      >
         <iframe
+          ref={iframeRef}
           srcDoc={htmlContent}
-          className="w-full h-full border-none"
+          className="w-full border-none block"
+          style={{
+            height: iframeHeightPx,
+            maxHeight: IFRAME_MAX_HEIGHT_CSS,
+            overflow: 'auto',
+          }}
           title={`Plugin Page - ${pluginId}`}
+          onLoad={setupIframeObservers}
         />
       </div>
     </div>
