@@ -219,8 +219,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   key={item.path}
                   to={item.path}
                   className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 relative group ${isActive
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                     }`}
                 >
                   {isActive && (
@@ -270,8 +270,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             key={page.id}
                             to={path}
                             className={`flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 ${isActive
-                                ? 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20'
-                                : 'text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                              ? 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20'
+                              : 'text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                               }`}
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-current opacity-40" />
@@ -350,33 +350,36 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </div>
                   )}
                 </button>
-                <div className="absolute z-20 bottom-11 left-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
-                  {(['light', 'system', 'dark'] as const).map((opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => setMode(opt)}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${mode === opt
+                {/* pb-2：与按钮之间的空隙纳入 group，避免移入菜单时悬停断开；未展开时整块 pointer-events-none 不挡点击 */}
+                <div className="absolute z-20 bottom-full left-0 w-32 pb-2 pointer-events-none group-hover:pointer-events-auto">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+                    {(['light', 'system', 'dark'] as const).map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => setMode(opt)}
+                        className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${mode === opt
                           ? 'text-blue-600 dark:text-blue-400 font-semibold'
                           : 'text-slate-600 dark:text-slate-300'
-                        }`}
-                    >
-                      {opt === 'light' && <Sun className="w-3.5 h-3.5" />}
-                      {opt === 'dark' && <Moon className="w-3.5 h-3.5" />}
-                      {opt === 'system' && (
-                        <div className="relative w-3.5 h-3.5">
-                          <Sun className="w-3.5 h-3.5 absolute inset-0 opacity-70" />
-                          <Moon className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 opacity-80" />
-                        </div>
-                      )}
-                      <span>
-                        {opt === 'light'
-                          ? t('theme.light')
-                          : opt === 'dark'
-                            ? t('theme.dark')
-                            : t('theme.system')}
-                      </span>
-                    </button>
-                  ))}
+                          }`}
+                      >
+                        {opt === 'light' && <Sun className="w-3.5 h-3.5" />}
+                        {opt === 'dark' && <Moon className="w-3.5 h-3.5" />}
+                        {opt === 'system' && (
+                          <div className="relative w-3.5 h-3.5">
+                            <Sun className="w-3.5 h-3.5 absolute inset-0 opacity-70" />
+                            <Moon className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 opacity-80" />
+                          </div>
+                        )}
+                        <span>
+                          {opt === 'light'
+                            ? t('theme.light')
+                            : opt === 'dark'
+                              ? t('theme.dark')
+                              : t('theme.system')}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -390,42 +393,44 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     {i18n.language === 'zh-CN' ? '中' : 'EN'}
                   </span>
                 </button>
-                <div className="absolute z-20 bottom-11 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
-                  {[
-                    { code: 'zh-CN', label: '简体中文' },
-                    { code: 'en-US', label: 'English' },
-                  ].map((lang) => (
-                    <button
-                      key={lang.code}
-                      onClick={() => changeLanguage(lang.code)}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${i18n.language === lang.code
+                <div className="absolute z-20 bottom-full right-0 w-32 pb-2 pointer-events-none group-hover:pointer-events-auto">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+                    {[
+                      { code: 'zh-CN', label: '简体中文' },
+                      { code: 'en-US', label: 'English' },
+                    ].map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => changeLanguage(lang.code)}
+                        className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${i18n.language === lang.code
                           ? 'text-blue-600 dark:text-blue-400 font-semibold'
                           : 'text-slate-600 dark:text-slate-300'
-                        }`}
-                    >
-                      <span>{lang.label}</span>
-                    </button>
-                  ))}
+                          }`}
+                      >
+                        <span>{lang.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Target server selector (sidebar) */}
-          {hasSlaves && (
-            <div className="px-2">
-              <NiceSelect
-                value={targetServerId}
-                onChange={(sid) => {
-                  setTargetServerIdState(sid)
-                  setTargetServerId(sid)
-                }}
-                title={t('nav.server')}
-                options={servers
-                  .filter(s => s.enabled || s.id === 'local')
-                  .map(s => ({ value: s.id, label: s.name || s.id }))}
-              />
-            </div>
-          )}
+            {hasSlaves && (
+              <div className="px-2">
+                <NiceSelect
+                  value={targetServerId}
+                  onChange={(sid) => {
+                    setTargetServerIdState(sid)
+                    setTargetServerId(sid)
+                  }}
+                  title={t('nav.server')}
+                  options={servers
+                    .filter(s => s.enabled || s.id === 'local')
+                    .map(s => ({ value: s.id, label: s.name || s.id }))}
+                />
+              </div>
+            )}
 
             <button
               onClick={logout}
@@ -499,40 +504,36 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
               <Link
                 to="/settings"
-                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-[3rem] ${
-                  location.pathname === '/settings'
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-[3rem] ${location.pathname === '/settings'
                     ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                     : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
-                }`}
+                  }`}
                 title={t('nav.web_settings')}
               >
                 <Sliders className="w-5 h-5 shrink-0" />
                 <span
-                  className={`text-[10px] leading-tight text-center max-w-[4rem] truncate ${
-                    location.pathname === '/settings'
+                  className={`text-[10px] leading-tight text-center max-w-[4rem] truncate ${location.pathname === '/settings'
                       ? 'text-blue-600 dark:text-blue-400'
                       : 'text-slate-500 dark:text-slate-400'
-                  }`}
+                    }`}
                 >
                   {t('nav.topbar_settings_label')}
                 </span>
               </Link>
               <Link
                 to="/about"
-                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-[3rem] ${
-                  location.pathname === '/about'
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-[3rem] ${location.pathname === '/about'
                     ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                     : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
-                }`}
+                  }`}
                 title={t('nav.about')}
               >
                 <Info className="w-5 h-5 shrink-0" />
                 <span
-                  className={`text-[10px] leading-tight text-center max-w-[4rem] truncate ${
-                    location.pathname === '/about'
+                  className={`text-[10px] leading-tight text-center max-w-[4rem] truncate ${location.pathname === '/about'
                       ? 'text-blue-600 dark:text-blue-400'
                       : 'text-slate-500 dark:text-slate-400'
-                  }`}
+                    }`}
                 >
                   {t('nav.topbar_about_label')}
                 </span>
@@ -557,7 +558,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Page content */}
           <main className="flex-1 overflow-y-scroll p-4 lg:p-8">
             <motion.div
-            key={`${location.pathname}:${targetServerId}`}
+              key={`${location.pathname}:${targetServerId}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}

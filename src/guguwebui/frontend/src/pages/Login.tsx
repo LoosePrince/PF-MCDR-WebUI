@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { Zap, User, Lock, Check, ArrowRight, Loader2, Sun, Moon, Languages, KeyRound } from 'lucide-react'
+import { ArrowRight, Check, KeyRound, Languages, Loader2, Lock, Moon, Sun, User, Zap } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
+import VersionFooter from '../components/VersionFooter'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
-import VersionFooter from '../components/VersionFooter'
 
 const Login: React.FC = () => {
   const { t, i18n } = useTranslation()
@@ -73,34 +73,35 @@ const Login: React.FC = () => {
               </div>
             )}
           </button>
-          <div className="absolute z-30 mt-2 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
-            {(['light', 'system', 'dark'] as const).map((opt) => (
-              <button
-                key={opt}
-                onClick={() => setMode(opt)}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                  mode === opt
-                    ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                    : 'text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                {opt === 'light' && <Sun className="w-3.5 h-3.5" />}
-                {opt === 'dark' && <Moon className="w-3.5 h-3.5" />}
-                {opt === 'system' && (
-                  <div className="relative w-3.5 h-3.5">
-                    <Sun className="w-3.5 h-3.5 absolute inset-0 opacity-70" />
-                    <Moon className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 opacity-80" />
-                  </div>
-                )}
-                <span>
-                  {opt === 'light'
-                    ? t('theme.light')
-                    : opt === 'dark'
-                    ? t('theme.dark')
-                    : t('theme.system')}
-                </span>
-              </button>
-            ))}
+          <div className="absolute z-30 top-full right-0 w-32 pt-2 pointer-events-none group-hover:pointer-events-auto">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+              {(['light', 'system', 'dark'] as const).map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => setMode(opt)}
+                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${mode === opt
+                      ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                      : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                >
+                  {opt === 'light' && <Sun className="w-3.5 h-3.5" />}
+                  {opt === 'dark' && <Moon className="w-3.5 h-3.5" />}
+                  {opt === 'system' && (
+                    <div className="relative w-3.5 h-3.5">
+                      <Sun className="w-3.5 h-3.5 absolute inset-0 opacity-70" />
+                      <Moon className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 opacity-80" />
+                    </div>
+                  )}
+                  <span>
+                    {opt === 'light'
+                      ? t('theme.light')
+                      : opt === 'dark'
+                        ? t('theme.dark')
+                        : t('theme.system')}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -112,45 +113,46 @@ const Login: React.FC = () => {
               {i18n.language === 'zh-CN' ? t('nav.lang_short') : 'EN'}
             </span>
           </button>
-          <div className="absolute z-30 mt-2 right-0 w-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
-            {[
-              { code: 'zh-CN', label: t('lang.zh-CN') },
-              { code: 'en-US', label: t('lang.en-US') },
-            ].map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => changeLanguage(lang.code)}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                  i18n.language === lang.code
-                    ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                    : 'text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                <span>{lang.label}</span>
-              </button>
-            ))}
+          <div className="absolute z-30 top-full right-0 w-32 pt-2 pointer-events-none group-hover:pointer-events-auto">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg opacity-0 scale-95 translate-y-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all">
+              {[
+                { code: 'zh-CN', label: t('lang.zh-CN') },
+                { code: 'en-US', label: t('lang.en-US') },
+              ].map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => changeLanguage(lang.code)}
+                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${i18n.language === lang.code
+                      ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                      : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                >
+                  <span>{lang.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
       {/* Decorative background elements */}
-      <motion.div 
-        animate={{ 
+      <motion.div
+        animate={{
           scale: [1, 1.2, 1],
           opacity: [0.1, 0.15, 0.1]
         }}
         transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-        className="absolute top-0 right-0 -mr-32 -mt-32 w-96 h-96 bg-blue-500/10 rounded-full blur-xl pointer-events-none" 
+        className="absolute top-0 right-0 -mr-32 -mt-32 w-96 h-96 bg-blue-500/10 rounded-full blur-xl pointer-events-none"
       />
-      <motion.div 
-        animate={{ 
+      <motion.div
+        animate={{
           scale: [1.2, 1, 1.2],
           opacity: [0.1, 0.15, 0.1]
         }}
         transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-        className="absolute bottom-0 left-0 -ml-32 -mb-32 w-96 h-96 bg-purple-500/10 rounded-full blur-xl pointer-events-none" 
+        className="absolute bottom-0 left-0 -ml-32 -mb-32 w-96 h-96 bg-purple-500/10 rounded-full blur-xl pointer-events-none"
       />
-      
-      <motion.div 
+
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -158,7 +160,7 @@ const Login: React.FC = () => {
       >
         <div className="bg-white/95 dark:bg-slate-900/95 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl space-y-8">
           <div className="text-center space-y-2">
-            <motion.div 
+            <motion.div
               whileHover={{ rotate: 0, scale: 1.05 }}
               initial={{ rotate: 3 }}
               className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl text-white shadow-xl shadow-blue-500/30 mb-4 transition-transform duration-300 cursor-pointer"
@@ -175,7 +177,7 @@ const Login: React.FC = () => {
 
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 className="bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 px-4 py-3 rounded-xl text-sm font-medium"
@@ -192,11 +194,10 @@ const Login: React.FC = () => {
                   setLoginMode('password')
                   setError('')
                 }}
-                className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                  loginMode === 'password'
+                className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${loginMode === 'password'
                     ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
+                  }`}
               >
                 {t('login.password_login')}
               </button>
@@ -206,16 +207,15 @@ const Login: React.FC = () => {
                   setLoginMode('tempCode')
                   setError('')
                 }}
-                className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                  loginMode === 'tempCode'
+                className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${loginMode === 'tempCode'
                     ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
+                  }`}
               >
                 {t('login.temp_code_login')}
               </button>
             </div>
-            
+
             <div className="space-y-4">
               {loginMode === 'password' ? (
                 <>
@@ -323,7 +323,7 @@ const Login: React.FC = () => {
               )}
             </button>
           </form>
-          
+
           <div className="pt-4 text-center border-t border-slate-100 dark:border-slate-800">
             <button
               onClick={() => navigate('/player-chat')}
@@ -333,7 +333,7 @@ const Login: React.FC = () => {
             </button>
           </div>
         </div>
-        
+
         <VersionFooter className="mt-8 text-center" />
       </motion.div>
     </div>
