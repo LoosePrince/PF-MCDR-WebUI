@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import api, { getBasePath } from '../utils/api'
 
 interface AuthContextType {
@@ -101,7 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-    const logout = async () => {
+  const logout = async () => {
     try {
       // 通过后端 API 主动注销，支持独立模式与挂载模式
       await api.post('/logout')
@@ -116,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const cookieNames = ['token', 'session'];
       const domains = [window.location.hostname, ''];
       const paths = [getBasePath() || '/', '/', '/guguwebui', '/guguwebui/'];
-      
+
       cookieNames.forEach(name => {
         paths.forEach(path => {
           domains.forEach(domain => {

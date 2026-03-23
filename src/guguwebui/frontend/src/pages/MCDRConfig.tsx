@@ -1,26 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
+  AlertCircle,
+  BookOpen,
+  CheckCircle2,
+  ChevronRight,
+  ExternalLink,
+  Globe,
+  Info,
+  Loader2,
+  Save,
   Settings,
   Shield,
-  Save,
-  Info,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
   Terminal,
-  ExternalLink,
-  ChevronRight,
   UserPlus,
   X,
-  Zap,
-  Globe,
-  BookOpen
+  Zap
 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { NiceSelect } from '../components/NiceSelect';
 import { MCDR_SITE_URL } from '../constants';
 import api, { isCancel } from '../utils/api';
-import { NiceSelect } from '../components/NiceSelect';
 
 interface RconConfig {
   rcon_host: string;
@@ -206,8 +206,8 @@ const MCDRConfig: React.FC = () => {
     <button
       onClick={() => setActiveTab(id)}
       className={`flex items-center space-x-2 px-6 py-3 rounded-xl transition-all duration-200 ${activeTab === id
-          ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
         }`}
     >
       <Icon size={18} />
@@ -229,472 +229,472 @@ const MCDRConfig: React.FC = () => {
       <div className="space-y-8 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-            <Settings className="text-blue-500" />
-            {t('nav.mcdr_config')}
-          </h1>
-          <p className="mt-1 text-slate-600 dark:text-slate-400">
-            {t('page.mcdr.about.title')}
-          </p>
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+              <Settings className="text-blue-500" />
+              {t('nav.mcdr_config')}
+            </h1>
+            <p className="mt-1 text-slate-600 dark:text-slate-400">
+              {t('page.mcdr.about.title')}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <a
+              href={MCDR_SITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors"
+            >
+              <BookOpen size={16} />
+              {t('page.mcdr.about.doc')}
+              <ExternalLink size={14} />
+            </a>
+            <button
+              onClick={() => handleSave(activeTab === 'config' ? 'config.yml' : 'permission.yml')}
+              disabled={saving}
+              className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg shadow-lg shadow-blue-500/25 transition-all"
+            >
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+              {saving ? t('page.mc.saving') : t('page.mc.save')}
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <a
-            href={MCDR_SITE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors"
-          >
-            <BookOpen size={16} />
-            {t('page.mcdr.about.doc')}
-            <ExternalLink size={14} />
-          </a>
-          <button
-            onClick={() => handleSave(activeTab === 'config' ? 'config.yml' : 'permission.yml')}
-            disabled={saving}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg shadow-lg shadow-blue-500/25 transition-all"
-          >
-            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-            {saving ? t('page.mc.saving') : t('page.mc.save')}
-          </button>
+
+        {/* Tabs Nav */}
+        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl w-fit">
+          <TabButton id="config" icon={Settings} label={t('page.mcdr.config.config_yml')} />
+          <TabButton id="permission" icon={Shield} label={t('page.mcdr.config.permission_yml')} />
         </div>
-      </div>
 
-      {/* Tabs Nav */}
-      <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl w-fit">
-        <TabButton id="config" icon={Settings} label={t('page.mcdr.config.config_yml')} />
-        <TabButton id="permission" icon={Shield} label={t('page.mcdr.config.permission_yml')} />
-      </div>
+        <AnimatePresence mode="wait">
+          {activeTab === 'config' ? (
+            <motion.div
+              key="config"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+            >
+              {/* Left Column - Main Config */}
+              <div className="lg:col-span-2 space-y-8">
+                {/* Basic Settings */}
+                <ConfigSection title={t('page.mcdr.config.basic')} icon={Globe}>
+                  <div className="space-y-6">
+                    <ConfigItem
+                      label={t('page.mcdr.form.language')}
+                      sub={t('page.mcdr.form.language_tip')}
+                    >
+                      <NiceSelect
+                        value={configData.language || 'en_us'}
+                        onChange={(val) => updateConfig('language', val)}
+                        options={[
+                          { value: 'en_us', label: t('page.mcdr.form.language_en') },
+                          { value: 'zh_cn', label: t('page.mcdr.form.language_zh') }
+                        ]}
+                      />
+                    </ConfigItem>
 
-      <AnimatePresence mode="wait">
-        {activeTab === 'config' ? (
-          <motion.div
-            key="config"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-          >
-            {/* Left Column - Main Config */}
-            <div className="lg:col-span-2 space-y-8">
-              {/* Basic Settings */}
-              <ConfigSection title={t('page.mcdr.config.basic')} icon={Globe}>
-                <div className="space-y-6">
-                  <ConfigItem
-                    label={t('page.mcdr.form.language')}
-                    sub={t('page.mcdr.form.language_tip')}
-                  >
-                    <NiceSelect
-                      value={configData.language || 'en_us'}
-                      onChange={(val) => updateConfig('language', val)}
-                      options={[
-                        { value: 'en_us', label: t('page.mcdr.form.language_en') },
-                        { value: 'zh_cn', label: t('page.mcdr.form.language_zh') }
-                      ]}
-                    />
-                  </ConfigItem>
-
-                  <ConfigItem
-                    label={t('page.mcdr.form.working_directory')}
-                    sub={t('page.mcdr.form.working_directory_tip')}
-                  >
-                    <input
-                      type="text"
-                      value={configData.working_directory || 'server'}
-                      onChange={(e) => updateConfig('working_directory', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                    />
-                  </ConfigItem>
-
-                  <ConfigItem
-                    label={t('page.mcdr.form.start_command')}
-                    sub={t('page.mcdr.form.start_command_tip')}
-                  >
-                    <textarea
-                      value={configData.start_command || ''}
-                      onChange={(e) => updateConfig('start_command', e.target.value)}
-                      rows={3}
-                      placeholder={t('page.mcdr.form.start_example')}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50 resize-none font-mono text-sm"
-                    />
-                  </ConfigItem>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <ConfigItem label={t('page.mcdr.form.encoding')} sub={t('page.mcdr.form.encoding_tip')}>
+                    <ConfigItem
+                      label={t('page.mcdr.form.working_directory')}
+                      sub={t('page.mcdr.form.working_directory_tip')}
+                    >
                       <input
                         type="text"
-                        value={configData.encoding || ''}
-                        onChange={(e) => updateConfig('encoding', e.target.value)}
-                        placeholder="utf8"
+                        value={configData.working_directory || 'server'}
+                        onChange={(e) => updateConfig('working_directory', e.target.value)}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
                       />
                     </ConfigItem>
-                    <ConfigItem label={t('page.mcdr.form.decoding')} sub={t('page.mcdr.form.decoding_tip')}>
-                      <input
-                        type="text"
-                        value={configData.decoding || ''}
-                        onChange={(e) => updateConfig('decoding', e.target.value)}
-                        placeholder="utf8"
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+
+                    <ConfigItem
+                      label={t('page.mcdr.form.start_command')}
+                      sub={t('page.mcdr.form.start_command_tip')}
+                    >
+                      <textarea
+                        value={configData.start_command || ''}
+                        onChange={(e) => updateConfig('start_command', e.target.value)}
+                        rows={3}
+                        placeholder={t('page.mcdr.form.start_example')}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50 resize-none font-mono text-sm"
                       />
                     </ConfigItem>
-                  </div>
 
-                  <ConfigItem
-                    label={t('page.mcdr.form.plugin_directories')}
-                    sub={t('page.mcdr.form.plugin_directories_tip')}
-                  >
-                    <div className="space-y-2">
-                      {(configData.plugin_directories || ['plugins']).map((dir: string, idx: number) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={dir}
-                            onChange={(e) => {
-                              const newList = [...(configData.plugin_directories || ['plugins'])];
-                              newList[idx] = e.target.value;
-                              updateConfig('plugin_directories', newList);
-                            }}
-                            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ConfigItem label={t('page.mcdr.form.encoding')} sub={t('page.mcdr.form.encoding_tip')}>
+                        <input
+                          type="text"
+                          value={configData.encoding || ''}
+                          onChange={(e) => updateConfig('encoding', e.target.value)}
+                          placeholder="utf8"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                      <ConfigItem label={t('page.mcdr.form.decoding')} sub={t('page.mcdr.form.decoding_tip')}>
+                        <input
+                          type="text"
+                          value={configData.decoding || ''}
+                          onChange={(e) => updateConfig('decoding', e.target.value)}
+                          placeholder="utf8"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                    </div>
+
+                    <ConfigItem
+                      label={t('page.mcdr.form.plugin_directories')}
+                      sub={t('page.mcdr.form.plugin_directories_tip')}
+                    >
+                      <div className="space-y-2">
+                        {(configData.plugin_directories || ['plugins']).map((dir: string, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={dir}
+                              onChange={(e) => {
+                                const newList = [...(configData.plugin_directories || ['plugins'])];
+                                newList[idx] = e.target.value;
+                                updateConfig('plugin_directories', newList);
+                              }}
+                              className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                            />
+                            <button
+                              onClick={() => {
+                                const newList = (configData.plugin_directories || ['plugins']).filter((_: any, i: number) => i !== idx);
+                                updateConfig('plugin_directories', newList);
+                              }}
+                              className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => {
+                            const newList = [...(configData.plugin_directories || ['plugins']), ''];
+                            updateConfig('plugin_directories', newList);
+                          }}
+                          className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          <UserPlus size={14} />
+                          {t('common.add')}
+                        </button>
+                      </div>
+                    </ConfigItem>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ConfigItem label={t('page.mcdr.form.handler')} sub={t('page.mcdr.form.handler_tip')}>
+                        <button
+                          type="button"
+                          onClick={() => setShowHandlerModal(true)}
+                          className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 hover:bg-blue-50/40 dark:hover:bg-slate-800 transition-all"
+                        >
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                              {configData.handler || 'vanilla_handler'}
+                            </span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              {t('page.mcdr.form.handler_tip')}
+                            </span>
+                          </div>
+                          <ChevronRight size={18} className="text-slate-400" />
+                        </button>
+                      </ConfigItem>
+
+                      <ConfigItem label={t('page.mcdr.form.check_update')} sub={t('page.mcdr.form.check_update_tip')}>
+                        <div className="flex items-center">
+                          <Switch
+                            checked={configData.check_update !== false}
+                            onChange={(v) => updateConfig('check_update', v)}
                           />
-                          <button
-                            onClick={() => {
-                              const newList = (configData.plugin_directories || ['plugins']).filter((_: any, i: number) => i !== idx);
-                              updateConfig('plugin_directories', newList);
-                            }}
-                            className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                          >
-                            <X size={16} />
-                          </button>
+                        </div>
+                      </ConfigItem>
+                    </div>
+                  </div>
+                </ConfigSection>
+
+                {/* RCON Settings */}
+                <ConfigSection title={t('page.mcdr.rcon.title')} icon={Terminal}>
+                  <div className="space-y-6">
+                    {(!rconStatus.rcon_enabled || !rconStatus.rcon_connected) && (
+                      <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <Zap className="text-blue-500" size={24} />
+                          <div>
+                            <h4 className="font-semibold text-blue-900 dark:text-blue-200">{t('page.mcdr.rcon.setup_button')}</h4>
+                            <p className="text-sm text-blue-700 dark:text-blue-300">{t('page.mcdr.rcon.desc')}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowRconSetupModal(true)}
+                          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          {t('page.mcdr.rcon.setup_button')}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ConfigItem label={t('page.mcdr.rcon.enable')} sub={t('page.mcdr.rcon.enable_tip')}>
+                        <Switch
+                          checked={configData.rcon?.enable === true}
+                          onChange={(v) => updateConfig('rcon.enable', v)}
+                        />
+                      </ConfigItem>
+                      <ConfigItem label={t('page.mcdr.rcon.address')} sub={t('page.mcdr.rcon.address_tip')}>
+                        <input
+                          type="text"
+                          value={configData.rcon?.address || '127.0.0.1'}
+                          onChange={(e) => updateConfig('rcon.address', e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                      <ConfigItem label={t('page.mcdr.rcon.port')} sub={t('page.mcdr.rcon.port_tip')}>
+                        <input
+                          type="number"
+                          value={configData.rcon?.port || 25575}
+                          onChange={(e) => updateConfig('rcon.port', parseInt(e.target.value))}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                      <ConfigItem label={t('page.mcdr.rcon.password')} sub={t('page.mcdr.rcon.password_tip')}>
+                        <input
+                          type="password"
+                          value={configData.rcon?.password || ''}
+                          autoComplete="new-password"
+                          onChange={(e) => updateConfig('rcon.password', e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                    </div>
+                  </div>
+                </ConfigSection>
+              </div>
+
+              {/* Right Column - Misc Settings */}
+              <div className="space-y-8">
+                {/* Debug Settings */}
+                <ConfigSection title={t('page.mcdr.debug.title')} icon={AlertCircle}>
+                  <div className="space-y-4">
+                    <ConfigItem label={t('page.mcdr.debug.all')}>
+                      <Switch
+                        checked={configData.debug?.all === true}
+                        onChange={(v) => updateConfig('debug.all', v)}
+                      />
+                    </ConfigItem>
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                      {['mcdr', 'handler', 'reactor', 'plugin', 'permission', 'command', 'task_executor'].map((key) => (
+                        <div key={key} className="flex items-center justify-between text-sm">
+                          <span className="text-slate-600 dark:text-slate-400">{t(`page.mcdr.debug.${key}`)}</span>
+                          <Switch
+                            checked={configData.debug?.[key] === true}
+                            onChange={(v) => updateConfig(`debug.${key}`, v)}
+                            size="sm"
+                          />
                         </div>
                       ))}
-                      <button
-                        onClick={() => {
-                          const newList = [...(configData.plugin_directories || ['plugins']), ''];
-                          updateConfig('plugin_directories', newList);
-                        }}
-                        className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        <UserPlus size={14} />
-                        {t('common.add')}
-                      </button>
                     </div>
-                  </ConfigItem>
+                  </div>
+                </ConfigSection>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <ConfigItem label={t('page.mcdr.form.handler')} sub={t('page.mcdr.form.handler_tip')}>
-                    <button
-                      type="button"
-                      onClick={() => setShowHandlerModal(true)}
-                      className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 hover:bg-blue-50/40 dark:hover:bg-slate-800 transition-all"
-                    >
-                      <div className="flex flex-col">
-                        <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                          {configData.handler || 'vanilla_handler'}
-                        </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {t('page.mcdr.form.handler_tip')}
-                        </span>
-                      </div>
-                      <ChevronRight size={18} className="text-slate-400" />
-                    </button>
-                  </ConfigItem>
-
-                    <ConfigItem label={t('page.mcdr.form.check_update')} sub={t('page.mcdr.form.check_update_tip')}>
-                      <div className="flex items-center">
-                        <Switch
-                          checked={configData.check_update !== false}
-                          onChange={(v) => updateConfig('check_update', v)}
-                        />
-                      </div>
+                {/* Advanced UI Settings */}
+                <ConfigSection title={t('page.mcdr.form.advanced_console')} icon={Loader2}>
+                  <div className="space-y-6">
+                    <ConfigItem label={t('page.mcdr.form.advanced_console')} sub={t('page.mcdr.form.advanced_console_tip')}>
+                      <Switch
+                        checked={configData.advanced_console !== false}
+                        onChange={(v) => updateConfig('advanced_console', v)}
+                      />
+                    </ConfigItem>
+                    <ConfigItem label={t('page.mcdr.form.disable_console_color')} sub={t('page.mcdr.form.disable_console_color_tip')}>
+                      <Switch
+                        checked={configData.disable_console_color === true}
+                        onChange={(v) => updateConfig('disable_console_color', v)}
+                      />
+                    </ConfigItem>
+                    <ConfigItem label={t('page.mcdr.form.disable_console_thread')} sub={t('page.mcdr.form.disable_console_thread_tip')}>
+                      <Switch
+                        checked={configData.disable_console_thread === true}
+                        onChange={(v) => updateConfig('disable_console_thread', v)}
+                      />
                     </ConfigItem>
                   </div>
-                </div>
-              </ConfigSection>
+                </ConfigSection>
 
-              {/* RCON Settings */}
-              <ConfigSection title={t('page.mcdr.rcon.title')} icon={Terminal}>
-                <div className="space-y-6">
-                  {(!rconStatus.rcon_enabled || !rconStatus.rcon_connected) && (
-                    <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <Zap className="text-blue-500" size={24} />
-                        <div>
-                          <h4 className="font-semibold text-blue-900 dark:text-blue-200">{t('page.mcdr.rcon.setup_button')}</h4>
-                          <p className="text-sm text-blue-700 dark:text-blue-300">{t('page.mcdr.rcon.desc')}</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setShowRconSetupModal(true)}
-                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-                      >
-                        {t('page.mcdr.rcon.setup_button')}
-                      </button>
+                {/* Watchdog & Catalogue Settings */}
+                <ConfigSection title={t('page.mcdr.form.watchdog')} icon={Shield}>
+                  <div className="space-y-6">
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/30 rounded-lg flex gap-3 mb-2">
+                      <Info className="text-yellow-600 shrink-0" size={20} />
+                      <p className="text-xs text-yellow-800 dark:text-yellow-200">{t('page.mcdr.form.advanced_warning')}</p>
                     </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <ConfigItem label={t('page.mcdr.rcon.enable')} sub={t('page.mcdr.rcon.enable_tip')}>
-                      <Switch
-                        checked={configData.rcon?.enable === true}
-                        onChange={(v) => updateConfig('rcon.enable', v)}
-                      />
-                    </ConfigItem>
-                    <ConfigItem label={t('page.mcdr.rcon.address')} sub={t('page.mcdr.rcon.address_tip')}>
-                    <input
-                      type="text"
-                      value={configData.rcon?.address || '127.0.0.1'}
-                      onChange={(e) => updateConfig('rcon.address', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                    />
-                  </ConfigItem>
-                    <ConfigItem label={t('page.mcdr.rcon.port')} sub={t('page.mcdr.rcon.port_tip')}>
-                    <input
-                      type="number"
-                      value={configData.rcon?.port || 25575}
-                      onChange={(e) => updateConfig('rcon.port', parseInt(e.target.value))}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                    />
-                  </ConfigItem>
-                    <ConfigItem label={t('page.mcdr.rcon.password')} sub={t('page.mcdr.rcon.password_tip')}>
-                    <input
-                      type="password"
-                      value={configData.rcon?.password || ''}
-                      autoComplete="new-password"
-                      onChange={(e) => updateConfig('rcon.password', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                    />
-                  </ConfigItem>
-                  </div>
-                </div>
-              </ConfigSection>
-            </div>
-
-            {/* Right Column - Misc Settings */}
-            <div className="space-y-8">
-              {/* Debug Settings */}
-              <ConfigSection title={t('page.mcdr.debug.title')} icon={AlertCircle}>
-                <div className="space-y-4">
-                  <ConfigItem label={t('page.mcdr.debug.all')}>
-                    <Switch
-                      checked={configData.debug?.all === true}
-                      onChange={(v) => updateConfig('debug.all', v)}
-                    />
-                  </ConfigItem>
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                    {['mcdr', 'handler', 'reactor', 'plugin', 'permission', 'command', 'task_executor'].map((key) => (
-                      <div key={key} className="flex items-center justify-between text-sm">
-                        <span className="text-slate-600 dark:text-slate-400">{t(`page.mcdr.debug.${key}`)}</span>
-                        <Switch
-                          checked={configData.debug?.[key] === true}
-                          onChange={(v) => updateConfig(`debug.${key}`, v)}
-                          size="sm"
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ConfigItem label={t('page.mcdr.form.watchdog_threshold')} sub={t('page.mcdr.form.watchdog_threshold_tip')}>
+                        <input
+                          type="number"
+                          value={configData.watchdog_threshold ?? 10}
+                          onChange={(e) => updateConfig('watchdog_threshold', parseInt(e.target.value))}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
                         />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </ConfigSection>
+                      </ConfigItem>
+                      <ConfigItem label={t('page.mcdr.form.handler_detection')} sub={t('page.mcdr.form.handler_detection')}>
+                        <Switch
+                          checked={configData.handler_detection !== false}
+                          onChange={(v) => updateConfig('handler_detection', v)}
+                        />
+                      </ConfigItem>
+                    </div>
 
-              {/* Advanced UI Settings */}
-              <ConfigSection title={t('page.mcdr.form.advanced_console')} icon={Loader2}>
-                <div className="space-y-6">
-                  <ConfigItem label={t('page.mcdr.form.advanced_console')} sub={t('page.mcdr.form.advanced_console_tip')}>
-                    <Switch
-                      checked={configData.advanced_console !== false}
-                      onChange={(v) => updateConfig('advanced_console', v)}
-                    />
-                  </ConfigItem>
-                  <ConfigItem label={t('page.mcdr.form.disable_console_color')} sub={t('page.mcdr.form.disable_console_color_tip')}>
-                    <Switch
-                      checked={configData.disable_console_color === true}
-                      onChange={(v) => updateConfig('disable_console_color', v)}
-                    />
-                  </ConfigItem>
-                  <ConfigItem label={t('page.mcdr.form.disable_console_thread')} sub={t('page.mcdr.form.disable_console_thread_tip')}>
-                    <Switch
-                      checked={configData.disable_console_thread === true}
-                      onChange={(v) => updateConfig('disable_console_thread', v)}
-                    />
-                  </ConfigItem>
-                </div>
-              </ConfigSection>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ConfigItem label={t('page.mcdr.form.catalogue_meta_cache_ttl')}>
+                        <input
+                          type="number"
+                          value={configData.catalogue_meta_cache_ttl ?? 1200}
+                          onChange={(e) => updateConfig('catalogue_meta_cache_ttl', parseInt(e.target.value))}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                      <ConfigItem label={t('page.mcdr.form.catalogue_meta_fetch_timeout')}>
+                        <input
+                          type="number"
+                          value={configData.catalogue_meta_fetch_timeout ?? 15}
+                          onChange={(e) => updateConfig('catalogue_meta_fetch_timeout', parseInt(e.target.value))}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                    </div>
 
-              {/* Watchdog & Catalogue Settings */}
-              <ConfigSection title={t('page.mcdr.form.watchdog')} icon={Shield}>
-                <div className="space-y-6">
-                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/30 rounded-lg flex gap-3 mb-2">
-                    <Info className="text-yellow-600 shrink-0" size={20} />
-                    <p className="text-xs text-yellow-800 dark:text-yellow-200">{t('page.mcdr.form.advanced_warning')}</p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <ConfigItem label={t('page.mcdr.form.watchdog_threshold')} sub={t('page.mcdr.form.watchdog_threshold_tip')}>
-                      <input
-                        type="number"
-                        value={configData.watchdog_threshold ?? 10}
-                        onChange={(e) => updateConfig('watchdog_threshold', parseInt(e.target.value))}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                      />
-                    </ConfigItem>
-                    <ConfigItem label={t('page.mcdr.form.handler_detection')} sub={t('page.mcdr.form.handler_detection')}>
-                      <Switch
-                        checked={configData.handler_detection !== false}
-                        onChange={(v) => updateConfig('handler_detection', v)}
-                      />
-                    </ConfigItem>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <ConfigItem label={t('page.mcdr.form.catalogue_meta_cache_ttl')}>
-                      <input
-                        type="number"
-                        value={configData.catalogue_meta_cache_ttl ?? 1200}
-                        onChange={(e) => updateConfig('catalogue_meta_cache_ttl', parseInt(e.target.value))}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                      />
-                    </ConfigItem>
-                    <ConfigItem label={t('page.mcdr.form.catalogue_meta_fetch_timeout')}>
-                      <input
-                        type="number"
-                        value={configData.catalogue_meta_fetch_timeout ?? 15}
-                        onChange={(e) => updateConfig('catalogue_meta_fetch_timeout', parseInt(e.target.value))}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                      />
-                    </ConfigItem>
-                  </div>
-
-                  <ConfigItem label={t('page.mcdr.form.catalogue_meta_url')}>
-                    <input
-                      type="text"
-                      value={configData.catalogue_meta_url || ''}
-                      onChange={(e) => updateConfig('catalogue_meta_url', e.target.value)}
-                      placeholder="https://..."
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                    />
-                  </ConfigItem>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <ConfigItem label={t('page.mcdr.form.plugin_download_timeout')}>
-                      <input
-                        type="number"
-                        value={configData.plugin_download_timeout ?? 15}
-                        onChange={(e) => updateConfig('plugin_download_timeout', parseInt(e.target.value))}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                      />
-                    </ConfigItem>
-                    <ConfigItem label={t('page.mcdr.form.telemetry')}>
-                      <Switch
-                        checked={configData.telemetry !== false}
-                        onChange={(v) => updateConfig('telemetry', v)}
-                      />
-                    </ConfigItem>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <ConfigItem label={t('page.mcdr.form.http_proxy')}>
+                    <ConfigItem label={t('page.mcdr.form.catalogue_meta_url')}>
                       <input
                         type="text"
-                        value={configData.http_proxy || ''}
-                        onChange={(e) => updateConfig('http_proxy', e.target.value)}
-                        placeholder="http://127.0.0.1:7890"
+                        value={configData.catalogue_meta_url || ''}
+                        onChange={(e) => updateConfig('catalogue_meta_url', e.target.value)}
+                        placeholder="https://..."
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
                       />
                     </ConfigItem>
-                    <ConfigItem label={t('page.mcdr.form.https_proxy')}>
-                      <input
-                        type="text"
-                        value={configData.https_proxy || ''}
-                        onChange={(e) => updateConfig('https_proxy', e.target.value)}
-                        placeholder="http://127.0.0.1:7890"
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
-                      />
-                    </ConfigItem>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ConfigItem label={t('page.mcdr.form.plugin_download_timeout')}>
+                        <input
+                          type="number"
+                          value={configData.plugin_download_timeout ?? 15}
+                          onChange={(e) => updateConfig('plugin_download_timeout', parseInt(e.target.value))}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                      <ConfigItem label={t('page.mcdr.form.telemetry')}>
+                        <Switch
+                          checked={configData.telemetry !== false}
+                          onChange={(v) => updateConfig('telemetry', v)}
+                        />
+                      </ConfigItem>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ConfigItem label={t('page.mcdr.form.http_proxy')}>
+                        <input
+                          type="text"
+                          value={configData.http_proxy || ''}
+                          onChange={(e) => updateConfig('http_proxy', e.target.value)}
+                          placeholder="http://127.0.0.1:7890"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                      <ConfigItem label={t('page.mcdr.form.https_proxy')}>
+                        <input
+                          type="text"
+                          value={configData.https_proxy || ''}
+                          onChange={(e) => updateConfig('https_proxy', e.target.value)}
+                          placeholder="http://127.0.0.1:7890"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                      </ConfigItem>
+                    </div>
                   </div>
-                </div>
-              </ConfigSection>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="permission"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="space-y-6"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {['owner', 'admin', 'helper', 'user', 'guest'].map((level) => (
-                <div
-                  key={level}
-                  className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden"
-                >
-                  <div className={`px-4 py-3 flex items-center justify-between ${level === 'owner' ? 'bg-red-500/10 text-red-600' :
+                </ConfigSection>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="permission"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {['owner', 'admin', 'helper', 'user', 'guest'].map((level) => (
+                  <div
+                    key={level}
+                    className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden"
+                  >
+                    <div className={`px-4 py-3 flex items-center justify-between ${level === 'owner' ? 'bg-red-500/10 text-red-600' :
                       level === 'admin' ? 'bg-orange-500/10 text-orange-600' :
                         level === 'helper' ? 'bg-blue-500/10 text-blue-600' :
                           'bg-slate-500/10 text-slate-600 dark:text-slate-400'
-                    }`}>
-                    <div className="flex items-center gap-2">
-                      <Shield size={18} />
-                      <h3 className="font-bold uppercase tracking-wider text-sm">
-                        {t(`page.mcdr.perm.${level}`)}
-                      </h3>
+                      }`}>
+                      <div className="flex items-center gap-2">
+                        <Shield size={18} />
+                        <h3 className="font-bold uppercase tracking-wider text-sm">
+                          {t(`page.mcdr.perm.${level}`)}
+                        </h3>
+                      </div>
+                      <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-current opacity-60">
+                        {level === 'owner' ? 'LVL 4' : level === 'admin' ? 'LVL 3' : level === 'helper' ? 'LVL 2' : level === 'user' ? 'LVL 1' : 'LVL 0'}
+                      </span>
                     </div>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-current opacity-60">
-                      {level === 'owner' ? 'LVL 4' : level === 'admin' ? 'LVL 3' : level === 'helper' ? 'LVL 2' : level === 'user' ? 'LVL 1' : 'LVL 0'}
-                    </span>
-                  </div>
 
-                  <div className="p-4 space-y-4">
-                    <p className="text-xs text-slate-500 line-clamp-2">
-                      {t(`page.mcdr.perm.${level}_tip`)}
-                    </p>
+                    <div className="p-4 space-y-4">
+                      <p className="text-xs text-slate-500 line-clamp-2">
+                        {t(`page.mcdr.perm.${level}_tip`)}
+                      </p>
 
-                    <div className="flex flex-wrap gap-2 min-h-[40px] p-2 bg-slate-50 dark:bg-slate-900/60 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
-                      {(permissionData[level] || []).map((player: string, index: number) => (
-                        <div
-                          key={`${level}-${index}`}
-                          className="group flex items-center gap-1.5 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-md shadow-sm animate-in zoom-in-95 duration-200"
-                        >
-                          <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{player}</span>
-                          <button
-                            onClick={() => removePlayer(level, index)}
-                            className="text-slate-400 hover:text-red-500 transition-colors"
+                      <div className="flex flex-wrap gap-2 min-h-[40px] p-2 bg-slate-50 dark:bg-slate-900/60 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
+                        {(permissionData[level] || []).map((player: string, index: number) => (
+                          <div
+                            key={`${level}-${index}`}
+                            className="group flex items-center gap-1.5 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-md shadow-sm animate-in zoom-in-95 duration-200"
                           >
-                            <X size={12} />
+                            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{player}</span>
+                            <button
+                              onClick={() => removePlayer(level, index)}
+                              className="text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                        {playerAddingToLevel === level ? (
+                          <div className="flex items-center gap-2 w-full mt-2">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={newPlayerName}
+                              onChange={(e) => setNewPlayerName(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && addPlayer(level)}
+                              onBlur={() => !newPlayerName && setPlayerAddingToLevel(null)}
+                              placeholder={t('page.mcdr.perm.add_player_placeholder')}
+                              className="flex-1 bg-white dark:bg-slate-800 border border-blue-500 rounded px-2 py-1 text-xs outline-none shadow-sm shadow-blue-500/20"
+                            />
+                            <button onClick={() => addPlayer(level)} className="text-blue-500"><CheckCircle2 size={16} /></button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setPlayerAddingToLevel(level)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                          >
+                            <UserPlus size={14} />
+                            {t('page.mcdr.perm.add_player')}
                           </button>
-                        </div>
-                      ))}
-                      {playerAddingToLevel === level ? (
-                        <div className="flex items-center gap-2 w-full mt-2">
-                          <input
-                            autoFocus
-                            type="text"
-                            value={newPlayerName}
-                            onChange={(e) => setNewPlayerName(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && addPlayer(level)}
-                            onBlur={() => !newPlayerName && setPlayerAddingToLevel(null)}
-                            placeholder={t('page.mcdr.perm.add_player_placeholder')}
-                            className="flex-1 bg-white dark:bg-slate-800 border border-blue-500 rounded px-2 py-1 text-xs outline-none shadow-sm shadow-blue-500/20"
-                          />
-                          <button onClick={() => addPlayer(level)} className="text-blue-500"><CheckCircle2 size={16} /></button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setPlayerAddingToLevel(level)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
-                        >
-                          <UserPlus size={14} />
-                          {t('page.mcdr.perm.add_player')}
-                        </button>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* RCON Modals */}
@@ -802,11 +802,10 @@ const MCDRConfig: React.FC = () => {
                   updateConfig('handler', opt.value);
                   setShowHandlerModal(false);
                 }}
-                className={`w-full text-left px-4 py-3 rounded-2xl border transition-all flex flex-col gap-1 ${
-                  active
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 hover:bg-blue-50/60 dark:hover:bg-slate-800'
-                }`}
+                className={`w-full text-left px-4 py-3 rounded-2xl border transition-all flex flex-col gap-1 ${active
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 hover:bg-blue-50/60 dark:hover:bg-slate-800'
+                  }`}
               >
                 <span className="text-sm font-semibold text-slate-900 dark:text-white">
                   {t(`page.mcdr.form.handler_option.${opt.key}`)}
@@ -831,8 +830,8 @@ const MCDRConfig: React.FC = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl ${notificationType === 'success'
-                ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                : 'bg-rose-500 text-white shadow-rose-500/20'
+              ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+              : 'bg-rose-500 text-white shadow-rose-500/20'
               }`}
           >
             {notificationType === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}

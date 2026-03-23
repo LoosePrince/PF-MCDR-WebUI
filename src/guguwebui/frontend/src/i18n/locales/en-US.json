@@ -233,7 +233,14 @@
             "notice_loading": "Loading notice...",
             "no_notice": "No notice",
             "notice_view_detail": "View details",
-            "notice_click_expand": "Click to expand"
+            "notice_click_expand": "Click to expand",
+            "custom_assets": {
+                "title": "Global Style and Script",
+                "tip": "Applies to main WebUI pages only",
+                "load_failed": "Failed to load global style/script",
+                "save_success": "Global style/script saved successfully",
+                "save_failed_prefix": "Failed to save global style/script: "
+            }
         },
         "404": {
             "title": "404 - Page Not Found",

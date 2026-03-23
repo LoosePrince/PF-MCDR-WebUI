@@ -109,6 +109,17 @@ def amount_static_files(server, static_path=None):
     if not __copyFolder(server, 'guguwebui/static/assets', str(assets_target)):
         server.logger.debug("插件内无 guguwebui/static/assets 或复制未包含文件，已确保目录存在")
 
+    custom_target = Path(static_path) / 'custom'
+    custom_target.mkdir(parents=True, exist_ok=True)
+    try:
+        __copyFile(server, 'guguwebui/custom/overall.css', custom_target / 'overall.css')
+    except Exception as e:
+        server.logger.warning(f"复制 guguwebui/custom/overall.css 失败: {e}")
+    try:
+        __copyFile(server, 'guguwebui/custom/overall.js', custom_target / 'overall.js')
+    except Exception as e:
+        server.logger.warning(f"复制 guguwebui/custom/overall.js 失败: {e}")
+
     server.logger.debug("成功复制 static 资源（index.html + assets）")
 
 

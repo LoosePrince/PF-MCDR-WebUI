@@ -1,28 +1,28 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useCache } from '../context/CacheContext'
-import { 
-  Play, 
-  RotateCw, 
-  Square, 
-  Server, 
-  Users, 
-  Tag, 
-  Lock, 
-  Puzzle, 
-  Settings2, 
-  Sliders, 
-  ChevronRight,
+import { AnimatePresence, motion } from 'framer-motion'
+import {
   Activity,
+  ArrowUpCircle,
+  ChevronRight,
   Clock,
   Info,
-  X,
-  ArrowUpCircle
+  Lock,
+  Play,
+  Puzzle,
+  RotateCw,
+  Server,
+  Settings2,
+  Sliders,
+  Square,
+  Tag,
+  Users,
+  X
 } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useCache } from '../context/CacheContext'
+import { useNoticeModal } from '../context/NoticeModalContext'
 import api, { isCancel } from '../utils/api'
 import { fetchNotice, type NoticeData } from '../utils/notice'
-import { useNoticeModal } from '../context/NoticeModalContext'
 
 interface ServerStatus {
   status: 'online' | 'offline' | 'loading' | 'error'
@@ -73,6 +73,10 @@ const Dashboard: React.FC = () => {
   const [newPipPackage, setNewPipPackage] = useState<string>('')
   const [installingPip, setInstallingPip] = useState<boolean>(false)
   const [uninstallingPip, setUninstallingPip] = useState<boolean>(false)
+  const [overallCss, setOverallCss] = useState<string>('')
+  const [overallJs, setOverallJs] = useState<string>('')
+  const [loadingOverall, setLoadingOverall] = useState<boolean>(true)
+  const [savingOverall, setSavingOverall] = useState<'css' | 'js' | null>(null)
 
   const [showNotification, setShowNotification] = useState<boolean>(false)
   const [notificationMessage, setNotificationMessage] = useState<string>('')
@@ -103,7 +107,7 @@ const Dashboard: React.FC = () => {
         // 缓存5秒
         cache.set('server_status', statusResp.data, 5000)
       }
-      
+
       // RCON状态使用短期缓存（5秒）
       const cachedRcon = cache.get<RconStatus>('rcon_status')
       if (cachedRcon) {
@@ -337,6 +341,53 @@ const Dashboard: React.FC = () => {
     }
   }, [t])
 
+  const fetchOverallFiles = useCallback(async (signal?: AbortSignal) => {
+    setLoadingOverall(true)
+    try {
+      const [cssResp, jsResp] = await Promise.all([
+        api.get('/load_file', { params: { file: 'css' }, signal }),
+        api.get('/load_file', { params: { file: 'js' }, signal }),
+      ])
+      setOverallCss(typeof cssResp.data === 'string' ? cssResp.data : '')
+      setOverallJs(typeof jsResp.data === 'string' ? jsResp.data : '')
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string }
+      if (isCancel(error) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
+        return
+      }
+      console.error('Failed to load overall custom files:', error)
+      showNotificationMessage(t('page.index.custom_assets.load_failed'), 'error')
+    } finally {
+      setLoadingOverall(false)
+    }
+  }, [showNotificationMessage, t])
+
+  const saveOverallFile = useCallback(async (fileType: 'css' | 'js') => {
+    if (savingOverall) return
+    setSavingOverall(fileType)
+    try {
+      const content = fileType === 'css' ? overallCss : overallJs
+      const { data } = await api.post('/save_file', { action: fileType, content })
+      if (data?.status === 'success') {
+        showNotificationMessage(t('page.index.custom_assets.save_success'), 'success')
+      } else {
+        showNotificationMessage(
+          `${t('page.index.custom_assets.save_failed_prefix')}${data?.message || t('common.unknown')}`,
+          'error'
+        )
+      }
+    } catch (error: unknown) {
+      const err = error as { message?: string }
+      console.error(`Failed to save overall ${fileType}:`, error)
+      showNotificationMessage(
+        `${t('page.index.custom_assets.save_failed_prefix')}${err.message || t('common.unknown')}`,
+        'error'
+      )
+    } finally {
+      setSavingOverall(null)
+    }
+  }, [overallCss, overallJs, savingOverall, showNotificationMessage, t])
+
   const handleSelfUpdate = async () => {
     if (updatingSelf) return
     setUpdatingSelf(true)
@@ -371,14 +422,15 @@ const Dashboard: React.FC = () => {
       setSystemTime(new Date().toLocaleString())
     }, 1000)
     refreshPipPackages(signal)
-    
+    fetchOverallFiles(signal)
+
     return () => {
       // 取消所有进行中的请求
       abortController.abort()
       clearInterval(timer)
       clearInterval(clockTimer)
     }
-  }, [fetchStatus, fetchWebVersion, refreshPipPackages])
+  }, [fetchOverallFiles, fetchStatus, fetchWebVersion, refreshPipPackages])
 
   useEffect(() => {
     setNoticeLoading(true)
@@ -403,8 +455,8 @@ const Dashboard: React.FC = () => {
           action === 'start'
             ? t('page.index.action_start')
             : action === 'stop'
-            ? t('page.index.action_stop')
-            : t('page.index.action_restart')
+              ? t('page.index.action_stop')
+              : t('page.index.action_restart')
         const msg =
           data.message ||
           `${t('page.index.control_sent_prefix')}${actionText}${t(
@@ -453,443 +505,509 @@ const Dashboard: React.FC = () => {
 
   return (
     <>
-      <motion.div 
+      <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
         className="space-y-8"
       >
-      {/* Self Update Alert */}
-      <AnimatePresence>
-        {selfUpdateInfo.available && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-3xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 dark:bg-amber-800/40 rounded-xl text-amber-600 dark:text-amber-400">
-                  <ArrowUpCircle className="w-6 h-6" />
+        {/* Self Update Alert */}
+        <AnimatePresence>
+          {selfUpdateInfo.available && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-3xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 dark:bg-amber-800/40 rounded-xl text-amber-600 dark:text-amber-400">
+                    <ArrowUpCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-amber-900 dark:text-amber-100">
+                      {t('plugins.self_update.title')}
+                    </h3>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      {t('plugins.self_update.message', {
+                        latest: selfUpdateInfo.latest,
+                        current: selfUpdateInfo.current
+                      })}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-amber-900 dark:text-amber-100">
-                    {t('plugins.self_update.title')}
-                  </h3>
-                  <p className="text-sm text-amber-700 dark:text-amber-300">
-                    {t('plugins.self_update.message', { 
-                      latest: selfUpdateInfo.latest, 
-                      current: selfUpdateInfo.current 
-                    })}
+                <button
+                  onClick={handleSelfUpdate}
+                  disabled={updatingSelf}
+                  className="px-6 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 whitespace-nowrap"
+                >
+                  {updatingSelf ? (
+                    <>
+                      <RotateCw className="w-4 h-4 animate-spin" />
+                      {t('plugins.self_update.updating')}
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUpCircle className="w-4 h-4" />
+                      {t('plugins.self_update.update_now')}
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Welcome Hero */}
+        <motion.div
+          variants={itemVariants}
+          className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm"
+        >
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+                {t('nav.dashboard')}
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400 max-w-lg">
+                {t('app.desc')} - {t('page.index.webui_running')}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => handleAction('start')}
+                disabled={serverStatus.status === 'online' || !!actionLoading}
+                className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-green-500/20 flex items-center gap-2 group"
+              >
+                {actionLoading === 'start' ? (
+                  <RotateCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
+                )}
+                {t('page.index.start')}
+              </button>
+              <button
+                onClick={() => handleAction('restart')}
+                disabled={serverStatus.status === 'offline' || !!actionLoading}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2 group"
+              >
+                {actionLoading === 'restart' ? (
+                  <RotateCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RotateCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                )}
+                {t('page.index.restart')}
+              </button>
+              <button
+                onClick={() => handleAction('stop')}
+                disabled={serverStatus.status === 'offline' || !!actionLoading}
+                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-rose-500/20 flex items-center gap-2 group"
+              >
+                {actionLoading === 'stop' ? (
+                  <RotateCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Square className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
+                )}
+                {t('page.index.stop')}
+              </button>
+            </div>
+          </div>
+
+          {/* Decorative background element - static to avoid GPU drain from infinite blur animation */}
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
+        </motion.div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Status Card */}
+          <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
+                <Server className="w-6 h-6" />
+              </div>
+              <div className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[serverStatus.status]}`}>
+                {t(`nav.status_${serverStatus.status}`)}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('page.index.server')}</p>
+              <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                {serverStatus.status === 'online' ? t('page.index.running') : t('page.index.stopped')}
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Players Card */}
+          <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
+                <Users className="w-6 h-6" />
+              </div>
+              {serverStatus.status === 'online' && (
+                <Activity className="w-4 h-4 text-green-500 animate-pulse" />
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('page.index.online_players')}</p>
+              <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                {serverStatus.players || '0/0'}
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Version Card */}
+          <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
+                <Tag className="w-6 h-6" />
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                {t('page.index.server_version')}
+              </p>
+              <p className="text-xl font-bold text-slate-900 dark:text-white mt-1 truncate">
+                {serverStatus.version.replace('Version: ', '') || t('page.index.unknown')}
+              </p>
+            </div>
+          </motion.div>
+
+          {/* RCON Status Card */}
+          <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div
+                className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[rconStatus.rcon_connected ? 'online' : 'offline']
+                  }`}
+              >
+                {rconStatus.rcon_connected ? t('page.index.rcon_connected') : t('page.index.rcon_disconnected')}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                  RCON {t('page.index.connection_status')}
+                </p>
+                <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                  {rconStatus.rcon_enabled ? t('page.index.rcon_enabled') : t('page.index.rcon_disabled')}
+                </p>
+              </div>
+              {!rconStatus.rcon_connected && (
+                <button
+                  onClick={() => setShowRconSetupModal(true)}
+                  disabled={settingUpRcon}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors"
+                >
+                  {settingUpRcon ? (
+                    <>
+                      <RotateCw className="w-3 h-3 animate-spin" />
+                      {t('page.mcdr.rcon.setting_up')}
+                    </>
+                  ) : (
+                    <>
+                      <Puzzle className="w-3 h-3" />
+                      {t('page.mcdr.rcon.setup_button')}
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Feature Navigation */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white px-2">
+            {t('page.index.quick_nav')}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              { key: 'plugins_mgmt', icon: Puzzle, color: 'bg-blue-500', path: './plugins' },
+              { key: 'mcdr_config', icon: Settings2, color: 'bg-purple-500', path: './mcdr' },
+              { key: 'mc_config', icon: Sliders, color: 'bg-emerald-500', path: './mc' },
+              { key: 'online_plugins', icon: Puzzle, color: 'bg-amber-500', path: './online-plugins' },
+            ].map((item) => (
+              <motion.a
+                key={item.key}
+                href={item.path}
+                variants={itemVariants}
+                whileHover={{ y: -5 }}
+                className="group bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-blue-500/30 dark:hover:border-blue-500/30 transition-all flex items-center gap-4"
+              >
+                <div className={`p-4 ${item.color} rounded-2xl text-white shadow-lg shadow-${item.color.split('-')[1]}-500/20 group-hover:scale-110 transition-transform`}>
+                  <item.icon className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-slate-900 dark:text-white">{t(`page.index.${item.key}`)}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{t(`page.index.${item.key}_desc`)}</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
+              </motion.a>
+            ))}
+          </div>
+        </div>
+
+        {/* System info & pip management in two columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* System info & RCON */}
+          <motion.div
+            variants={itemVariants}
+            className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4"
+          >
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {t('page.index.system_info')}
+            </h2>
+            <div className="space-y-3">
+              <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                  <Info className="w-5 h-5" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {t('page.index.webui_version')}
+                  </p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">
+                    {webVersion ?? t('common.notice_loading')}
                   </p>
                 </div>
               </div>
-              <button
-                onClick={handleSelfUpdate}
-                disabled={updatingSelf}
-                className="px-6 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 whitespace-nowrap"
-              >
-                {updatingSelf ? (
-                  <>
-                    <RotateCw className="w-4 h-4 animate-spin" />
-                    {t('plugins.self_update.updating')}
-                  </>
-                ) : (
-                  <>
-                    <ArrowUpCircle className="w-4 h-4" />
-                    {t('plugins.self_update.update_now')}
-                  </>
-                )}
-              </button>
+
+              <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {t('page.index.system_time')}
+                  </p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">
+                    {systemTime}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+                <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {t('page.index.security_status')}
+                  </p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">
+                    {t('page.index.logged_in')}
+                  </p>
+                </div>
+              </div>
+
+              {/* 公告（来自 GitHub release tag notice） */}
+              {noticeLoading && (
+                <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{t('page.index.notice_loading')}</p>
+                </div>
+              )}
+              {!noticeLoading && notice && (
+                <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => noticeModal?.openNoticeModal()}
+                    className="w-full flex items-start p-3 gap-3 text-left hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
+                      <Info className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        {t('page.index.notice')}
+                      </p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5 line-clamp-1">
+                        {notice.title}
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 whitespace-pre-wrap break-words">
+                        {notice.text}
+                      </p>
+                      <span className="inline-block mt-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                        {t('page.index.notice_click_expand')}
+                      </span>
+                    </div>
+                  </button>
+                  {notice.fill && (
+                    <a
+                      href={notice.fill}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block px-3 pb-3 pt-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {t('page.index.notice_view_detail')}
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* Welcome Hero */}
-      <motion.div 
-        variants={itemVariants}
-        className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm"
-      >
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              {t('nav.dashboard')}
-            </h1>
-            <p className="text-slate-500 dark:text-slate-400 max-w-lg">
-              {t('app.desc')} - {t('page.index.webui_running')}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => handleAction('start')}
-              disabled={serverStatus.status === 'online' || !!actionLoading}
-              className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-green-500/20 flex items-center gap-2 group"
-            >
-              {actionLoading === 'start' ? (
-                <RotateCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Play className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
-              )}
-              {t('page.index.start')}
-            </button>
-            <button
-              onClick={() => handleAction('restart')}
-              disabled={serverStatus.status === 'offline' || !!actionLoading}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2 group"
-            >
-              {actionLoading === 'restart' ? (
-                <RotateCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <RotateCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
-              )}
-              {t('page.index.restart')}
-            </button>
-            <button
-              onClick={() => handleAction('stop')}
-              disabled={serverStatus.status === 'offline' || !!actionLoading}
-              className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-rose-500/20 flex items-center gap-2 group"
-            >
-              {actionLoading === 'stop' ? (
-                <RotateCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Square className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
-              )}
-              {t('page.index.stop')}
-            </button>
-          </div>
-        </div>
-        
-        {/* Decorative background element - static to avoid GPU drain from infinite blur animation */}
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
-      </motion.div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Status Card */}
-        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
-              <Server className="w-6 h-6" />
-            </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[serverStatus.status]}`}>
-              {t(`nav.status_${serverStatus.status}`)}
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('page.index.server')}</p>
-            <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-              {serverStatus.status === 'online' ? t('page.index.running') : t('page.index.stopped')}
-            </p>
-          </div>
-        </motion.div>
-
-        {/* Players Card */}
-        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
-              <Users className="w-6 h-6" />
-            </div>
-            {serverStatus.status === 'online' && (
-              <Activity className="w-4 h-4 text-green-500 animate-pulse" />
-            )}
-          </div>
-          <div>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('page.index.online_players')}</p>
-            <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-              {serverStatus.players || '0/0'}
-            </p>
-          </div>
-        </motion.div>
-
-        {/* Version Card */}
-        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
-              <Tag className="w-6 h-6" />
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-              {t('page.index.server_version')}
-            </p>
-            <p className="text-xl font-bold text-slate-900 dark:text-white mt-1 truncate">
-              {serverStatus.version.replace('Version: ', '') || t('page.index.unknown')}
-            </p>
-          </div>
-        </motion.div>
-
-        {/* RCON Status Card */}
-        <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
-              <Lock className="w-6 h-6" />
-            </div>
-            <div
-              className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                statusColors[rconStatus.rcon_connected ? 'online' : 'offline']
-              }`}
-            >
-              {rconStatus.rcon_connected ? t('page.index.rcon_connected') : t('page.index.rcon_disconnected')}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                RCON {t('page.index.connection_status')}
-              </p>
-              <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                {rconStatus.rcon_enabled ? t('page.index.rcon_enabled') : t('page.index.rcon_disabled')}
-              </p>
-            </div>
-            {!rconStatus.rcon_connected && (
-              <button
-                onClick={() => setShowRconSetupModal(true)}
-                disabled={settingUpRcon}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors"
-              >
-                {settingUpRcon ? (
-                  <>
-                    <RotateCw className="w-3 h-3 animate-spin" />
-                    {t('page.mcdr.rcon.setting_up')}
-                  </>
-                ) : (
-                  <>
-                    <Puzzle className="w-3 h-3" />
-                    {t('page.mcdr.rcon.setup_button')}
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Feature Navigation */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white px-2">
-          {t('page.index.quick_nav')}
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[
-            { key: 'plugins_mgmt', icon: Puzzle, color: 'bg-blue-500', path: './plugins' },
-            { key: 'mcdr_config', icon: Settings2, color: 'bg-purple-500', path: './mcdr' },
-            { key: 'mc_config', icon: Sliders, color: 'bg-emerald-500', path: './mc' },
-            { key: 'online_plugins', icon: Puzzle, color: 'bg-amber-500', path: './online-plugins' },
-          ].map((item) => (
-            <motion.a
-              key={item.key}
-              href={item.path}
-              variants={itemVariants}
-              whileHover={{ y: -5 }}
-              className="group bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-blue-500/30 dark:hover:border-blue-500/30 transition-all flex items-center gap-4"
-            >
-              <div className={`p-4 ${item.color} rounded-2xl text-white shadow-lg shadow-${item.color.split('-')[1]}-500/20 group-hover:scale-110 transition-transform`}>
-                <item.icon className="w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-slate-900 dark:text-white">{t(`page.index.${item.key}`)}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{t(`page.index.${item.key}_desc`)}</p>
-              </div>
-              <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
-            </motion.a>
-          ))}
-        </div>
-      </div>
-
-      {/* System info & pip management in two columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* System info & RCON */}
-        <motion.div
-          variants={itemVariants}
-          className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4"
-        >
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            {t('page.index.system_info')}
-          </h2>
-          <div className="space-y-3">
-            <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                <Info className="w-5 h-5" />
-              </div>
-              <div className="ml-4">
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {t('page.index.webui_version')}
-                </p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">
-                  {webVersion ?? t('common.notice_loading')}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div className="ml-4">
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {t('page.index.system_time')}
-                </p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">
-                  {systemTime}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div className="ml-4">
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {t('page.index.security_status')}
-                </p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5">
-                  {t('page.index.logged_in')}
-                </p>
-              </div>
-            </div>
-
-            {/* 公告（来自 GitHub release tag notice） */}
-            {noticeLoading && (
-              <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-                <p className="text-xs text-slate-500 dark:text-slate-400">{t('page.index.notice_loading')}</p>
-              </div>
-            )}
-            {!noticeLoading && notice && (
-              <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 overflow-hidden">
+          {/* pip management */}
+          <motion.div
+            variants={itemVariants}
+            className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                {t('page.index.pip_mgmt')}
+              </h2>
+              <div className="flex gap-2">
                 <button
-                  type="button"
-                  onClick={() => noticeModal?.openNoticeModal()}
-                  className="w-full flex items-start p-3 gap-3 text-left hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
+                  onClick={() => refreshPipPackages()}
+                  className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold flex items-center gap-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
                 >
-                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
-                    <Info className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {t('page.index.notice')}
-                    </p>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white mt-0.5 line-clamp-1">
-                      {notice.title}
-                    </p>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 whitespace-pre-wrap break-words">
-                      {notice.text}
-                    </p>
-                    <span className="inline-block mt-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {t('page.index.notice_click_expand')}
-                    </span>
-                  </div>
+                  <RotateCw className="w-3 h-3" />
+                  {t('page.index.refresh')}
                 </button>
-                {notice.fill && (
-                  <a
-                    href={notice.fill}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block px-3 pb-3 pt-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                <button
+                  onClick={() => setShowInstallPipModal(true)}
+                  className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-full text-xs font-semibold flex items-center gap-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                >
+                  <Play className="w-3 h-3" />
+                  {t('page.index.install')}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4 max-h-64 overflow-y-auto">
+              {loadingPipPackages ? (
+                <div className="flex justify-center py-6">
+                  <RotateCw className="w-5 h-5 text-blue-500 animate-spin" />
+                </div>
+              ) : pipPackages.length === 0 ? (
+                <p className="text-sm text-center text-slate-500 dark:text-slate-400">
+                  {t('page.index.no_packages')}
+                </p>
+              ) : (
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                      <th className="text-left py-1.5">{t('page.index.pkg_name')}</th>
+                      <th className="text-left py-1.5">{t('page.index.version')}</th>
+                      <th className="text-right py-1.5">{t('page.index.actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pipPackages.map((pkg) => (
+                      <tr
+                        key={pkg.name}
+                        className="border-b border-slate-100 dark:border-slate-800/60 last:border-0"
+                      >
+                        <td className="py-2 text-slate-900 dark:text-white">{pkg.name}</td>
+                        <td className="py-2 text-slate-600 dark:text-slate-400">{pkg.version}</td>
+                        <td className="py-2 text-right">
+                          <button
+                            onClick={() => handleUninstallPip(pkg.name)}
+                            disabled={uninstallingPip}
+                            className="px-2.5 py-1 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-full text-xs font-semibold hover:bg-rose-100 dark:hover:bg-rose-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {t('page.index.uninstall')}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {pipOutputVisible && pipOutput.length > 0 && (
+              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-3 text-slate-100 font-mono space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-300">
+                    {t('page.index.pip_output')}
+                  </span>
+                  <button
+                    onClick={() => setPipOutputVisible(false)}
+                    className="p-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-colors"
+                    title={t('common.close')}
                   >
-                    {t('page.index.notice_view_detail')}
-                  </a>
-                )}
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="text-xs max-h-48 overflow-y-auto space-y-0.5">
+                  {pipOutput.map((line, idx) => (
+                    <div key={idx}>{line}</div>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
 
-        {/* pip management */}
         <motion.div
           variants={itemVariants}
           className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4"
         >
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              {t('page.index.pip_mgmt')}
+              {t('page.index.custom_assets.title')}
             </h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => refreshPipPackages()}
-                className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold flex items-center gap-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-              >
-                <RotateCw className="w-3 h-3" />
-                {t('page.index.refresh')}
-              </button>
-              <button
-                onClick={() => setShowInstallPipModal(true)}
-                className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-full text-xs font-semibold flex items-center gap-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
-              >
-                <Play className="w-3 h-3" />
-                {t('page.index.install')}
-              </button>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {t('page.index.custom_assets.tip')}
+            </span>
+          </div>
+
+          {loadingOverall ? (
+            <div className="flex items-center justify-center py-8 text-slate-500 dark:text-slate-400 gap-2">
+              <RotateCw className="w-4 h-4 animate-spin" />
+              <span>{t('common.notice_loading')}</span>
             </div>
-          </div>
-
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4 max-h-64 overflow-y-auto">
-            {loadingPipPackages ? (
-              <div className="flex justify-center py-6">
-                <RotateCw className="w-5 h-5 text-blue-500 animate-spin" />
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    overall.css
+                  </h3>
+                  <button
+                    onClick={() => saveOverallFile('css')}
+                    disabled={savingOverall !== null}
+                    className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                  >
+                    {savingOverall === 'css' && <RotateCw className="w-3 h-3 animate-spin" />}
+                    {t('common.save')}
+                  </button>
+                </div>
+                <textarea
+                  value={overallCss}
+                  onChange={(e) => setOverallCss(e.target.value)}
+                  className="w-full h-56 px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                  spellCheck={false}
+                />
               </div>
-            ) : pipPackages.length === 0 ? (
-              <p className="text-sm text-center text-slate-500 dark:text-slate-400">
-                {t('page.index.no_packages')}
-              </p>
-            ) : (
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
-                    <th className="text-left py-1.5">{t('page.index.pkg_name')}</th>
-                    <th className="text-left py-1.5">{t('page.index.version')}</th>
-                    <th className="text-right py-1.5">{t('page.index.actions')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pipPackages.map((pkg) => (
-                    <tr
-                      key={pkg.name}
-                      className="border-b border-slate-100 dark:border-slate-800/60 last:border-0"
-                    >
-                      <td className="py-2 text-slate-900 dark:text-white">{pkg.name}</td>
-                      <td className="py-2 text-slate-600 dark:text-slate-400">{pkg.version}</td>
-                      <td className="py-2 text-right">
-                        <button
-                          onClick={() => handleUninstallPip(pkg.name)}
-                          disabled={uninstallingPip}
-                          className="px-2.5 py-1 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-full text-xs font-semibold hover:bg-rose-100 dark:hover:bg-rose-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {t('page.index.uninstall')}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
 
-          {pipOutputVisible && pipOutput.length > 0 && (
-            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-3 text-slate-100 font-mono space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-300">
-                  {t('page.index.pip_output')}
-                </span>
-                <button
-                  onClick={() => setPipOutputVisible(false)}
-                  className="p-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-colors"
-                  title={t('common.close')}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-              <div className="text-xs max-h-48 overflow-y-auto space-y-0.5">
-                {pipOutput.map((line, idx) => (
-                  <div key={idx}>{line}</div>
-                ))}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    overall.js
+                  </h3>
+                  <button
+                    onClick={() => saveOverallFile('js')}
+                    disabled={savingOverall !== null}
+                    className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                  >
+                    {savingOverall === 'js' && <RotateCw className="w-3 h-3 animate-spin" />}
+                    {t('common.save')}
+                  </button>
+                </div>
+                <textarea
+                  value={overallJs}
+                  onChange={(e) => setOverallJs(e.target.value)}
+                  className="w-full h-56 px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                  spellCheck={false}
+                />
               </div>
             </div>
           )}
         </motion.div>
-      </div>
 
       </motion.div>
 
@@ -1003,11 +1121,10 @@ const Dashboard: React.FC = () => {
       {/* Notification toast */}
       {showNotification && (
         <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2 text-sm ${
-            notificationType === 'success'
-              ? 'bg-emerald-500 text-white'
-              : 'bg-rose-500 text-white'
-          }`}
+          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2 text-sm ${notificationType === 'success'
+            ? 'bg-emerald-500 text-white'
+            : 'bg-rose-500 text-white'
+            }`}
         >
           <Info className="w-4 h-4" />
           <span>{notificationMessage}</span>

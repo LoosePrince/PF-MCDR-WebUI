@@ -234,7 +234,14 @@
             "notice_loading": "加载公告中...",
             "no_notice": "暂无公告",
             "notice_view_detail": "查看详情",
-            "notice_click_expand": "点击展开"
+            "notice_click_expand": "点击展开",
+            "custom_assets": {
+                "title": "全局样式与脚本",
+                "tip": "仅作用于主 WebUI 页面",
+                "load_failed": "加载全局样式/脚本失败",
+                "save_success": "全局样式/脚本保存成功",
+                "save_failed_prefix": "保存全局样式/脚本失败: "
+            }
         },
         "404": {
             "title": "404 - 页面未找到",

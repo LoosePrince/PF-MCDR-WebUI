@@ -1,28 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
-import { motion, AnimatePresence } from 'framer-motion'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeRaw from 'rehype-raw'
-import api, { isCancel } from '../utils/api'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Terminal as TerminalIcon,
-  RotateCcw,
-  Trash2,
-  Copy,
-  BrainCircuit,
-  Settings,
-  X,
-  Send,
-  Loader2,
-  Sparkles,
-  Bot,
-  User,
   AlertTriangle,
   ArrowDown,
+  Bot,
+  BrainCircuit,
+  Copy,
+  ExternalLink,
   Info,
-  ExternalLink
+  Loader2,
+  RotateCcw,
+  Send,
+  Settings,
+  Sparkles,
+  Terminal as TerminalIcon,
+  Trash2,
+  User,
+  X
 } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import remarkGfm from 'remark-gfm'
+import api, { isCancel } from '../utils/api'
 
 // --- Interfaces ---
 
@@ -914,8 +914,8 @@ const Terminal: React.FC = () => {
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: 50, x: '-50%' }}
             className={`fixed bottom-6 left-1/2 z-[100] px-4 py-2 rounded-full shadow-lg border flex items-center gap-2 text-sm font-medium ${notification.type === 'error' ? 'bg-white dark:bg-slate-900 border-rose-200 text-rose-600' :
-                notification.type === 'success' ? 'bg-white dark:bg-slate-900 border-emerald-200 text-emerald-600' :
-                  'bg-white dark:bg-slate-900 border-slate-200 text-slate-600'
+              notification.type === 'success' ? 'bg-white dark:bg-slate-900 border-emerald-200 text-emerald-600' :
+                'bg-white dark:bg-slate-900 border-slate-200 text-slate-600'
               }`}
           >
             {notification.type === 'error' ? <AlertTriangle size={16} /> : <div className="w-2 h-2 rounded-full bg-current" />}

@@ -85,8 +85,11 @@ def serve_spa_index(request: Request) -> HTMLResponse:
     if not root_path.endswith("/"):
         root_path += "/"
     config_script = f'<script>window.__GUGU_CONFIG__ = {json.dumps({"root_path": root_path.rstrip("/")})};</script>'
+    overall_css_link = f'<link rel="stylesheet" href="{root_path}custom/overall.css">'
+    overall_js_script = f'<script defer src="{root_path}custom/overall.js"></script>'
     content = content.replace(
-        "<head>", f'<head><base href="{root_path}">{config_script}'
+        "<head>",
+        f'<head><base href="{root_path}">{config_script}{overall_css_link}{overall_js_script}',
     )
     return HTMLResponse(content=content)
 

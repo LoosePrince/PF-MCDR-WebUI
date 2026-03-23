@@ -1,28 +1,28 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Server,
-  Search,
-  Save,
-  Loader2,
   AlertCircle,
   CheckCircle2,
-  X,
-  Info,
   ChevronRight,
-  Zap,
   Filter,
-  SlidersHorizontal,
   Gamepad2,
-  Network,
   Gauge,
   Globe2,
-  ShieldCheck
+  Info,
+  Loader2,
+  Network,
+  Save,
+  Search,
+  Server,
+  ShieldCheck,
+  SlidersHorizontal,
+  X,
+  Zap
 } from 'lucide-react';
-import api, { isCancel } from '../utils/api';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NiceSelect } from '../components/NiceSelect';
 import serverLang from '../i18n/server_lang.json';
+import api, { isCancel } from '../utils/api';
 
 interface Category {
   id: string;
@@ -303,8 +303,8 @@ const MCConfig: React.FC = () => {
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === cat.id
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 font-bold'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-blue-400'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 font-bold'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-blue-400'
                   }`}
               >
                 <Icon size={20} />
@@ -473,8 +473,8 @@ const MCConfig: React.FC = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl ${notification.type === 'success'
-                ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                : 'bg-rose-500 text-white shadow-rose-500/20'
+              ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+              : 'bg-rose-500 text-white shadow-rose-500/20'
               }`}
           >
             {notification.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}

@@ -275,6 +275,7 @@ def _do_startup(server: PluginServerInterface):
     amount_static_files(server)
     app.mount("/static", StaticFiles(directory=f"{STATIC_PATH}/static"), name="static")
     app.mount("/assets", StaticFiles(directory=f"{STATIC_PATH}/static/assets"), name="assets")
+    app.mount("/custom", StaticFiles(directory=f"{STATIC_PATH}/custom"), name="custom")
 
     init_app(server)
     start_self_update_checker(server)
@@ -734,7 +735,7 @@ def register_plugin_page(
             ``body`` 在 ``multipart/form-data`` 下可含上传文件字段，解析为含 ``data: bytes`` 的字典（见文档）。
         upload_max_bytes: 可选。该插件单文件上传大小上限（字节）。不传则使用全局默认上限。
     """
-    from guguwebui.state import PluginPageEntry, REGISTERED_PLUGIN_PAGES
+    from guguwebui.state import REGISTERED_PLUGIN_PAGES, PluginPageEntry
 
     if upload_max_bytes is not None:
         if not isinstance(upload_max_bytes, int) or isinstance(upload_max_bytes, bool):
