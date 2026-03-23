@@ -824,10 +824,54 @@ async def _parse_plugin_api_body(
     return None, 415
 
 
+async def _get_plugin_auth_info(
+    request: Request,
+    current_user: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Build auth context for plugin api_handler.
+
+    Note: This is intentionally done in the plugin api proxy layer (not FastAPI Depends),
+    so third-party plugins can read `params.auth` for authorization decisions.
+    """
+    username = current_user.get("username")
+    auth_via = current_user.get("auth_via") or "cookie"
+
+    # 是否管理员：复用现有 get_current_admin 的策略，但不把 403 直接抛给插件，
+    # 而是让插件在 params.auth 里自行决定返回值。
+    is_admin = False
+    try:
+        await get_current_admin(request, current_user=current_user)
+        is_admin = True
+    except HTTPException as e:
+        if e.status_code != 403:
+            raise
+        is_admin = False
+
+    # 是否超级管理员：基于配置的 super_admin_account 做布尔判断。
+    is_super_admin = False
+    try:
+        config_service: ConfigService = request.app.state.config_service
+        cfg = config_service.get_config()
+        super_admin_account = str(cfg.get("super_admin_account"))
+        is_super_admin = username is not None and str(username) == super_admin_account
+    except Exception:
+        is_super_admin = False
+
+    return {
+        "username": username,
+        "auth_via": auth_via,
+        "is_admin": is_admin,
+        "is_super_admin": is_super_admin,
+        "is_panel": auth_via == "panel_token" or username == "__panel__",
+    }
+
+
 async def _dispatch_plugin_api(
     plugin_id: str,
     url_path: str,
     request: Request,
+    auth: dict[str, Any],
 ) -> Response:
     entry = gugu_state.REGISTERED_PLUGIN_PAGES.get(plugin_id)
     if entry is None or entry.api_handler is None:
@@ -862,6 +906,7 @@ async def _dispatch_plugin_api(
         "method": request.method,
         "query": _query_params_to_dict(request),
         "body": body,
+        "auth": auth,
     }
 
     handler = entry.api_handler
@@ -891,7 +936,8 @@ async def plugin_api_root(
     _user: dict = Depends(get_current_user),
 ):
     """插件 API 代理：子路径为空。"""
-    return await _dispatch_plugin_api(plugin_id, "", request)
+    auth_info = await _get_plugin_auth_info(request, _user)
+    return await _dispatch_plugin_api(plugin_id, "", request, auth_info)
 
 
 @app.api_route(
@@ -905,7 +951,8 @@ async def plugin_api_subpath(
     _user: dict = Depends(get_current_user),
 ):
     """插件 API 代理：子路径为 url_path（如 abc 或 foo/bar）。"""
-    return await _dispatch_plugin_api(plugin_id, subpath, request)
+    auth_info = await _get_plugin_auth_info(request, _user)
+    return await _dispatch_plugin_api(plugin_id, subpath, request, auth_info)
 
 
 @app.get("/api/pim/plugin_repository")

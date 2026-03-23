@@ -31,18 +31,21 @@ def _api_handler(url_path: str, params: dict[str, Any]) -> dict[str, Any]:
     method = params.get("method", "GET")
     query = params.get("query") or {}
     body = params.get("body")
+    auth = params.get("auth") or {}
 
     if url_path == "hello" and method == "GET":
         return {
             "ok": True,
             "message": "hello from webui_plugin_page_example",
             "query": query,
+            "auth": auth,
         }
 
     if url_path == "echo" and method == "POST":
         return {
             "ok": True,
             "echo": body,
+            "auth": auth,
         }
 
     if url_path == "status" and method == "GET":
@@ -50,7 +53,18 @@ def _api_handler(url_path: str, params: dict[str, Any]) -> dict[str, Any]:
             "ok": True,
             "plugin_id": PLUGIN_ID,
             "html_exists": _HTML_FILE.is_file(),
+            "auth": auth,
         }
+
+    if url_path == "admin_only" and method == "GET":
+        if not isinstance(auth, dict) or not auth.get("is_super_admin", False):
+            return {
+                "ok": False,
+                "error": "super admin required",
+                "auth": auth,
+            }
+
+        return {"ok": True, "message": "super admin verified", "auth": auth}
 
     if url_path == "upload" and method == "POST":
         if not isinstance(body, dict):
@@ -70,6 +84,7 @@ def _api_handler(url_path: str, params: dict[str, Any]) -> dict[str, Any]:
             "content_type": raw.get("content_type"),
             "size": raw.get("size"),
             "sha256": digest,
+            "auth": auth,
         }
 
     return {

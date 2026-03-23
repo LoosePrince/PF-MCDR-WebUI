@@ -565,6 +565,12 @@
 - `params` 固定包含：
   - `method`：HTTP 方法字符串
   - `query`：查询参数，`dict[str, str | list[str]]`（同名多值为列表）
+  - `auth`：框架注入的鉴权上下文（仅用于插件 `api_handler` 内部权限判断）。结构示例：
+    - `username`：当前登录用户名（子服面板 token 模式下为 `__panel__`）
+    - `auth_via`：认证来源（`cookie` 或 `panel_token`）
+    - `is_admin`：是否通过 `get_current_admin` 策略
+    - `is_super_admin`：是否为配置的 `super_admin_account`
+    - `is_panel`：是否为面板 token 来源
   - `body`：请求体；无体或未解析时为 `None`。支持：
     - `application/json`
     - `application/x-www-form-urlencoded` / `multipart/form-data`（纯文本字段为字符串）

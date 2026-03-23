@@ -195,6 +195,7 @@
       <button type="button" id="btn-hello">GET hello</button>
       <button type="button" id="btn-echo">POST echo</button>
       <button type="button" id="btn-status">GET status</button>
+      <button type="button" id="btn-admin-only">GET admin_only</button>
     </p>
   </div>
   <div class="card">
@@ -226,11 +227,13 @@
         btnHello: 'GET hello',
         btnEcho: 'POST echo',
         btnStatus: 'GET status',
+        btnAdminOnly: 'GET admin_only',
         prePlaceholder: '（点击按钮）',
         err: '错误',
         labelHello: 'GET hello → ',
         labelEcho: 'POST echo → ',
         labelStatus: 'GET status → ',
+        labelAdminOnly: 'GET admin_only → ',
         h2Upload: '文件上传',
         uploadHint: '选择文件后上传，服务端返回文件名、大小与 SHA256（不保存文件）。',
         btnUpload: '上传',
@@ -249,11 +252,13 @@
         btnHello: 'GET hello',
         btnEcho: 'POST echo',
         btnStatus: 'GET status',
+        btnAdminOnly: 'GET admin_only',
         prePlaceholder: '(Click a button)',
         err: 'Error',
         labelHello: 'GET hello → ',
         labelEcho: 'POST echo → ',
         labelStatus: 'GET status → ',
+        labelAdminOnly: 'GET admin_only → ',
         h2Upload: 'File upload',
         uploadHint: 'Pick a file and upload; the server returns name, size, and SHA256 (nothing is stored).',
         btnUpload: 'Upload',
@@ -311,10 +316,12 @@
       var b2 = document.getElementById('btn-echo');
       var b3 = document.getElementById('btn-status');
       var b4 = document.getElementById('btn-upload');
+      var b5 = document.getElementById('btn-admin-only');
       if (b1) b1.textContent = t.btnHello;
       if (b2) b2.textContent = t.btnEcho;
       if (b3) b3.textContent = t.btnStatus;
       if (b4) b4.textContent = t.btnUpload;
+      if (b5) b5.textContent = t.btnAdminOnly;
 
       var h2u = document.getElementById('el-h2-upload');
       if (h2u) h2u.textContent = t.h2Upload;
@@ -405,6 +412,18 @@
         var text = await r.text();
         try { text = JSON.parse(text); } catch (e) { }
         await show(t.labelStatus + r.status, text);
+      } catch (e) {
+        await show(t.err, String(e));
+      }
+    };
+
+    document.getElementById('btn-admin-only').onclick = async function () {
+      var t = window.__demoI18n || I18N['zh-CN'];
+      try {
+        var r = await fetch(pluginBase() + '/admin_only', { credentials: 'include' });
+        var text = await r.text();
+        try { text = JSON.parse(text); } catch (e) { }
+        await show(t.labelAdminOnly + r.status, text);
       } catch (e) {
         await show(t.err, String(e));
       }

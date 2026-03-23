@@ -4,7 +4,7 @@
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, TypedDict
+from typing import Any, Callable, Dict, NotRequired, Optional, TypedDict
 
 
 @dataclass
@@ -22,6 +22,7 @@ class PluginApiHandlerParams(TypedDict):
     method: str
     query: dict[str, str | list[str]]
     body: Any | None  # multipart 文件字段见 WebApi「插件后端 API 代理」
+    auth: NotRequired[dict[str, Any]] # 由 WebUI 框架注入的鉴权信息，供第三方插件做权限校验
 
 # FastAPI 应用实例，由 web_server.init_app 注入，供 PIM 等模块调度异步任务
 app: Optional[Any] = None
