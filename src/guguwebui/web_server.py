@@ -740,7 +740,11 @@ async def get_registered_web_pages(
 ):
     """获取所有已注册的插件网页列表"""
     pages = [
-        {"id": pid, "path": entry.html_path}
+        {
+            "id": pid,
+            "path": entry.html_path,
+            "name": getattr(entry, "name", None),
+        }
         for pid, entry in gugu_state.REGISTERED_PLUGIN_PAGES.items()
     ]
     return JSONResponse({"status": "success", "pages": pages})

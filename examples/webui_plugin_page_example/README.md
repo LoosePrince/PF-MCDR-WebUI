@@ -17,7 +17,7 @@
 ## 使用
 
 1. 浏览器登录 WebUI。
-2. 左侧边栏展开 **插件网页**，应出现 **webui_plugin_page_example**。
+2. 左侧边栏展开 **插件网页**，应出现 **注册的友好名称（未注册则回退为 webui_plugin_page_example）**。
 3. 打开后页面内可点击按钮，调用本插件注册的 API（`hello`、`echo` 等）。
 
 ## 说明

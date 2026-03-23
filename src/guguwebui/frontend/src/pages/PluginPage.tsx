@@ -20,6 +20,7 @@ const PluginPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [htmlContent, setHtmlContent] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string>('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const iframeResizeObserverRef = useRef<ResizeObserver | null>(null);
   const [iframeHeightPx, setIframeHeightPx] = useState(320);
@@ -66,13 +67,15 @@ const PluginPage: React.FC = () => {
         // 先获取注册的页面信息
         const pagesResp = await api.get('/plugins/web_pages');
         const pages = pagesResp.data.pages || [];
-        const pageInfo = (pages as Array<{ id?: unknown; path?: unknown }>).find((p) => p.id === pluginId);
+        const pageInfo = (pages as Array<{ id?: unknown; path?: unknown; name?: unknown }>).find((p) => p.id === pluginId);
 
         if (!pageInfo) {
           setError(t('plugins.msg.page_not_found'));
           setLoading(false);
           return;
         }
+
+        setDisplayName(String((pageInfo as { name?: unknown }).name || pluginId));
 
         // 加载 HTML 内容
         const resp = await api.get(`/load_config?path=${encodeURIComponent(String(pageInfo.path || ''))}&type=auto`);
@@ -123,7 +126,7 @@ const PluginPage: React.FC = () => {
         </div>
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white uppercase">
-            {pluginId}
+            {displayName || pluginId}
           </h1>
           <p className="text-xs text-slate-500">{t('plugins.config_modal.web_view')}</p>
         </div>

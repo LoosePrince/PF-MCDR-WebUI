@@ -53,7 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024)
-  const [pluginPages, setPluginPages] = useState<{ id: string; path: string }[]>([])
+  const [pluginPages, setPluginPages] = useState<{ id: string; path: string; name?: string | null }[]>([])
   const [isPluginPagesOpen, setIsPluginPagesOpen] = useState(false)
   const [serverStatus, setServerStatus] = useState<ServerStatusType>('loading')
   const [servers, setServers] = useState<TargetServer[]>([{ id: 'local', name: 'local', enabled: true, isLocal: true }])
@@ -265,6 +265,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       {pluginPages.map((page) => {
                         const path = `/plugin-page/${page.id}`
                         const isActive = location.pathname === path
+                            const label = page.name && String(page.name).trim() ? String(page.name) : page.id
                         return (
                           <Link
                             key={page.id}
@@ -275,7 +276,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                               }`}
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-current opacity-40" />
-                            <span className="truncate uppercase text-xs font-mono">{page.id}</span>
+                                <span className="truncate text-xs font-mono">{label}</span>
                           </Link>
                         )
                       })}

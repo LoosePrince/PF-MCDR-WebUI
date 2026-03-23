@@ -12,6 +12,7 @@ class PluginPageEntry:
     """插件在 WebUI 中注册的页面与可选 API 处理器。"""
 
     html_path: str
+    name: Optional[str] = None
     api_handler: Optional[Callable[..., Any]] = None
     upload_max_bytes: Optional[int] = None
 

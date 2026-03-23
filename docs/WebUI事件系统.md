@@ -144,6 +144,7 @@ def register_plugin_page(
     plugin_id: str,
     html_path: str,
     *,
+    name: Optional[str] = None,
     api_handler: Optional[Callable[..., Any]] = None,
     upload_max_bytes: Optional[int] = None,
 ) -> None
@@ -151,12 +152,14 @@ def register_plugin_page(
 
 - **`plugin_id`**：侧边栏与前端路由 `/plugin-page/<plugin_id>` 使用的标识，建议与 `mcdreforged.plugin.json` 的 `id` 一致。
 - **`html_path`**：HTML 文件的**绝对路径**，或相对 **`config` 目录**的路径（见 `guguwebui.__init__` 文档字符串）。实际打开时会经 `SafePath.get_safe_path` 与 `get_base_dirs` 校验，禁止越权路径。
+- **`name`**：可选。用于侧边栏与页面标题的友好显示名称；不传则回退为 `plugin_id`。
 - **`api_handler`**：可选。已登录用户访问 `/api/plugin/{plugin_id}/...` 时由 WebUI 转发，签名与返回值见 **`docs/WebApi.md`**。
 - **`upload_max_bytes`**：可选。该插件单文件上传上限（字节）；不传则使用全局默认值（当前为 1 MiB）。
 
 前端行为简述：
 
 1. `GET /api/plugins/web_pages` 拉取 `{ id, path }` 列表（需登录）。
+   - 若注册了 `name`，则响应包含 `name` 字段，侧边栏优先显示 `name`，否则回退显示 `id`。
 2. 侧栏链接打开 `/plugin-page/:pluginId`（React 路由）。
 3. 页面内再请求 `/api/load_config?path=<注册的 path>&type=auto`；若同目录存在 **`main.json`**，且其中 **以当前文件名为 key** 映射到同目录下另一 `.html`，则加载映射目标文件；否则直接读取该路径对应 HTML。
 
