@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
-import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Send, 
-  Users, 
-  Loader2,
-  RefreshCw,
+import { AnimatePresence, motion } from 'framer-motion'
+import {
   ChevronLeft,
-  UserX,
-  MessageSquare
+  Loader2,
+  MessageSquare,
+  RefreshCw,
+  Send,
+  Users,
+  UserX
 } from 'lucide-react'
-import api from '../utils/api'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
+import api from '../utils/api'
 import { parseRText } from '../utils/rtextParser'
 
 interface ChatMessage {
@@ -22,7 +22,7 @@ interface ChatMessage {
   timestamp: number
   is_plugin: boolean
   is_rtext: boolean
-  rtext_data?: any
+  rtext_data?: unknown
   message_source: string
 }
 
@@ -41,7 +41,7 @@ interface OnlineStatus {
 const Chat: React.FC = () => {
   const { t } = useTranslation()
   const { username } = useAuth()
-  
+
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const chatMessagesRef = useRef<ChatMessage[]>([])
@@ -51,12 +51,12 @@ const Chat: React.FC = () => {
   const [chatMessage, setChatMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [lastSendAtMs, setLastSendAtMs] = useState(0)
-  
+
   // Server state
   const [serverStatus, setServerStatus] = useState<ServerStatus>({ status: 'unknown', version: '', players: '0/0' })
   const [onlineStatus, setOnlineStatus] = useState<OnlineStatus>({ web: [], game: [], bot: [] })
   const [showOnlinePanel, setShowOnlinePanel] = useState(false)
-  
+
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const statusFetchingRef = useRef(false)
   const newMessagesFetchingRef = useRef(false)
@@ -87,7 +87,7 @@ const Chat: React.FC = () => {
 
     const container = chatContainerRef.current
     const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100
-    
+
     // Initial load or new messages when already at bottom
     if (isAtBottom || chatMessages.length <= 50) {
       scrollToBottom(chatMessages.length <= 50 ? 'auto' : 'smooth')
@@ -102,7 +102,7 @@ const Chat: React.FC = () => {
         const msgs = resp.data.messages || []
         // Backend returns newest first [N, ..., O], we want [O, ..., N] for rendering
         setChatMessages([...msgs].reverse())
-        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: any) => m.id)) > 1)
+        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
       }
     } catch (e) {
       console.error('Failed to load messages', e)
@@ -119,8 +119,8 @@ const Chat: React.FC = () => {
     const currentMaxId = chatMessagesRef.current.length > 0 ? Math.max(...chatMessagesRef.current.map(m => m.id)) : 0
 
     try {
-      const resp = await api.post('/chat/get_new_messages', { 
-        after_id: currentMaxId, 
+      const resp = await api.post('/chat/get_new_messages', {
+        after_id: currentMaxId,
         player_id: username
       })
       if (resp.data.status === 'success') {
@@ -154,7 +154,9 @@ const Chat: React.FC = () => {
         version: resp.data.version || '',
         players: resp.data.players || '0/0'
       })
-    } catch (e) {}
+    } catch (e) {
+      // ignore status polling error
+    }
     finally {
       statusFetchingRef.current = false
     }
@@ -176,10 +178,10 @@ const Chat: React.FC = () => {
   const loadChatMessages = async (limit = 50, beforeId = 0) => {
     if (isLoadingMessages) return
     setIsLoadingMessages(true)
-    
+
     // Save current scroll height to maintain position
     const scrollHeight = chatContainerRef.current?.scrollHeight || 0
-    
+
     try {
       const resp = await api.post('/chat/get_messages', { limit, before_id: beforeId })
       if (resp.data.status === 'success') {
@@ -187,8 +189,8 @@ const Chat: React.FC = () => {
         // msgs are newer -> older history. For state [Old -> New], prepend them reversed.
         const historicalMsgs = [...msgs].reverse()
         setChatMessages(prev => [...historicalMsgs, ...prev])
-        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: any) => m.id)) > 1)
-        
+        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
+
         // After DOM update, restore scroll position
         requestAnimationFrame(() => {
           if (chatContainerRef.current) {
@@ -207,7 +209,7 @@ const Chat: React.FC = () => {
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (!chatMessage.trim() || isSending) return
-    
+
     const now = Date.now()
     if (now - lastSendAtMs < 2000) return
 
@@ -217,7 +219,7 @@ const Chat: React.FC = () => {
         message: chatMessage.trim(),
         player_id: username
       })
-      
+
       if (resp.data.status === 'success') {
         setChatMessage('')
         setLastSendAtMs(Date.now())
@@ -273,7 +275,7 @@ const Chat: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
         <div className="flex items-center gap-3">
@@ -293,8 +295,8 @@ const Chat: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setShowOnlinePanel(!showOnlinePanel)} 
+          <button
+            onClick={() => setShowOnlinePanel(!showOnlinePanel)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${showOnlinePanel ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'}`}
           >
             <Users size={18} />
@@ -306,12 +308,12 @@ const Chat: React.FC = () => {
       <div className="flex-1 flex overflow-hidden gap-4">
         {/* Chat Area */}
         <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div 
+          <div
             ref={chatContainerRef}
             className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-slate-950"
           >
             {hasMoreMessages && (
-              <button 
+              <button
                 onClick={() => loadChatMessages(50, Math.min(...chatMessages.map(m => m.id)))}
                 disabled={isLoadingMessages}
                 className="w-full py-2 text-xs font-bold text-slate-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 mb-4"
@@ -361,9 +363,9 @@ const Chat: React.FC = () => {
         {/* Online List Panel */}
         <AnimatePresence>
           {showOnlinePanel && (
-            <motion.div 
-              initial={{ x: 20, opacity: 0 }} 
-              animate={{ x: 0, opacity: 1 }} 
+            <motion.div
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
               exit={{ x: 20, opacity: 0 }}
               className="w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 
                 rounded-2xl shadow-sm flex flex-col shrink-0 overflow-hidden"
@@ -413,13 +415,12 @@ const PlayerItem: React.FC<{ name: string; status: 'web' | 'game' | 'bot'; onKic
   return (
     <div className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
       <div className="flex items-center gap-2 min-w-0">
-        <div className={`w-2 h-2 rounded-full shrink-0 ${
-          status === 'game' ? 'bg-emerald-500' : status === 'web' ? 'bg-blue-500' : 'bg-purple-500'
-        }`} />
+        <div className={`w-2 h-2 rounded-full shrink-0 ${status === 'game' ? 'bg-emerald-500' : status === 'web' ? 'bg-blue-500' : 'bg-purple-500'
+          }`} />
         <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{name}</span>
       </div>
       {onKick && (
-        <button 
+        <button
           onClick={(e) => { e.stopPropagation(); onKick(); }}
           className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
           title="Kick"

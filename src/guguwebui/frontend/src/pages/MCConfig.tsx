@@ -18,6 +18,7 @@ import {
   X,
   Zap
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NiceSelect } from '../components/NiceSelect';
@@ -27,7 +28,7 @@ import api, { isCancel } from '../utils/api';
 interface Category {
   id: string;
   name: string;
-  icon: any;
+  icon: LucideIcon;
   keys: string[];
 }
 
@@ -41,8 +42,8 @@ const MCConfig: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [configData, setConfigData] = useState<Record<string, any>>({});
-  const [translations, setTranslations] = useState<Record<string, [string, string]>>({});
+  const [configData, setConfigData] = useState<Record<string, unknown>>({});
+  const [translations, setTranslations] = useState<Record<string, string[]>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [serverPath, setServerPath] = useState('server/');
@@ -110,7 +111,7 @@ const MCConfig: React.FC = () => {
       const rawData = configResp.data;
 
       // Convert string boolean to real boolean
-      const processedData: Record<string, any> = {};
+      const processedData: Record<string, unknown> = {};
       for (const key in rawData) {
         if (booleanKeys.includes(key)) {
           processedData[key] = (rawData[key] === true || rawData[key] === 'true');
@@ -121,27 +122,28 @@ const MCConfig: React.FC = () => {
       setConfigData(processedData);
 
       // 3. Load translations from bundled server_lang.json
-      const langData = serverLang as any;
+      const langData = serverLang as unknown as Record<string, Record<string, string[]>>;
       const currentLang = i18n.language.startsWith('zh') ? 'zh_CN' : 'en_US';
       const candidates = [currentLang, currentLang.replace('-', '_'), currentLang.replace('_', '-').toLowerCase()];
-      let picked: Record<string, [string, string]> | null = null;
+      let picked: Record<string, string[]> | null = null;
       for (const c of candidates) {
-        if ((langData as any)[c]) { picked = (langData as any)[c]; break; }
+        if (langData[c]) { picked = langData[c]; break; }
       }
       if (!picked) {
-        const want = (i18n.language.startsWith('zh') ? 'zh_cn' : 'en_us').replace(/[\-_]/g, '').toLowerCase();
-        for (const k of Object.keys(langData as any)) {
-          if (String(k).replace(/[\-_]/g, '').toLowerCase() === want) {
-            picked = (langData as any)[k];
+        const want = (i18n.language.startsWith('zh') ? 'zh_cn' : 'en_us').replace(/[-_]/g, '').toLowerCase();
+        for (const k of Object.keys(langData)) {
+          if (String(k).replace(/[-_]/g, '').toLowerCase() === want) {
+            picked = langData[k];
             break;
           }
         }
       }
-      setTranslations(picked || (langData as any).zh_CN || (langData as any).zh_cn || {});
+      setTranslations(picked || langData.zh_CN || langData.zh_cn || {});
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string };
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to init MC config:', error);
@@ -179,7 +181,7 @@ const MCConfig: React.FC = () => {
       } else {
         notify(t('page.mc.msg.save_failed_prefix') + (resp.data.message || ''), 'error');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       notify(t('page.mc.msg.save_error'), 'error');
     } finally {
       setSaving(false);
@@ -371,7 +373,7 @@ const MCConfig: React.FC = () => {
                       ) : (
                         <input
                           type="text"
-                          value={configData[key] || ''}
+                          value={String(configData[key] ?? '')}
                           onChange={(e) => setConfigData({ ...configData, [key]: e.target.value })}
                           className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50"
                         />

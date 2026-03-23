@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import React, { useState } from 'react';
 
 export interface NiceSelectOption {
   value: string;
@@ -47,11 +47,10 @@ export const NiceSelect: React.FC<NiceSelectProps> = ({ value, onChange, options
                 onChange(opt.value);
                 setOpen(false);
               }}
-              className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                opt.value === value
+              className={`w-full text-left px-4 py-2 text-sm transition-colors ${opt.value === value
                   ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold'
                   : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}
+                }`}
             >
               {opt.label}
             </button>

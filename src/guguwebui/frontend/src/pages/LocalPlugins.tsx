@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { VersionSelectModal } from '../components/VersionSelectModal';
 import api, { isCancel } from '../utils/api';
@@ -59,10 +60,20 @@ interface TaskStatus {
   plugin_id?: string;
 }
 
+type GenericObject = Record<string, unknown>;
+type TranslationTree = Record<string, unknown>;
+type VersionItem = {
+  version: string;
+  installed?: boolean;
+  prerelease?: boolean;
+  date?: string;
+  downloads?: number;
+};
+
 // 懒加载 CodeMirror 编辑器组件
-const CodeMirrorEditor: React.FC<{ value: string; onChange: (value: string) => void; theme: string }> = ({ value, onChange, theme }) => {
-  const [CodeMirror, setCodeMirror] = useState<any>(null);
-  const [jsonLang, setJsonLang] = useState<any>(null);
+const CodeMirrorEditor: React.FC<{ value: string; onChange: (value: string) => void; theme: 'light' | 'dark' }> = ({ value, onChange, theme }) => {
+  const [CodeMirror, setCodeMirror] = useState<unknown>(null);
+  const [jsonLang, setJsonLang] = useState<(() => unknown) | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,12 +95,20 @@ const CodeMirrorEditor: React.FC<{ value: string; onChange: (value: string) => v
     );
   }
 
+  const CodeMirrorComp = CodeMirror as React.ComponentType<{
+    value: string;
+    height?: string;
+    extensions?: unknown[];
+    theme?: string;
+    onChange?: (value: string) => void;
+  }>;
+
   return (
-    <CodeMirror
+    <CodeMirrorComp
       value={value}
       height="400px"
       extensions={[jsonLang()]}
-      theme={theme as any}
+      theme={theme}
       onChange={onChange}
     />
   );
@@ -130,12 +149,12 @@ const LocalPlugins: React.FC = () => {
   const [configContent, setConfigContent] = useState('');
   const [editorMode, setEditorMode] = useState<'code' | 'form' | 'web'>('code');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [configData, setConfigData] = useState<any>(null);
-  const [configTranslations, setConfigTranslations] = useState<any>(null);
+  const [configData, setConfigData] = useState<GenericObject | null>(null);
+  const [configTranslations, setConfigTranslations] = useState<TranslationTree | null>(null);
 
   // Version modal state
   const [showVersionModal, setShowVersionModal] = useState(false);
-  const [availableVersions, setAvailableVersions] = useState<any[]>([]);
+  const [availableVersions, setAvailableVersions] = useState<VersionItem[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
 
   const fetchPlugins = useCallback(async (signal?: AbortSignal) => {
@@ -159,9 +178,10 @@ const LocalPlugins: React.FC = () => {
             const is_official = typeof repo === 'object' && typeof repo.is_official === 'boolean' ? repo.is_official : false;
             return { ...p, repository: { name, url, is_official } };
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
+          const err = e as { name?: string; code?: string };
           // 忽略取消的请求错误和repo获取错误
-          if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+          if (isCancel(e) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
             throw e; // 重新抛出取消错误，让外层处理
           }
           // Ignore repo fetch errors
@@ -170,9 +190,10 @@ const LocalPlugins: React.FC = () => {
       }));
 
       setPlugins(pluginsWithRepo);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string };
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to fetch plugins:', error);
@@ -272,7 +293,7 @@ const LocalPlugins: React.FC = () => {
           : t('plugins.msg.disable_failed_prefix', { message: resp.data.message }),
           'error');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       notify(t('plugins.msg.enable_failed'), 'error');
     }
   };
@@ -442,7 +463,7 @@ const LocalPlugins: React.FC = () => {
       } else {
         notify(t('plugins.msg.save_failed_prefix', { message: resp.data.message }), 'error');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       notify(t('plugins.msg.save_error'), 'error');
     } finally {
       setIsSavingConfig(false);
@@ -472,10 +493,10 @@ const LocalPlugins: React.FC = () => {
       const resp = await api.get(`/pim/plugin_versions?plugin_id=${plugin.id}`);
       if (resp.data.success) {
         // 映射后端字段到前端字段，并格式化日期
-        const versions = (resp.data.versions || []).map((v: any) => ({
+        const versions = (resp.data.versions || []).map((v: Record<string, unknown>) => ({
           ...v,
-          date: formatDate(v.release_date),
-          downloads: v.download_count || 0
+          date: formatDate(typeof v.release_date === 'string' ? v.release_date : undefined),
+          downloads: typeof v.download_count === 'number' ? v.download_count : 0
         }));
         setAvailableVersions(versions);
       } else {
@@ -740,7 +761,7 @@ const LocalPlugins: React.FC = () => {
                       <ConfigForm
                         data={configData}
                         onChange={setConfigData}
-                        translations={configTranslations}
+                        translations={configTranslations ?? undefined}
                         lang={i18n.language}
                       />
                     ) : (
@@ -873,7 +894,7 @@ const LocalPlugins: React.FC = () => {
 
 const PluginCard: React.FC<{
   plugin: PluginMetadata;
-  t: any;
+  t: TFunction;
   onToggle: (p: PluginMetadata) => void;
   onReload: (p: PluginMetadata) => void;
   onUninstall: (p: PluginMetadata) => void;
@@ -1085,9 +1106,9 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
 };
 
 const ConfigForm: React.FC<{
-  data: any;
-  onChange: (data: any) => void;
-  translations?: any;
+  data: GenericObject;
+  onChange: (data: GenericObject) => void;
+  translations?: TranslationTree;
   parentPath?: string;
   lang: string;
 }> = ({ data, onChange, translations, parentPath = '', lang }) => {
@@ -1100,30 +1121,31 @@ const ConfigForm: React.FC<{
     const currentLang = lang; // e.g. "zh-CN"
     const currentLangAlt = lang.replace('-', '_').toLowerCase(); // e.g. "zh_cn"
 
-    const transMap = translations.translations || {};
+    const transMap = ((translations as { translations?: Record<string, unknown> }).translations) || {};
     // Try multiple lang key variations
-    const langPick = transMap[currentLang] ||
-      transMap[currentLangAlt] ||
-      transMap['zh-CN'] ||
-      transMap['zh_cn'] ||
-      transMap['en-US'] ||
-      transMap['en_us'] ||
-      Object.values(transMap)[0] || {};
+    const langPick = (transMap[currentLang] as Record<string, unknown> | undefined) ||
+      (transMap[currentLangAlt] as Record<string, unknown> | undefined) ||
+      (transMap['zh-CN'] as Record<string, unknown> | undefined) ||
+      (transMap['zh_cn'] as Record<string, unknown> | undefined) ||
+      (transMap['en-US'] as Record<string, unknown> | undefined) ||
+      (transMap['en_us'] as Record<string, unknown> | undefined) ||
+      (Object.values(transMap)[0] as Record<string, unknown> | undefined) || {};
 
     // Split key path
     const parts = (parentPath ? `${parentPath}.${key}` : key).split('.').filter(Boolean);
-    let cursor = langPick;
+    let cursor: Record<string, unknown> = langPick;
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
-      if (cursor && cursor[part]) {
+      const node = cursor[part] as Record<string, unknown> | undefined;
+      if (node) {
         if (i === parts.length - 1) {
           return {
-            name: cursor[part].name || key,
-            desc: cursor[part].desc || ''
+            name: typeof node.name === 'string' ? node.name : key,
+            desc: typeof node.desc === 'string' ? node.desc : ''
           };
         }
-        cursor = cursor[part].children;
+        cursor = (node.children as Record<string, unknown> | undefined) || {};
       } else {
         break;
       }
@@ -1132,13 +1154,13 @@ const ConfigForm: React.FC<{
     return { name: key, desc: '' };
   };
 
-  const handleChange = (key: string, value: any) => {
+  const handleChange = (key: string, value: unknown) => {
     onChange({ ...data, [key]: value });
   };
 
   return (
     <div className="space-y-4">
-      {Object.entries(data).map(([key, value]: [string, any]) => {
+      {Object.entries(data).map(([key, value]: [string, unknown]) => {
         const { name, desc } = getTranslation(key);
 
         if (typeof value === 'boolean') {
@@ -1178,7 +1200,7 @@ const ConfigForm: React.FC<{
               {desc && <p className="text-[10px] text-slate-400 ml-1">{desc}</p>}
               <div className="pl-4 border-l-2 border-slate-100 dark:border-slate-800 ml-1">
                 <ConfigForm
-                  data={value}
+                  data={value as GenericObject}
                   onChange={(v) => handleChange(key, v)}
                   translations={translations}
                   parentPath={parentPath ? `${parentPath}.${key}` : key}

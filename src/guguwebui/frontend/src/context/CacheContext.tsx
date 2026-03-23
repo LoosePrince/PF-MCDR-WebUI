@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef, useCallback, ReactNode, useMemo } from 'react'
+import React, { createContext, ReactNode, useCallback, useContext, useMemo, useRef } from 'react'
 
 interface CacheItem<T> {
   data: T
@@ -16,7 +16,7 @@ interface CacheContextType {
 const CacheContext = createContext<CacheContextType | undefined>(undefined)
 
 export const CacheProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const cacheRef = useRef<Map<string, CacheItem<any>>>(new Map())
+  const cacheRef = useRef<Map<string, CacheItem<unknown>>>(new Map())
 
   const get = useCallback(<T,>(key: string): T | null => {
     const item = cacheRef.current.get(key)

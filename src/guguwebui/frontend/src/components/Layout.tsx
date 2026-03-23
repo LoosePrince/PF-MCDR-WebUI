@@ -505,16 +505,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Link
                 to="/settings"
                 className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-[3rem] ${location.pathname === '/settings'
-                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                  : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
                   }`}
                 title={t('nav.web_settings')}
               >
                 <Sliders className="w-5 h-5 shrink-0" />
                 <span
                   className={`text-[10px] leading-tight text-center max-w-[4rem] truncate ${location.pathname === '/settings'
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-slate-500 dark:text-slate-400'
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : 'text-slate-500 dark:text-slate-400'
                     }`}
                 >
                   {t('nav.topbar_settings_label')}
@@ -523,16 +523,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Link
                 to="/about"
                 className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors min-w-[3rem] ${location.pathname === '/about'
-                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                  : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
                   }`}
                 title={t('nav.about')}
               >
                 <Info className="w-5 h-5 shrink-0" />
                 <span
                   className={`text-[10px] leading-tight text-center max-w-[4rem] truncate ${location.pathname === '/about'
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-slate-500 dark:text-slate-400'
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : 'text-slate-500 dark:text-slate-400'
                     }`}
                 >
                   {t('nav.topbar_about_label')}

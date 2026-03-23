@@ -80,8 +80,8 @@ const Login: React.FC = () => {
                   key={opt}
                   onClick={() => setMode(opt)}
                   className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${mode === opt
-                      ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                      : 'text-slate-600 dark:text-slate-300'
+                    ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                    : 'text-slate-600 dark:text-slate-300'
                     }`}
                 >
                   {opt === 'light' && <Sun className="w-3.5 h-3.5" />}
@@ -123,8 +123,8 @@ const Login: React.FC = () => {
                   key={lang.code}
                   onClick={() => changeLanguage(lang.code)}
                   className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 ${i18n.language === lang.code
-                      ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                      : 'text-slate-600 dark:text-slate-300'
+                    ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                    : 'text-slate-600 dark:text-slate-300'
                     }`}
                 >
                   <span>{lang.label}</span>
@@ -195,8 +195,8 @@ const Login: React.FC = () => {
                   setError('')
                 }}
                 className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${loginMode === 'password'
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
               >
                 {t('login.password_login')}
@@ -208,8 +208,8 @@ const Login: React.FC = () => {
                   setError('')
                 }}
                 className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${loginMode === 'tempCode'
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
               >
                 {t('login.temp_code_login')}

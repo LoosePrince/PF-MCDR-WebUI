@@ -85,7 +85,7 @@ const Terminal: React.FC = () => {
   const [showAIModal, setShowAIModal] = useState(false)
   const [aiQuery, setAiQuery] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
-  const [aiChatHistory, setAiChatHistory] = useState<{ role: string, content: string }[]>([])
+  const [aiChatHistory, setAiChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
 
   // API Key Settings
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
@@ -244,9 +244,10 @@ const Terminal: React.FC = () => {
       const res = await api.get('/get_server_status', { signal })
       setServerStatus(res.data.status || 'offline')
       setServerVersion(res.data.version || '')
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { name?: string; code?: string };
       // 忽略取消的请求错误
-      if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+      if (isCancel(e) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return
       }
       setServerStatus('error')
@@ -260,9 +261,10 @@ const Terminal: React.FC = () => {
       const res = await api.get('/get_web_config', { signal })
       const config: AIConfig = res.data
       setHasApiKey(!!config.ai_api_key_configured)
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { name?: string; code?: string };
       // 忽略取消的请求错误
-      if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+      if (isCancel(e) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to check API key status', e)
@@ -280,9 +282,10 @@ const Terminal: React.FC = () => {
           lastLogCounter.current = newLogs[newLogs.length - 1].counter || 0
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { name?: string; code?: string };
       // 忽略取消的请求错误
-      if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+      if (isCancel(e) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return
       }
       showNote(t('page.terminal.msg.load_logs_failed'), 'error')
@@ -322,9 +325,10 @@ const Terminal: React.FC = () => {
           return prev
         })
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as { name?: string; code?: string };
       // 忽略取消的请求错误
-      if (isCancel(e) || e.name === 'AbortError' || e.code === 'ERR_CANCELED') {
+      if (isCancel(e) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return
       }
       console.error('Error fetching new logs', e)
@@ -490,7 +494,14 @@ const Terminal: React.FC = () => {
     const context = selectedText || logs.slice(-200).map(l => l.content).join('\n')
 
     try {
-      const payload: any = {
+      const payload: {
+        query: string;
+        system_prompt: string;
+        chat_history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+        api_url?: string;
+        api_key?: string;
+        model?: string;
+      } = {
         query: `${query}\n\nContext Logs:\n${context}`,
         system_prompt: t('page.terminal.msg.system_prompt'),
       }
@@ -508,23 +519,24 @@ const Terminal: React.FC = () => {
         const answer = res.data.choices?.[0]?.message?.content ?? res.data.answer ?? ''
         setAiChatHistory(prev => [
           ...prev,
-          { role: 'user', content: query },
-          { role: 'assistant', content: answer }
+          { role: 'user' as const, content: query },
+          { role: 'assistant' as const, content: answer }
         ].slice(-10))
       } else {
         const errorMsg = `Error: ${res.data.message}`
         setAiChatHistory(prev => [
           ...prev,
-          { role: 'user', content: query },
-          { role: 'assistant', content: errorMsg }
+          { role: 'user' as const, content: query },
+          { role: 'assistant' as const, content: errorMsg }
         ].slice(-10))
       }
-    } catch (e: any) {
-      const errorMsg = `Request Failed: ${e.message}`
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      const errorMsg = `Request Failed: ${err.message || 'Unknown error'}`
       setAiChatHistory(prev => [
         ...prev,
-        { role: 'user', content: query },
-        { role: 'assistant', content: errorMsg }
+        { role: 'user' as const, content: query },
+        { role: 'assistant' as const, content: errorMsg }
       ].slice(-10))
     } finally {
       setAiLoading(false)

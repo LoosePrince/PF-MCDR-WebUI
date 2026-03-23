@@ -16,6 +16,7 @@ import {
   X,
   Zap
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NiceSelect } from '../components/NiceSelect';
@@ -28,13 +29,43 @@ interface RconConfig {
   rcon_password: string;
 }
 
+interface MCDRConfigData extends Record<string, unknown> {
+  language?: string;
+  working_directory?: string;
+  start_command?: string;
+  handler?: string;
+  encoding?: string;
+  decoding?: string;
+  plugin_directories?: string[];
+  check_update?: boolean;
+  advanced_console?: boolean;
+  disable_console_color?: boolean;
+  disable_console_thread?: boolean;
+  watchdog_threshold?: number;
+  handler_detection?: boolean;
+  catalogue_meta_cache_ttl?: number;
+  catalogue_meta_fetch_timeout?: number;
+  catalogue_meta_url?: string;
+  plugin_download_timeout?: number;
+  telemetry?: boolean;
+  http_proxy?: string;
+  https_proxy?: string;
+  rcon?: {
+    enable?: boolean;
+    address?: string;
+    port?: number;
+    password?: string;
+  };
+  debug?: Record<string, boolean>;
+}
+
 const MCDRConfig: React.FC = () => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'config' | 'permission'>('config');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [configData, setConfigData] = useState<any>({});
-  const [permissionData, setPermissionData] = useState<any>({});
+  const [configData, setConfigData] = useState<MCDRConfigData>({});
+  const [permissionData, setPermissionData] = useState<Record<string, string[]>>({});
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState('');
   const [notificationType, setNotificationType] = useState<'success' | 'error'>('success');
@@ -73,15 +104,16 @@ const MCDRConfig: React.FC = () => {
         api.get('/load_config?path=permission.yml', { signal }),
         api.get('/get_rcon_status', { signal }).catch(() => ({ data: { rcon_enabled: false, rcon_connected: false } }))
       ]);
-      setConfigData(configResp.data);
-      setPermissionData(permResp.data);
+      setConfigData(configResp.data as MCDRConfigData);
+      setPermissionData(permResp.data as Record<string, string[]>);
       setRconStatus({
         rcon_enabled: rconResp.data?.rcon_enabled ?? false,
         rcon_connected: rconResp.data?.rcon_connected ?? false,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string };
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return;
       }
       console.error('Failed to load MCDR config:', error);
@@ -100,7 +132,7 @@ const MCDRConfig: React.FC = () => {
 
   const handleSave = async (file: 'config.yml' | 'permission.yml') => {
     setSaving(true);
-    const data = file === 'config.yml' ? configData : permissionData;
+      const data = file === 'config.yml' ? configData : permissionData;
     try {
       const resp = await api.post('/save_config', {
         file_path: file,
@@ -111,8 +143,9 @@ const MCDRConfig: React.FC = () => {
       } else {
         notify(t('page.mcdr.msg.save_failed_prefix') + (resp.data.message || ''), 'error');
       }
-    } catch (error: any) {
-      notify(t('page.mcdr.msg.save_error_prefix') + (error.message || ''), 'error');
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      notify(t('page.mcdr.msg.save_error_prefix') + (err.message || ''), 'error');
     } finally {
       setSaving(false);
     }
@@ -130,7 +163,7 @@ const MCDRConfig: React.FC = () => {
           api.get('/load_config?path=config.yml'),
           api.get('/get_rcon_status'),
         ]);
-        setConfigData(configResp.data);
+        setConfigData(configResp.data as MCDRConfigData);
         setRconStatus({
           rcon_enabled: rconResp.data?.rcon_enabled ?? false,
           rcon_connected: rconResp.data?.rcon_connected ?? false,
@@ -163,13 +196,16 @@ const MCDRConfig: React.FC = () => {
     }
   };
 
-  const updateConfig = (path: string, value: any) => {
-    const newData = { ...configData };
+  const updateConfig = (path: string, value: unknown) => {
+    const newData: Record<string, unknown> = { ...configData };
     const keys = path.split('.');
-    let current = newData;
+    let current: Record<string, unknown> = newData;
     for (let i = 0; i < keys.length - 1; i++) {
-      if (!current[keys[i]]) current[keys[i]] = {};
-      current = current[keys[i]];
+      const next = current[keys[i]];
+      if (!next || typeof next !== 'object' || Array.isArray(next)) {
+        current[keys[i]] = {};
+      }
+      current = current[keys[i]] as Record<string, unknown>;
     }
     current[keys[keys.length - 1]] = value;
     setConfigData(newData);
@@ -179,7 +215,7 @@ const MCDRConfig: React.FC = () => {
     const trimmed = newPlayerName.trim();
     if (!trimmed) return;
 
-    setPermissionData((prev: any) => {
+    setPermissionData((prev) => {
       const currentLevel: string[] = Array.isArray(prev?.[level]) ? prev[level] : [];
       if (currentLevel.includes(trimmed)) return prev;
       return {
@@ -193,7 +229,7 @@ const MCDRConfig: React.FC = () => {
   };
 
   const removePlayer = (level: string, index: number) => {
-    setPermissionData((prev: any) => {
+    setPermissionData((prev) => {
       const currentLevel: string[] = Array.isArray(prev?.[level]) ? prev[level] : [];
       return {
         ...prev,
@@ -202,7 +238,7 @@ const MCDRConfig: React.FC = () => {
     });
   };
 
-  const TabButton = ({ id, icon: Icon, label }: { id: typeof activeTab, icon: any, label: string }) => (
+  const TabButton = ({ id, icon: Icon, label }: { id: typeof activeTab, icon: LucideIcon, label: string }) => (
     <button
       onClick={() => setActiveTab(id)}
       className={`flex items-center space-x-2 px-6 py-3 rounded-xl transition-all duration-200 ${activeTab === id
@@ -359,7 +395,7 @@ const MCDRConfig: React.FC = () => {
                             />
                             <button
                               onClick={() => {
-                                const newList = (configData.plugin_directories || ['plugins']).filter((_: any, i: number) => i !== idx);
+                                const newList = (configData.plugin_directories || ['plugins']).filter((_: string, i: number) => i !== idx);
                                 updateConfig('plugin_directories', newList);
                               }}
                               className="p-2 text-slate-400 hover:text-red-500 transition-colors"
@@ -844,7 +880,7 @@ const MCDRConfig: React.FC = () => {
 };
 
 // Sub-components
-const ConfigSection: React.FC<{ title: string; icon: any; children: React.ReactNode }> = ({ title, icon: Icon, children }) => (
+const ConfigSection: React.FC<{ title: string; icon: LucideIcon; children: React.ReactNode }> = ({ title, icon: Icon, children }) => (
   <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
     <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 bg-slate-50/50 dark:bg-slate-900/50">
       <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg">

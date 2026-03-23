@@ -66,10 +66,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         return { success: false, message: response.data.message }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } }
       return {
         success: false,
-        message: error.response?.data?.message || undefined,
+        message: err.response?.data?.message || undefined,
       }
     }
   }
@@ -93,10 +94,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         return { success: false, message: response.data.message }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } }
       return {
         success: false,
-        message: error.response?.data?.message || undefined,
+        message: err.response?.data?.message || undefined,
       }
     }
   }

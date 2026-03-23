@@ -124,9 +124,10 @@ const Dashboard: React.FC = () => {
           cache.set('rcon_status', rconData, 5000)
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string }
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch dashboard data:', error)
@@ -158,9 +159,10 @@ const Dashboard: React.FC = () => {
         )
         setPipPackages([])
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string }
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return
       }
       console.error('Error fetching pip packages:', error)
@@ -215,11 +217,12 @@ const Dashboard: React.FC = () => {
         setInstallingPip(false)
         setUninstallingPip(false)
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string }
       console.error('Error checking pip task status:', error)
       setPipOutput(prev => [
         ...prev,
-        `${t('page.index.get_task_status_failed_prefix')}${error.message}`,
+        `${t('page.index.get_task_status_failed_prefix')}${err.message || t('common.unknown')}`,
       ])
       setInstallingPip(false)
       setUninstallingPip(false)
@@ -257,11 +260,12 @@ const Dashboard: React.FC = () => {
 
       const taskId: string = data.task_id
       pollPipTaskStatus(taskId)
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string }
       console.error('Error starting pip operation:', error)
       setPipOutput(prev => [
         ...prev,
-        `${t('page.index.operation_failed_prefix')}${error.message}`,
+        `${t('page.index.operation_failed_prefix')}${err.message || t('common.unknown')}`,
       ])
       showNotificationMessage(
         t('page.index.pip_op_failed'),
@@ -331,9 +335,10 @@ const Dashboard: React.FC = () => {
       if (updateResp.data.success) {
         setSelfUpdateInfo(updateResp.data.info)
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { name?: string; code?: string }
       // 忽略取消的请求错误
-      if (isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+      if (isCancel(error) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
         return
       }
       console.error('Failed to fetch WebUI version/update info:', error)
@@ -398,7 +403,7 @@ const Dashboard: React.FC = () => {
       } else {
         showNotificationMessage(data.error || t('plugins.self_update.failed'), 'error')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Self update error:', error)
       showNotificationMessage(t('plugins.self_update.failed'), 'error')
     } finally {

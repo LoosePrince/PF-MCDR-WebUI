@@ -1,23 +1,23 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
-import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Send, 
-  User, 
-  Lock, 
-  Zap, 
-  RefreshCw, 
-  LogOut, 
-  Settings, 
-  Users, 
-  ShieldCheck, 
-  Loader2,
-  MessageSquare,
+import { AnimatePresence, motion } from 'framer-motion'
+import {
   ChevronLeft,
-  X
+  Loader2,
+  Lock,
+  LogOut,
+  MessageSquare,
+  RefreshCw,
+  Send,
+  Settings,
+  ShieldCheck,
+  User,
+  Users,
+  X,
+  Zap
 } from 'lucide-react'
-import api from '../utils/api'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import VersionFooter from '../components/VersionFooter'
+import api from '../utils/api'
 import { parseRText } from '../utils/rtextParser'
 
 interface ChatMessage {
@@ -28,7 +28,7 @@ interface ChatMessage {
   timestamp: number
   is_plugin: boolean
   is_rtext: boolean
-  rtext_data?: any
+  rtext_data?: unknown
   message_source: string
 }
 
@@ -57,7 +57,7 @@ const PlayerChat: React.FC = () => {
   const [currentPlayerUuid, setCurrentPlayerUuid] = useState('')
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
   const [authTab, setAuthTab] = useState<'verify' | 'login'>('login')
-  
+
   // Auth state
   const [verificationCode, setVerificationCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -80,13 +80,13 @@ const PlayerChat: React.FC = () => {
   const [chatMessage, setChatMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [lastSendAtMs, setLastSendAtMs] = useState(0)
-  
+
   // Server state
   const [serverStatus, setServerStatus] = useState<ServerStatus>({ status: 'unknown', version: '', players: '0/0' })
   const [onlineStatus, setOnlineStatus] = useState<OnlineStatus>({ web: [], game: [], bot: [] })
   const [offlineMembers, setOfflineMembers] = useState<Record<string, OfflineMember>>({})
   const [showOnlinePanel, setShowOnlinePanel] = useState(false)
-  
+
   // Preferences
   const [avatarSource, setAvatarSource] = useState<'mccag' | 'mcheads'>('mccag')
   const [chatDisplayMode, setChatDisplayMode] = useState<'modern' | 'mc'>('modern')
@@ -116,7 +116,7 @@ const PlayerChat: React.FC = () => {
     if (savedAvatar) setAvatarSource(savedAvatar)
     const savedDisplayMode = localStorage.getItem('chat_display_mode') as 'modern' | 'mc'
     if (savedDisplayMode) setChatDisplayMode(savedDisplayMode)
-    
+
     const savedOffline = localStorage.getItem('chat_offline_members')
     if (savedOffline) {
       try {
@@ -139,7 +139,7 @@ const PlayerChat: React.FC = () => {
     const checkLogin = async () => {
       const sessionId = localStorage.getItem('chat_session_id')
       if (!sessionId) return
-  
+
       try {
         const resp = await api.post('/chat/check_session', { session_id: sessionId })
         if (resp.data.status === 'success' && resp.data.valid) {
@@ -171,7 +171,7 @@ const PlayerChat: React.FC = () => {
       if (resp.data.status === 'success') {
         const msgs = resp.data.messages || []
         setChatMessages(msgs)
-        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: any) => m.id)) > 1)
+        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
       }
     } catch (e) {
       console.error('Failed to load messages', e)
@@ -188,9 +188,9 @@ const PlayerChat: React.FC = () => {
     const currentMaxId = chatMessagesRef.current.length > 0 ? Math.max(...chatMessagesRef.current.map(m => m.id)) : 0
 
     try {
-      const resp = await api.post('/chat/get_new_messages', { 
-        after_id: currentMaxId, 
-        player_id: currentPlayer 
+      const resp = await api.post('/chat/get_new_messages', {
+        after_id: currentMaxId,
+        player_id: currentPlayer
       })
       if (resp.data.status === 'success') {
         if (resp.data.messages && resp.data.messages.length > 0) {
@@ -224,7 +224,9 @@ const PlayerChat: React.FC = () => {
         version: resp.data.version || '',
         players: resp.data.players || '0/0'
       })
-    } catch (e) {}
+    } catch (e) {
+      // ignore status polling error
+    }
     finally {
       statusFetchingRef.current = false
     }
@@ -258,7 +260,7 @@ const PlayerChat: React.FC = () => {
       if (resp.data.status === 'success') {
         const msgs = resp.data.messages || []
         setChatMessages(prev => [...prev, ...msgs])
-        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: any) => m.id)) > 1)
+        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
       }
     } catch (e) {
       console.error('Failed to load historical messages', e)
@@ -404,7 +406,7 @@ const PlayerChat: React.FC = () => {
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (!chatMessage.trim() || isSending) return
-    
+
     const now = Date.now()
     if (now - lastSendAtMs < 2000) return
 
@@ -478,7 +480,7 @@ const PlayerChat: React.FC = () => {
     <div className="h-screen w-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center md:p-4 overflow-hidden relative">
       <div className="absolute top-0 right-0 -mr-48 -mt-48 w-96 h-96 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 -ml-48 -mb-48 w-96 h-96 bg-purple-500/10 rounded-full blur-xl pointer-events-none" />
-      
+
       {isLoggedIn ? (
         /* 
            FIX: We inline the ChatUI here. 
@@ -488,14 +490,14 @@ const PlayerChat: React.FC = () => {
         <div className="flex flex-col h-full md:h-[calc(100vh-64px)] w-full max-w-7xl mx-auto bg-white dark:bg-slate-900 
           md:rounded-[2.5rem] md:border md:border-slate-200 md:dark:border-slate-800 
           shadow-2xl overflow-hidden relative transition-all duration-300">
-          
+
           {/* Header */}
           <header className="px-4 md:px-8 py-3 md:py-5 border-b border-slate-100 dark:border-slate-800 
             flex items-center justify-between bg-white/95 dark:bg-slate-900/95 z-20">
             <div className="flex items-center gap-3 md:gap-4">
               <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl overflow-hidden shrink-0 shadow-sm border border-white dark:border-slate-800">
-                <img 
-                  src={getAvatarUrl(currentPlayer, currentPlayerUuid)} 
+                <img
+                  src={getAvatarUrl(currentPlayer, currentPlayerUuid)}
                   className={`w-full h-full object-cover ${avatarSource === 'mccag' ? 'scale-125' : ''}`}
                   alt="avatar"
                 />
@@ -508,7 +510,7 @@ const PlayerChat: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-1 md:gap-2">
               <button onClick={() => setShowOnlinePanel(!showOnlinePanel)} className={`p-2 md:p-3 rounded-xl transition-colors ${showOnlinePanel ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                 <Users size={20} />
@@ -525,12 +527,12 @@ const PlayerChat: React.FC = () => {
           <div className="flex flex-1 overflow-hidden">
             {/* Messages */}
             <div className="flex-1 flex flex-col min-w-0 bg-slate-50/30 dark:bg-slate-950/20 relative">
-              <div 
+              <div
                 ref={chatContainerRef}
                 className={`flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth custom-scrollbar ${chatDisplayMode === 'mc' ? 'space-y-0' : 'space-y-4 md:space-y-6'}`}
               >
                 {hasMoreMessages && (
-                  <button 
+                  <button
                     onClick={() => loadChatMessages(50, Math.min(...chatMessages.map(m => m.id)))}
                     disabled={isLoadingMessages}
                     className="w-full py-2 text-xs font-bold text-slate-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2"
@@ -553,12 +555,12 @@ const PlayerChat: React.FC = () => {
                 ) : (
                   chatMessages.slice().reverse().map((msg, i) => {
                     const isMe = msg.player_id === currentPlayer
-                    const showHeader = i === 0 || chatMessages.slice().reverse()[i-1].player_id !== msg.player_id
+                    const showHeader = i === 0 || chatMessages.slice().reverse()[i - 1].player_id !== msg.player_id
                     return (
                       <div key={`${msg.id}-${i}`} className={`flex gap-3 md:gap-4 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                         <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl overflow-hidden shrink-0 shadow-sm ${showHeader ? 'opacity-100' : 'opacity-0'}`}>
-                          <img 
-                            src={getAvatarUrl(msg.player_id, msg.uuid)} 
+                          <img
+                            src={getAvatarUrl(msg.player_id, msg.uuid)}
                             className={`w-full h-full object-cover ${avatarSource === 'mccag' ? 'scale-125' : ''}`}
                             alt=""
                           />
@@ -571,8 +573,8 @@ const PlayerChat: React.FC = () => {
                             </div>
                           )}
                           <div className={`px-3 py-2 md:px-4 md:py-2.5 rounded-2xl text-sm md:text-base leading-relaxed shadow-sm transition-all
-                            ${isMe 
-                              ? 'bg-blue-600 text-white rounded-tr-none' 
+                            ${isMe
+                              ? 'bg-blue-600 text-white rounded-tr-none'
                               : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-700/50 rounded-tl-none'}`}>
                             {renderMessageContent(msg)}
                           </div>
@@ -610,7 +612,7 @@ const PlayerChat: React.FC = () => {
             {/* Online List */}
             <AnimatePresence>
               {showOnlinePanel && (
-                <motion.div 
+                <motion.div
                   initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
                   transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                   className="absolute inset-y-0 right-0 w-72 bg-white dark:bg-slate-900 border-l border-slate-100 
@@ -637,11 +639,11 @@ const PlayerChat: React.FC = () => {
           {/* Settings Modal */}
           <AnimatePresence>
             {showSettings && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="absolute inset-0 bg-slate-900/60 z-40 flex items-center justify-center p-4"
               >
-                <motion.div 
+                <motion.div
                   initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
                   className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl space-y-8"
                 >
@@ -654,13 +656,13 @@ const PlayerChat: React.FC = () => {
                     <div className="space-y-3">
                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">{t('page.chat.settings.display_mode_label')}</label>
                       <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-                        <button 
+                        <button
                           onClick={() => { setChatDisplayMode('modern'); localStorage.setItem('chat_display_mode', 'modern'); }}
                           className={`py-2 text-xs font-bold rounded-xl transition-all ${chatDisplayMode === 'modern' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}
                         >
                           {t('page.chat.settings.display_modern')}
                         </button>
-                        <button 
+                        <button
                           onClick={() => { setChatDisplayMode('mc'); localStorage.setItem('chat_display_mode', 'mc'); }}
                           className={`py-2 text-xs font-bold rounded-xl transition-all ${chatDisplayMode === 'mc' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}
                         >
@@ -671,13 +673,13 @@ const PlayerChat: React.FC = () => {
                     <div className="space-y-3">
                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">{t('page.chat.settings.avatar_source_label')}</label>
                       <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-                        <button 
+                        <button
                           onClick={() => { setAvatarSource('mccag'); localStorage.setItem('chat_avatar_source', 'mccag'); }}
                           className={`py-2 text-xs font-bold rounded-xl transition-all ${avatarSource === 'mccag' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}
                         >
                           {t('page.chat.settings.avatar_mccag')}
                         </button>
-                        <button 
+                        <button
                           onClick={() => { setAvatarSource('mcheads'); localStorage.setItem('chat_avatar_source', 'mcheads'); }}
                           className={`py-2 text-xs font-bold rounded-xl transition-all ${avatarSource === 'mcheads' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}
                         >
@@ -687,7 +689,7 @@ const PlayerChat: React.FC = () => {
                     </div>
                   </div>
 
-                  <button 
+                  <button
                     onClick={() => setShowSettings(false)}
                     className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-2xl shadow-xl transition-all"
                   >
@@ -715,13 +717,13 @@ const PlayerChat: React.FC = () => {
             </div>
 
             <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-              <button 
+              <button
                 onClick={() => setAuthTab('login')}
                 className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${authTab === 'login' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}
               >
                 {t('page.chat.tabs.direct_login')}
               </button>
-              <button 
+              <button
                 onClick={() => setAuthTab('verify')}
                 className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${authTab === 'verify' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}
               >
@@ -857,7 +859,7 @@ const PlayerChat: React.FC = () => {
 }
 
 // PlayerListItem is defined outside to ensure stable reference
-const PlayerListItem: React.FC<{ name: string; uuid?: string; source: string; status: 'web' | 'game' | 'offline'; lastSeen?: number; t?: any }> = ({ name, uuid, source, status, lastSeen, t }) => {
+const PlayerListItem: React.FC<{ name: string; uuid?: string; source: string; status: 'web' | 'game' | 'offline'; lastSeen?: number; t?: (key: string, options?: Record<string, unknown>) => string }> = ({ name, uuid, source, status, lastSeen, t }) => {
   const getAvatar = () => {
     if (source === 'mccag') return `https://x.xzt.plus/api/generate/minimal/mojang/${name}`
     // MCHeads: use UUID when available (https://mc-heads.net/avatar/{uuid}/40)
@@ -884,9 +886,8 @@ const PlayerListItem: React.FC<{ name: string; uuid?: string; source: string; st
     <div className="flex items-center gap-3 p-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
       <div className="relative shrink-0 w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-white dark:border-slate-800">
         <img src={getAvatar()} alt={name} className={`w-full h-full object-cover ${source === 'mccag' ? 'scale-125' : ''}`} />
-        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 border-2 border-white dark:border-slate-900 rounded-full ${
-          status === 'game' ? 'bg-emerald-500' : status === 'web' ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'
-        }`} />
+        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 border-2 border-white dark:border-slate-900 rounded-full ${status === 'game' ? 'bg-emerald-500' : status === 'web' ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'
+          }`} />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{name}</p>

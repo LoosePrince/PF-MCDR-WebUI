@@ -550,8 +550,8 @@ const Settings: React.FC = () => {
                   try { localStorage.setItem('panel_merge_mode', 'quick') } catch { /* ignore */ }
                 }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${panelMergeMode === 'quick'
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400'
                   }`}
               >
                 {t('page.settings.multi_server.mode_quick')}
@@ -562,8 +562,8 @@ const Settings: React.FC = () => {
                   try { localStorage.setItem('panel_merge_mode', 'config') } catch { /* ignore */ }
                 }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${panelMergeMode === 'config'
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400'
                   }`}
               >
                 {t('page.settings.multi_server.mode_config')}

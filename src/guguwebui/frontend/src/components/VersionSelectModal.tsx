@@ -1,5 +1,6 @@
+import { Clock, Download, Info, Loader2, X } from 'lucide-react';
 import React from 'react';
-import { Loader2, Info, Download, Clock, X } from 'lucide-react';
+import type { TFunction } from 'i18next';
 
 type VersionItem = {
   version: string;
@@ -16,7 +17,7 @@ export const VersionSelectModal: React.FC<{
   loading: boolean;
   versions: VersionItem[];
   currentVersion?: string;
-  t: any;
+  t: TFunction;
   onSelectVersion: (version: string) => void;
 }> = ({ isOpen, onClose, title, loading, versions, currentVersion, t, onSelectVersion }) => {
   if (!isOpen) return null;
@@ -55,11 +56,10 @@ export const VersionSelectModal: React.FC<{
                   return (
                     <div
                       key={v.version}
-                      className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
-                        isInstalled
+                      className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isInstalled
                           ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50'
                           : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800'
-                      }`}
+                        }`}
                     >
                       <div>
                         <div className="flex items-center gap-2">
@@ -87,11 +87,10 @@ export const VersionSelectModal: React.FC<{
                       <button
                         disabled={isInstalled}
                         onClick={() => onSelectVersion(v.version)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                          isInstalled
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${isInstalled
                             ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 cursor-default'
                             : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
-                        }`}
+                          }`}
                       >
                         {isInstalled ? t('plugins.version_modal.installed') : t('common.install')}
                       </button>

@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import 'github-markdown-css/github-markdown.css';
+import type { TFunction } from 'i18next';
 import {
   AlertCircle,
   AlertTriangle,
@@ -29,7 +30,6 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';

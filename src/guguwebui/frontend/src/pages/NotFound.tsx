@@ -1,15 +1,15 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { Home, AlertCircle } from 'lucide-react'
+import { AlertCircle, Home } from 'lucide-react'
+import React from 'react'
+import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 
 const NotFound: React.FC = () => {
   const { t } = useTranslation()
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
@@ -26,7 +26,7 @@ const NotFound: React.FC = () => {
             404
           </h1>
         </div>
-        
+
         <div className="space-y-2 relative z-10">
           <h2 className="text-3xl font-bold text-slate-900 dark:text-white">
             {t('page.404.title')}
