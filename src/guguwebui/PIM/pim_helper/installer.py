@@ -8,6 +8,8 @@ import time
 import zipfile
 from typing import Any, Dict, List, Optional, Tuple
 
+import requests
+
 from .downloader import ReleaseDownloader
 from .models import PluginData, ReleaseData
 from .resolver import PluginDependencyResolver
@@ -25,6 +27,271 @@ class PluginInstaller:
         self.resolver = PluginDependencyResolver(server, pim_helper)
         self.task_manager = TaskManager(server)
         self.downloader = ReleaseDownloader(server, pim_helper)
+        # Cache resolved GitHub release asset URLs to avoid repeated API calls.
+        self._github_release_asset_url_cache: Dict[str, str] = {}
+        # Cache expanded GitHub releases to provide full version selection UX.
+        self._github_repo_releases_cache: Dict[str, List[ReleaseData]] = {}
+
+    def _resolve_github_mcdreforged_asset_url(
+        self,
+        plugin_id: str,
+        plugin_data: PluginData,
+        target_release: ReleaseData,
+        timeout: int = 10,
+    ) -> Optional[str]:
+        """
+        兜底：当简化版 catalogue 缺失 browser_download_url 时，
+        根据 repository_url + 版本在 GitHub release 中查找 .mcdr / .pyz 资源下载链接。
+        """
+        owner = getattr(plugin_data, "repos_owner", "") or ""
+        repo = getattr(plugin_data, "repos_name", "") or ""
+        if not owner or not repo:
+            return None
+
+        repo_key = f"{owner}/{repo}"
+
+        # prefer explicit tag_name if provided
+        release_version = target_release.version or ""
+        candidates: List[str] = []
+        if target_release.tag_name:
+            candidates.append(target_release.tag_name)
+
+        if release_version:
+            # MCDR plugin catalogue tag rules (see docs)
+            candidates.extend(
+                [
+                    release_version,  # 1.2.3
+                    f"v{release_version}",  # v1.2.3
+                    f"{plugin_id}-{release_version}",  # plugin_id-1.2.3
+                    f"{plugin_id}-v{release_version}",  # plugin_id-v1.2.3
+                ]
+            )
+
+        # de-dup while preserving order
+        seen = set()
+        tag_candidates = []
+        for t in candidates:
+            t = (t or "").strip()
+            if not t or t in seen:
+                continue
+            seen.add(t)
+            tag_candidates.append(t)
+
+        if not tag_candidates:
+            return None
+
+        cache_prefix = f"github_release_asset_url:{repo_key}:{plugin_id}:{release_version}"
+
+        headers = {
+            "User-Agent": "MCDR-PIM-Installer/1.0",
+            "Accept": "application/vnd.github+json",
+        }
+
+        for tag in tag_candidates:
+            cache_key = f"{cache_prefix}:{tag}"
+            if cache_key in self._github_release_asset_url_cache:
+                cached = self._github_release_asset_url_cache[cache_key]
+                return cached or None
+
+            url = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
+            try:
+                resp = requests.get(url, headers=headers, timeout=timeout)
+            except Exception as e:
+                self.logger.warning(f"GitHub release API request failed: {e}, URL: {url}")
+                continue
+
+            if resp.status_code != 200:
+                continue
+
+            try:
+                data = resp.json()
+            except Exception:
+                continue
+
+            assets = data.get("assets") or []
+            if not isinstance(assets, list):
+                continue
+
+            # Filter by supported packaged file extensions.
+            mc_assets = [
+                a
+                for a in assets
+                if isinstance(a, dict)
+                and isinstance(a.get("name"), str)
+                and str(a["name"]).lower().endswith((".mcdr", ".pyz"))
+            ]
+            if not mc_assets:
+                # fallback: sometimes extensions are missing but URLs still end with the packaged suffix
+                mc_assets = [
+                    a
+                    for a in assets
+                    if isinstance(a, dict)
+                    and isinstance(a.get("browser_download_url"), str)
+                    and str(a["browser_download_url"]).lower().endswith((".mcdr", ".pyz"))
+                ]
+            if not mc_assets:
+                continue
+
+            # Prefer assets that include plugin_id in their filename.
+            pid_lower = plugin_id.lower()
+            preferred = [
+                a for a in mc_assets if pid_lower in str(a.get("name", "")).lower()
+            ]
+            chosen = preferred[0] if preferred else mc_assets[0]
+            download_url = chosen.get("browser_download_url") if isinstance(chosen, dict) else None
+
+            if isinstance(download_url, str) and download_url.strip():
+                self._github_release_asset_url_cache[cache_key] = download_url
+                return download_url
+
+            # cache negative result for this tag to reduce repeated probing
+            self._github_release_asset_url_cache[cache_key] = ""
+
+        return None
+
+    @staticmethod
+    def _extract_version_from_tag(tag_name: str) -> str:
+        """
+        将 GitHub release tag 提取成类似 catalogue 里的版本号。
+        支持的常见情况：
+        - v1.2.3 -> 1.2.3
+        - 1.2.3 -> 1.2.3
+        - my_plugin-1.2.3 -> 1.2.3
+        - my_plugin-v1.2.3 -> 1.2.3
+        """
+        t = (tag_name or "").strip()
+        if not t:
+            return ""
+        if t.lower().startswith("v"):
+            t = t[1:]
+        if "-" in t:
+            t = t.split("-")[-1]
+            if t.lower().startswith("v"):
+                t = t[1:]
+        return t
+
+    def _expand_github_releases(
+        self,
+        plugin_id: str,
+        plugin_data: PluginData,
+        timeout: int = 10,
+        per_page: int = 100,
+    ) -> List[ReleaseData]:
+        """
+        兜底：当简化仓库只提供 latest_version 时，
+        从 GitHub releases 拉取更多历史版本，补足版本选择体验。
+        """
+        owner = getattr(plugin_data, "repos_owner", "") or ""
+        repo = getattr(plugin_data, "repos_name", "") or ""
+        if not owner or not repo:
+            return []
+
+        repo_key = f"{owner}/{repo}"
+        if repo_key in self._github_repo_releases_cache:
+            return self._github_repo_releases_cache[repo_key]
+
+        headers = {
+            "User-Agent": "MCDR-PIM-Installer/1.0",
+            "Accept": "application/vnd.github+json",
+        }
+
+        # 基于需求的简化：只取前 per_page 个 releases（通常足够）
+        url = f"https://api.github.com/repos/{owner}/{repo}/releases?per_page={per_page}"
+        try:
+            resp = requests.get(url, headers=headers, timeout=timeout)
+            if resp.status_code != 200:
+                self.logger.warning(f"GitHub releases API request failed: {resp.status_code}, URL: {url}")
+                self._github_repo_releases_cache[repo_key] = []
+                return []
+            data = resp.json()
+        except Exception as e:
+            self.logger.warning(f"GitHub releases API request failed: {e}, URL: {url}")
+            self._github_repo_releases_cache[repo_key] = []
+            return []
+
+        if not isinstance(data, list):
+            self._github_repo_releases_cache[repo_key] = []
+            return []
+
+        pid_lower = plugin_id.lower()
+        releases: List[ReleaseData] = []
+        for rel in data:
+            if not isinstance(rel, dict):
+                continue
+
+            # catalogue 约定：不接受预发布版本
+            if bool(rel.get("prerelease", False)):
+                continue
+
+            tag_name = str(rel.get("tag_name") or "")
+            version = self._extract_version_from_tag(tag_name)
+            if not version:
+                continue
+
+            assets = rel.get("assets") or []
+            if not isinstance(assets, list) or not assets:
+                continue
+
+            packaged_assets: List[Dict[str, Any]] = [
+                a
+                for a in assets
+                if isinstance(a, dict)
+                and isinstance(a.get("name"), str)
+                and str(a.get("name", "")).lower().endswith((".mcdr", ".pyz"))
+            ]
+            if not packaged_assets:
+                continue
+
+            preferred = [
+                a
+                for a in packaged_assets
+                if pid_lower in str(a.get("name", "")).lower()
+            ]
+            chosen = preferred[0] if preferred else packaged_assets[0]
+
+            download_url = chosen.get("browser_download_url", "") or ""
+            if not isinstance(download_url, str) or not download_url.strip():
+                continue
+
+            created_at = str(rel.get("published_at") or rel.get("created_at") or "")
+            file_name = str(chosen.get("name") or f"{plugin_id}.mcdr")
+
+            releases.append(
+                ReleaseData(
+                    name=f"v{version}",
+                    tag_name=f"v{version}",  # 统一为 catalogue 风格，保证 ReleaseData.version 正确
+                    created_at=created_at,
+                    description=str(rel.get("body") or ""),
+                    prerelease=False,
+                    url=str(rel.get("html_url") or ""),
+                    browser_download_url=download_url,
+                    download_count=0,
+                    size=int(chosen.get("size") or 0),
+                    file_name=file_name,
+                )
+            )
+
+        # GitHub API 通常按时间倒序返回，无需额外排序；但为稳妥可按 created_at 字符串排序
+        releases.sort(key=lambda r: r.created_at or "", reverse=True)
+        self._github_repo_releases_cache[repo_key] = releases
+        return releases
+
+    @staticmethod
+    def _find_release_from_releases(
+        releases: List[ReleaseData],
+        version: str,
+        plugin_id: str,
+    ) -> Optional[ReleaseData]:
+        if not releases:
+            return None
+        if not version:
+            return releases[0]
+
+        v_clean = str(version).lstrip("v")
+        for r in releases:
+            if r.version == v_clean or r.tag_name == version:
+                return r
+        return None
 
     async def install(self, plugin_id: str, version: str = None, repo_url: str = None) -> str:
         task_id = self.task_manager.create_task('install', plugin_id, version=version, repo_url=repo_url)
@@ -87,17 +354,34 @@ class PluginInstaller:
         if not plugin_data:
             return []
 
-        versions = []
-        for release in plugin_data.releases:
-            versions.append({
-                'version': release.version,
-                'tag_name': release.tag_name,
-                'created_at': release.created_at,
-                'download_url': release.browser_download_url,
-                'download_count': release.download_count,
-                'size': release.size,
-                'description': release.description
-            })
+        # 简化版 list catalogue 通常只有 latest_version，缺少历史版本；
+        # 这里做兜底：当 releases 不完整时从 GitHub 补全。
+        needs_expand = (
+            len(plugin_data.releases) <= 1
+            or any(not r.browser_download_url for r in plugin_data.releases)
+        )
+        releases = plugin_data.releases
+        if needs_expand and getattr(plugin_data, "repos_owner", None) and getattr(plugin_data, "repos_name", None):
+            expanded = self._expand_github_releases(plugin_id, plugin_data)
+            if expanded:
+                releases = expanded
+
+        versions: List[Dict[str, Any]] = []
+        for release in releases:
+            versions.append(
+                {
+                    "version": release.version,
+                    "tag_name": release.tag_name,
+                    # 前端映射优先使用 date 字段
+                    "date": release.created_at,
+                    "created_at": release.created_at,
+                    "prerelease": release.prerelease,
+                    "download_url": release.browser_download_url,
+                    "download_count": release.download_count,
+                    "size": release.size,
+                    "description": release.description,
+                }
+            )
         return versions
 
     def _install_thread(self, task_id: str, plugin_id: str, version: str, repo_url: str):
@@ -122,7 +406,11 @@ class PluginInstaller:
         # 确定安装版本
         target_release = self._find_release(plugin_data, version)
         if not target_release:
-            raise Exception(f"未找到指定版本: {version or 'latest'}")
+            # 简化版 catalogue 可能只有最新版本，兜底从 GitHub 查找
+            expanded = self._expand_github_releases(plugin_id, plugin_data)
+            target_release = self._find_release_from_releases(expanded, version or "", plugin_id)
+            if not target_release:
+                raise Exception(f"未找到指定版本: {version or 'latest'}")
 
         self.task_manager.update_task(task_id, message=f"{prefix}确定安装版本: {target_release.version}")
 
@@ -165,8 +453,23 @@ class PluginInstaller:
         file_name = target_release.file_name or f"{plugin_id}.mcdr"
         target_path = os.path.join(plugin_dir, file_name)
 
-        self.task_manager.update_task(task_id, message=f"{prefix}正在从 {target_release.browser_download_url} 下载...")
-        if not self.downloader.download(target_release.browser_download_url, target_path):
+        download_url = target_release.browser_download_url
+        if not download_url:
+            download_url = self._resolve_github_mcdreforged_asset_url(
+                plugin_id=plugin_id,
+                plugin_data=plugin_data,
+                target_release=target_release,
+            )
+            target_release.browser_download_url = download_url or ""
+
+        if not download_url:
+            raise Exception(
+                f"{prefix}解析插件下载 URL 失败: {plugin_id}, repo={plugin_data.repos_owner}/{plugin_data.repos_name}, "
+                f"version={target_release.version}, tag={target_release.tag_name}"
+            )
+
+        self.task_manager.update_task(task_id, message=f"{prefix}正在从 {download_url} 下载...")
+        if not self.downloader.download(download_url, target_path):
             raise Exception(f"下载插件 {plugin_id} 失败")
         self.task_manager.update_task(task_id, message=f"{prefix}下载完成: {file_name}")
 
