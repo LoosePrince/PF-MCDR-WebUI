@@ -490,7 +490,28 @@ const LocalPlugins: React.FC = () => {
     setLoadingVersions(true);
     setShowVersionModal(true);
     try {
-      const resp = await api.get(`/pim/plugin_versions?plugin_id=${plugin.id}`);
+      // 为第三方仓库插件透传 repo_url，确保版本列表与仓库归属一致
+      let repoUrl =
+        plugin.repository && typeof plugin.repository.url === 'string'
+          ? plugin.repository.url
+          : undefined;
+
+      // 如果本地仓库探测失败/缺失，则在打开版本弹窗时兜底再查一次
+      if (!repoUrl) {
+        try {
+          const repoResp = await api.get(`/pim/plugin_repository?plugin_id=${plugin.id}`);
+          const url = repoResp.data?.repository?.url;
+          if (typeof url === 'string' && url.trim()) {
+            repoUrl = url.trim();
+          }
+        } catch {
+          // 忽略仓库探测失败，后续将按默认仓库继续获取版本列表
+        }
+      }
+      const query = repoUrl
+        ? `/pim/plugin_versions?plugin_id=${plugin.id}&repo_url=${encodeURIComponent(repoUrl)}`
+        : `/pim/plugin_versions?plugin_id=${plugin.id}`;
+      const resp = await api.get(query);
       if (resp.data.success) {
         // 映射后端字段到前端字段，并格式化日期
         const versions = (resp.data.versions || []).map((v: Record<string, unknown>) => ({

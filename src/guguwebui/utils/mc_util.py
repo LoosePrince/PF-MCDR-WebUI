@@ -15,7 +15,6 @@ from mcdreforged.plugin.type.solo_plugin import SoloPlugin
 from mcstatus import JavaServer
 from ruamel.yaml import YAML
 
-
 # --- Synchronous Utility Functions ---
 
 def get_minecraft_path(server_interface=None, path_type="working_directory"):
@@ -114,7 +113,8 @@ def load_plugin_info(server_interface):
     unloaded_metadata = {}
 
     for plugin_path in disabled_plugins + unloaded_plugins:
-        if not (plugin_path.endswith('.py') or plugin_path.endswith('.mcdr')): continue
+        # MCDR 的“文件夹插件/目录插件”在 disabled/unloaded 列表里往往是目录路径，
+        # 不带 .py/.mcdr 后缀；这里不能仅靠扩展名过滤，否则文件夹插件会丢失。
         metadata = extract_metadata(plugin_path)
         if not metadata: continue
         if metadata['id'] in unloaded_metadata and metadata['version'] <= unloaded_metadata[metadata["id"]][
@@ -133,6 +133,11 @@ def get_plugins_info(server_interface):
     def fetch_plugin_versions():
         try:
             from guguwebui.PIM import PIMHelper
+            from guguwebui.constant import (
+                DEFALUT_CONFIG,
+                MCDR_OFFICIAL_CATALOGUE_URL,
+                PF_PLUGIN_CATALOGUE_URL,
+            )
             class DummySource:
                 def reply(self, message): pass
 
@@ -141,16 +146,58 @@ def get_plugins_info(server_interface):
 
             pim_helper = PIMHelper(server_interface)
             dummy_source = DummySource()
-            # 仅基于 PIM 默认逻辑（官方仓库）获取版本信息
-            cata_meta = pim_helper.get_cata_meta(dummy_source)
-            plugins = cata_meta.get_plugins()
-            return {plugin_id: plugin_data.latest_version for plugin_id, plugin_data in plugins.items()}
+
+            # 多仓库版本检查：官方仓库 + config.repositories
+            # 保持体验一致：优先使用官方仓库的 latest_version；第三方仓库只在官方缺失时填充。
+            config = {}
+            try:
+                config = server_interface.load_config_simple(
+                    "config.json", DEFALUT_CONFIG, echo_in_console=False
+                )
+            except Exception:
+                config = {}
+
+            official_url = config.get(
+                "mcdr_plugins_url", MCDR_OFFICIAL_CATALOGUE_URL
+            )
+            repos_cfg = config.get("repositories", [])
+
+            repos: list[str] = [official_url]
+            # 关键修复：PF 插件目录也要参与版本计算，
+            # 否则第三方插件会出现 “未找到可用版本”。
+            if PF_PLUGIN_CATALOGUE_URL and PF_PLUGIN_CATALOGUE_URL not in repos:
+                repos.append(PF_PLUGIN_CATALOGUE_URL)
+            if isinstance(repos_cfg, list):
+                for r in repos_cfg:
+                    if isinstance(r, dict) and isinstance(r.get("url"), str):
+                        url = r.get("url").strip()
+                        if url and url not in repos:
+                            repos.append(url)
+
+            plugin_versions = {}
+            for repo_url in repos:
+                try:
+                    cata_meta = pim_helper.get_cata_meta(
+                        dummy_source, ignore_ttl=False, repo_url=repo_url
+                    )
+                    if not cata_meta:
+                        continue
+                    plugins = cata_meta.get_plugins()
+                    # 若已存在则跳过：保持官方优先
+                    for plugin_id, plugin_data in plugins.items():
+                        if plugin_id not in plugin_versions:
+                            plugin_versions[plugin_id] = plugin_data.latest_version
+                except Exception:
+                    continue
+
+            return plugin_versions
         except Exception:
             return {}
 
     plugin_versions = fetch_plugin_versions()
     respond = []
     import copy
+
     # MCDR 内部实现，非公开 API，可能随 MCDR 版本变化
     from mcdreforged.plugin.meta.metadata import Metadata
     merged_metadata = copy.deepcopy(unloaded_metadata)
@@ -365,10 +412,11 @@ def send_message_to_webui(server_interface, source: str, message, message_type: 
                           target_players: list = None, metadata: dict = None, is_rtext: bool = False):
     """供其他插件调用的函数，用于发送消息到WebUI并同步到游戏"""
     try:
-        from mcdreforged.api.event import LiteralEvent
         import datetime
-        import time
         import json
+        import time
+
+        from mcdreforged.api.event import LiteralEvent
 
         processed_message = message
         rtext_data = None
@@ -569,8 +617,9 @@ def detect_plugin_format(server) -> str:
 def check_self_update(server):
     """检查 WebUI 插件自身是否有更新"""
     try:
-        from guguwebui.PIM import PIMHelper
         from packaging.version import parse as parse_version
+
+        from guguwebui.PIM import PIMHelper
         try:
             plugins = get_plugins_info(server)
             current_version = None

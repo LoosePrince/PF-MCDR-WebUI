@@ -4,7 +4,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL
+from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL, PF_PLUGIN_CATALOGUE_URL
 from guguwebui.utils.file_util import __copyFile, extract_metadata
 from guguwebui.utils.mc_util import get_plugins_info, load_plugin_info
 from guguwebui.utils.mcdr_adapter import MCDRAdapter
@@ -387,7 +387,11 @@ class PluginService:
                 "mcdr_plugins_url",
                 MCDR_OFFICIAL_CATALOGUE_URL,
             )
+            # 关键修复：PF 插件目录（第三方 loose catalogue）也必须参与仓库归属判断，
+            # 否则会出现：在线插件列表能看到，但 plugin_repository/version 无法匹配。
             repos: list[tuple[str, str | None]] = [(official_url, None)]
+            if PF_PLUGIN_CATALOGUE_URL and PF_PLUGIN_CATALOGUE_URL != official_url:
+                repos.append((PF_PLUGIN_CATALOGUE_URL, None))
             if "repositories" in config:
                 for r in config["repositories"]:
                     if "url" in r:
@@ -410,7 +414,11 @@ class PluginService:
                         "repository": {
                             "url": repo_url,
                             "is_official": is_official,
-                            "name_key": "official" if is_official else "custom",
+                            "name_key": (
+                                "official"
+                                if is_official
+                                else ("loose_repo" if repo_url == PF_PLUGIN_CATALOGUE_URL else "custom")
+                            ),
                             "name": repo_name,
                         },
                     }
