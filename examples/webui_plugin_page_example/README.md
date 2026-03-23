@@ -24,7 +24,7 @@
 
 - **网页路径**：在 `on_load` 中用 `Path(__file__).parent / "static" / "demo.html"` 指向静态 HTML，避免写死工作目录。
 - **侧边栏**：由 `register_plugin_page` 自动登记；列表数据来自 `GET /api/plugins/web_pages`。
-- **自定义 API**：`register_plugin_page(..., api_handler=...)`；前端请求形如  
+- **自定义 API**：`register_plugin_page(..., api_handler=..., upload_max_bytes=...)`；`upload_max_bytes` 可选，用于单插件覆盖上传大小上限。前端请求形如  
   `GET ${root}/api/plugin/webui_plugin_page_example/hello`（若部署在子路径，`root` 为 `/guguwebui` 等，示例 HTML 内从 `window.parent.__GUGU_CONFIG__` 读取）。
 
-更多字段与状态码见仓库 `docs/WebApi.md` 中「插件后端 API 代理」一节。
+更多字段与状态码见仓库 `docs/WebApi.md` 中「插件后端 API 代理」一节（含 **`multipart/form-data` 文件字段** 解析与单文件大小上限）。

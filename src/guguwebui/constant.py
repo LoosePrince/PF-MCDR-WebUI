@@ -11,6 +11,9 @@ STATIC_PATH = "./guguwebui_static"
 USER_DB_PATH = Path(STATIC_PATH) / "db.json"
 PATH_DB_PATH = Path("./config") / "guguwebui" / "config_path.json"
 
+# 插件网页 api_handler：multipart 单文件字段默认最大字节数（超过则 413）
+PLUGIN_API_MAX_UPLOAD_BYTES = 1 * 1024 * 1024  # 1 MiB
+
 CSS_FILE = Path(STATIC_PATH) / "custom" / "overall.css"
 JS_FILE = Path(STATIC_PATH) / "custom" / "overall.js"
 

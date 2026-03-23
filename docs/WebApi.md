@@ -565,7 +565,20 @@
 - `params` 固定包含：
   - `method`：HTTP 方法字符串
   - `query`：查询参数，`dict[str, str | list[str]]`（同名多值为列表）
-  - `body`：请求体；无体或未解析时为 `None`。支持 `application/json` 与 `application/x-www-form-urlencoded` / `multipart/form-data`（**不含文件上传**；含文件字段时返回 `415`）
+  - `body`：请求体；无体或未解析时为 `None`。支持：
+    - `application/json`
+    - `application/x-www-form-urlencoded` / `multipart/form-data`（纯文本字段为字符串）
+    - **`multipart/form-data` 文件字段**：每个文件解析为如下 `dict`（字段名与表单 `name` 一致；同一 `name` 多个文件时为列表）：
+      ```python
+      {
+          "type": "file",
+          "filename": str | None,      # 客户端提供的文件名
+          "content_type": str | None,  # 声明的 MIME，可能为空
+          "size": int,                 # 字节长度
+          "data": bytes,               # 文件内容（已读入内存）
+      }
+      ```
+      单文件字段超过大小上限时返回 **`413`**。默认上限为 `guguwebui.constant.PLUGIN_API_MAX_UPLOAD_BYTES`（默认 1 MiB）；插件可在 `register_plugin_page(..., upload_max_bytes=...)` 单独覆盖。
 
 **返回值**：可为 `starlette.responses.Response` 子类（原样返回），或可被 JSON 序列化的对象（封装为 JSON 响应）。
 
@@ -574,6 +587,7 @@
 - 未注册 `api_handler` 或该 `plugin_id` 未注册页面：`404`
 - 不支持的 `Content-Type`（非上述类型）：`415`
 - JSON 体非法：`400`
+- 单个上传文件超过大小上限：`413`
 
 **多服**：主服选中子服时，若请求经面板代理转发，子服本地执行对应插件的 `api_handler`（与 RCON 等一致）。
 

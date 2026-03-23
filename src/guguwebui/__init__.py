@@ -721,6 +721,7 @@ def register_plugin_page(
     html_path: str,
     *,
     api_handler: Optional[Callable[..., Any]] = None,
+    upload_max_bytes: Optional[int] = None,
 ):
     """
     供其他插件调用的函数，用于注册其自定义网页，并可选择注册后端 API 处理器。
@@ -730,12 +731,21 @@ def register_plugin_page(
         html_path: 网页 HTML 文件的完整路径或相对于 config 目录的路径
         api_handler: 可选。接收 (url_path, params) 的处理函数；params 含 method、query、body。
             前端请求 ``GET/POST ... /api/plugin/{plugin_id}/{子路径}`` 时由 WebUI 转发至此。
+            ``body`` 在 ``multipart/form-data`` 下可含上传文件字段，解析为含 ``data: bytes`` 的字典（见文档）。
+        upload_max_bytes: 可选。该插件单文件上传大小上限（字节）。不传则使用全局默认上限。
     """
     from guguwebui.state import PluginPageEntry, REGISTERED_PLUGIN_PAGES
+
+    if upload_max_bytes is not None:
+        if not isinstance(upload_max_bytes, int) or isinstance(upload_max_bytes, bool):
+            raise ValueError("upload_max_bytes must be int or None")
+        if upload_max_bytes <= 0:
+            raise ValueError("upload_max_bytes must be > 0")
 
     REGISTERED_PLUGIN_PAGES[plugin_id] = PluginPageEntry(
         html_path=html_path,
         api_handler=api_handler,
+        upload_max_bytes=upload_max_bytes,
     )
 
 

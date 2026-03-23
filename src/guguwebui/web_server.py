@@ -9,23 +9,23 @@ from pathlib import Path
 from typing import Any, Optional
 
 import aiohttp
-from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request, status
-from fastapi.responses import (
-    FileResponse,
-    HTMLResponse,
-    JSONResponse,
-    PlainTextResponse,
-    RedirectResponse,
-)
+from fastapi import (Body, Depends, FastAPI, Form, HTTPException, Request,
+                     status)
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
+                               PlainTextResponse, RedirectResponse)
 from mcdreforged.api.event import MCDRPluginEvents
 from mcdreforged.api.types import PluginServerInterface
+from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
 
+import guguwebui.state as gugu_state
 from guguwebui.constant import *
 from guguwebui.dependencies.auth import get_current_admin, get_current_user
+from guguwebui.panel_merge.proxy import ApiProxyDispatchMiddleware
+from guguwebui.panel_merge.routes import router as panel_merge_router
 from guguwebui.PIM import initialize_pim
 from guguwebui.services.ai_service import AIService
 from guguwebui.services.auth_service import AuthService
@@ -35,32 +35,16 @@ from guguwebui.services.file_service import FileService
 from guguwebui.services.pip_service import PipService
 from guguwebui.services.plugin_service import PluginService
 from guguwebui.services.server_service import ServerService
-from guguwebui.state import (
-    PluginApiHandlerParams,
-    RCON_ONLINE_CACHE,
-    bind_plugin_pages_registry_to_server,
-    pip_tasks,
-)
-import guguwebui.state as gugu_state
-from guguwebui.structures import (
-    BusinessException,
-    ConfigData,
-    DeepseekQuery,
-    PimInstallRequest,
-    PimUninstallRequest,
-    PipPackageRequest,
-    PluginInfo,
-    SaveConfig,
-    SaveContent,
-    ServerControl,
-    ToggleConfig,
-)
+from guguwebui.state import (RCON_ONLINE_CACHE, PluginApiHandlerParams,
+                             bind_plugin_pages_registry_to_server, pip_tasks)
+from guguwebui.structures import (BusinessException, ConfigData, DeepseekQuery,
+                                  PimInstallRequest, PimUninstallRequest,
+                                  PipPackageRequest, PluginInfo, SaveConfig,
+                                  SaveContent, ServerControl, ToggleConfig)
 from guguwebui.utils.auth_util import migrate_old_config
 from guguwebui.utils.log_watcher import LogWatcher
 from guguwebui.utils.mc_util import get_plugin_version
 from guguwebui.utils.server_util import *
-from guguwebui.panel_merge.proxy import ApiProxyDispatchMiddleware
-from guguwebui.panel_merge.routes import router as panel_merge_router
 
 # 获取插件真实版本号
 app = FastAPI(
@@ -773,10 +757,18 @@ def _query_params_to_dict(request: Request) -> dict[str, str | list[str]]:
     return out
 
 
-async def _parse_plugin_api_body(request: Request) -> tuple[Any, Optional[int]]:
+async def _parse_plugin_api_body(
+    request: Request,
+    *,
+    upload_max_bytes: int,
+) -> tuple[Any, Optional[int]]:
     """
-    解析插件 API 请求体。支持 application/json 与表单；其余返回 (None, 415)。
+    解析插件 API 请求体。支持 application/json、表单与 multipart 文件字段；其余返回 (None, 415)。
     GET/HEAD 等无体方法返回 (None, None)。
+
+    multipart 中文件字段解析为 dict：
+    ``{"type": "file", "filename", "content_type", "size", "data": bytes}``。
+    单字段多值为列表；单值仍为标量。
     """
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return None, None
@@ -799,10 +791,31 @@ async def _parse_plugin_api_body(request: Request) -> tuple[Any, Optional[int]]:
         form = await request.form()
         result: dict[str, Any] = {}
         for key in form.keys():
-            val = form.get(key)
-            if hasattr(val, "read"):
-                return None, 415
-            result[key] = val
+            raw_list = form.getlist(key)
+            parsed: list[Any] = []
+            for val in raw_list:
+                if isinstance(val, UploadFile):
+                    try:
+                        data = await val.read()
+                    finally:
+                        await val.close()
+                    if len(data) > upload_max_bytes:
+                        return None, 413
+                    parsed.append(
+                        {
+                            "type": "file",
+                            "filename": val.filename,
+                            "content_type": val.content_type,
+                            "size": len(data),
+                            "data": data,
+                        }
+                    )
+                else:
+                    parsed.append(val if isinstance(val, str) else str(val))
+            if len(parsed) == 1:
+                result[key] = parsed[0]
+            else:
+                result[key] = parsed
         return result, None
 
     return None, 415
@@ -817,12 +830,28 @@ async def _dispatch_plugin_api(
     if entry is None or entry.api_handler is None:
         raise HTTPException(status_code=404, detail="Plugin API handler not registered")
 
-    body, err_status = await _parse_plugin_api_body(request)
+    # 兼容性：旧注册表条目（历史重载产生的 PluginPageEntry 实例）可能缺少 upload_max_bytes 字段。
+    # 缺字段时回退到全局默认上限，避免 AttributeError 影响代理请求。
+    entry_upload_max_bytes = getattr(entry, "upload_max_bytes", None)
+    upload_max_bytes = (
+        entry_upload_max_bytes
+        if entry_upload_max_bytes is not None
+        else PLUGIN_API_MAX_UPLOAD_BYTES
+    )
+    body, err_status = await _parse_plugin_api_body(
+        request,
+        upload_max_bytes=upload_max_bytes,
+    )
     if err_status is not None:
         if err_status == 415:
             raise HTTPException(
                 status_code=415,
                 detail="Unsupported Content-Type; use application/json or form",
+            )
+        if err_status == 413:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large (max {upload_max_bytes} bytes per field)",
             )
         raise HTTPException(status_code=err_status, detail="Invalid JSON body")
 

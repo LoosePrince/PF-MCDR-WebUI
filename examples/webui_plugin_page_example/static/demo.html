@@ -127,6 +127,12 @@
       border-radius: 4px;
       color: var(--gb-text);
     }
+
+    input[type="file"] {
+      font-size: 0.85rem;
+      max-width: min(100%, 18rem);
+      vertical-align: middle;
+    }
   </style>
   <script>
     (function () {
@@ -192,6 +198,16 @@
     </p>
   </div>
   <div class="card">
+    <h2 id="el-h2-upload" style="margin-top:0">文件上传</h2>
+    <p class="muted" id="el-upload-hint" style="margin:0 0 0.75rem">
+      选择文件后上传，服务端返回文件名、大小与 SHA256（不保存文件）。
+    </p>
+    <p style="margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem">
+      <input type="file" id="file-input" />
+      <button type="button" id="btn-upload">上传</button>
+    </p>
+  </div>
+  <div class="card">
     <h2 id="el-h2-response">响应</h2>
     <pre id="out">（点击按钮）</pre>
   </div>
@@ -214,7 +230,12 @@
         err: '错误',
         labelHello: 'GET hello → ',
         labelEcho: 'POST echo → ',
-        labelStatus: 'GET status → '
+        labelStatus: 'GET status → ',
+        h2Upload: '文件上传',
+        uploadHint: '选择文件后上传，服务端返回文件名、大小与 SHA256（不保存文件）。',
+        btnUpload: '上传',
+        labelUpload: 'POST upload → ',
+        pickFile: '请先选择文件'
       },
       'en-US': {
         title: 'WebUI plugin page demo',
@@ -232,7 +253,12 @@
         err: 'Error',
         labelHello: 'GET hello → ',
         labelEcho: 'POST echo → ',
-        labelStatus: 'GET status → '
+        labelStatus: 'GET status → ',
+        h2Upload: 'File upload',
+        uploadHint: 'Pick a file and upload; the server returns name, size, and SHA256 (nothing is stored).',
+        btnUpload: 'Upload',
+        labelUpload: 'POST upload → ',
+        pickFile: 'Choose a file first'
       }
     };
 
@@ -284,9 +310,16 @@
       var b1 = document.getElementById('btn-hello');
       var b2 = document.getElementById('btn-echo');
       var b3 = document.getElementById('btn-status');
+      var b4 = document.getElementById('btn-upload');
       if (b1) b1.textContent = t.btnHello;
       if (b2) b2.textContent = t.btnEcho;
       if (b3) b3.textContent = t.btnStatus;
+      if (b4) b4.textContent = t.btnUpload;
+
+      var h2u = document.getElementById('el-h2-upload');
+      if (h2u) h2u.textContent = t.h2Upload;
+      var hint = document.getElementById('el-upload-hint');
+      if (hint) hint.textContent = t.uploadHint;
 
       var out = document.getElementById('out');
       if (out && (out.textContent === '（点击按钮）' || out.textContent === '(Click a button)')) {
@@ -372,6 +405,30 @@
         var text = await r.text();
         try { text = JSON.parse(text); } catch (e) { }
         await show(t.labelStatus + r.status, text);
+      } catch (e) {
+        await show(t.err, String(e));
+      }
+    };
+
+    document.getElementById('btn-upload').onclick = async function () {
+      var t = window.__demoI18n || I18N['zh-CN'];
+      var input = document.getElementById('file-input');
+      var file = input && input.files && input.files[0];
+      if (!file) {
+        await show(t.pickFile, '');
+        return;
+      }
+      try {
+        var fd = new FormData();
+        fd.append('file', file, file.name);
+        var r = await fetch(pluginBase() + '/upload', {
+          method: 'POST',
+          credentials: 'include',
+          body: fd
+        });
+        var text = await r.text();
+        try { text = JSON.parse(text); } catch (e) { }
+        await show(t.labelUpload + r.status, text);
       } catch (e) {
         await show(t.err, String(e));
       }

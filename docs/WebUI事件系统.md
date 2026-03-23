@@ -145,12 +145,14 @@ def register_plugin_page(
     html_path: str,
     *,
     api_handler: Optional[Callable[..., Any]] = None,
+    upload_max_bytes: Optional[int] = None,
 ) -> None
 ```
 
 - **`plugin_id`**：侧边栏与前端路由 `/plugin-page/<plugin_id>` 使用的标识，建议与 `mcdreforged.plugin.json` 的 `id` 一致。
 - **`html_path`**：HTML 文件的**绝对路径**，或相对 **`config` 目录**的路径（见 `guguwebui.__init__` 文档字符串）。实际打开时会经 `SafePath.get_safe_path` 与 `get_base_dirs` 校验，禁止越权路径。
 - **`api_handler`**：可选。已登录用户访问 `/api/plugin/{plugin_id}/...` 时由 WebUI 转发，签名与返回值见 **`docs/WebApi.md`**。
+- **`upload_max_bytes`**：可选。该插件单文件上传上限（字节）；不传则使用全局默认值（当前为 1 MiB）。
 
 前端行为简述：
 

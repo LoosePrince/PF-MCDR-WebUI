@@ -12,6 +12,7 @@ WebUI 插件网页 + 侧边栏 + 自定义 API 处理器 示例。
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,26 @@ def _api_handler(url_path: str, params: dict[str, Any]) -> dict[str, Any]:
             "html_exists": _HTML_FILE.is_file(),
         }
 
+    if url_path == "upload" and method == "POST":
+        if not isinstance(body, dict):
+            return {"ok": False, "error": "expected form body"}
+        raw = body.get("file")
+        if isinstance(raw, list):
+            raw = raw[0] if raw else None
+        if not isinstance(raw, dict) or raw.get("type") != "file":
+            return {"ok": False, "error": "expected multipart field 'file'"}
+        data = raw.get("data") or b""
+        if not isinstance(data, (bytes, bytearray)):
+            return {"ok": False, "error": "invalid file data"}
+        digest = hashlib.sha256(data).hexdigest()
+        return {
+            "ok": True,
+            "filename": raw.get("filename"),
+            "content_type": raw.get("content_type"),
+            "size": raw.get("size"),
+            "sha256": digest,
+        }
+
     return {
         "ok": False,
         "error": "no route",
@@ -79,6 +100,7 @@ def on_load(server: PluginServerInterface, old) -> None:
         PLUGIN_ID,
         html_path,
         api_handler=_api_handler,
+        upload_max_bytes=2 * 1024 * 1024,  # 可选：该插件单文件上传上限（2 MiB）
     )
     server.logger.info(
         "[%s] 已注册插件页与 API 处理器，HTML=%s", PLUGIN_ID, html_path
