@@ -9,6 +9,7 @@ from mcdreforged.api.event import LiteralEvent
 from mcdreforged.api.types import PluginServerInterface
 
 from guguwebui.utils.dependency_checker import check_and_install_dependencies
+import guguwebui.state as gugu_state
 
 # 全局变量声明
 web_server_interface = None
@@ -141,6 +142,10 @@ def _setup_fastapi_mcdr_and_events(
     server.register_event_listener(
         LiteralEvent("mcdreforged.plugin_manager.plugin_loaded"),
         lambda plugin_id: on_plugin_loaded(server, plugin_id)
+    )
+    server.register_event_listener(
+        LiteralEvent("mcdreforged.plugin_manager.plugin_unloaded"),
+        lambda plugin_id: on_plugin_unloaded(server, plugin_id)
     )
     return False
 
@@ -317,6 +322,13 @@ def mount_to_fastapi_mcdr(server: PluginServerInterface, fastapi_mcdr):
 
 def on_plugin_unloaded(server: PluginServerInterface, plugin_id: str):
     """处理插件卸载事件"""
+    # 关键修复：卸载时清理插件网页注册表，避免侧边栏/API 仍可用
+    try:
+        gugu_state.REGISTERED_PLUGIN_PAGES.pop(plugin_id, None)
+    except Exception:
+        # 清理失败不应阻止后续逻辑（例如 fastapi_mcdr 切换）
+        server.logger.debug(f"清理插件页注册失败: {plugin_id}", exc_info=True)
+
     if plugin_id == "fastapi_mcdr":
         # 检查是否强制独立运行
         from guguwebui.constant import DEFALUT_CONFIG

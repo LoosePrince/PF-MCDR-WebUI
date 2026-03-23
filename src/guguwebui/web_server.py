@@ -739,6 +739,18 @@ async def get_registered_web_pages(
     request: Request, user: dict = Depends(get_current_user)
 ):
     """获取所有已注册的插件网页列表"""
+    server_interface = getattr(request.app.state, "server_interface", None)
+
+    def _is_plugin_loaded(pid: str) -> bool:
+        if server_interface is None:
+            return True
+        try:
+            # 仅当插件当前仍处于“已加载”状态时，才暴露它的侧边栏页与 API
+            return server_interface.get_plugin_instance(pid) is not None
+        except Exception:
+            # 异常不应导致 WebUI 全挂；保守起见仍然返回 True
+            return True
+
     pages = [
         {
             "id": pid,
@@ -746,6 +758,7 @@ async def get_registered_web_pages(
             "name": getattr(entry, "name", None),
         }
         for pid, entry in gugu_state.REGISTERED_PLUGIN_PAGES.items()
+        if _is_plugin_loaded(pid)
     ]
     return JSONResponse({"status": "success", "pages": pages})
 
@@ -877,6 +890,18 @@ async def _dispatch_plugin_api(
     request: Request,
     auth: dict[str, Any],
 ) -> Response:
+    # 防止“旧注册表残留”：即使 dict 里还有条目，也要求插件当前仍已加载
+    server_interface = getattr(request.app.state, "server_interface", None)
+    if server_interface is not None:
+        try:
+            if server_interface.get_plugin_instance(plugin_id) is None:
+                raise HTTPException(status_code=404, detail="Plugin not loaded")
+        except HTTPException:
+            raise
+        except Exception:
+            # 如遇到兼容性问题，避免导致整体不可用；继续走原逻辑
+            pass
+
     entry = gugu_state.REGISTERED_PLUGIN_PAGES.get(plugin_id)
     if entry is None or entry.api_handler is None:
         raise HTTPException(status_code=404, detail="Plugin API handler not registered")
