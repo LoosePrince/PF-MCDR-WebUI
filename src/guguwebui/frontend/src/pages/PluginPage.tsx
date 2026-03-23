@@ -4,9 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import api from '../utils/api';
 
-/** 插件页 iframe 内容区最大高度（超出则在 iframe 内滚动） */
-const IFRAME_MAX_HEIGHT_CSS = 'min(85vh, 1200px)'
-
 function getErrorMessage(err: unknown): string | null {
   if (!err || typeof err !== 'object') return null
   const maybeResponse = (err as { response?: unknown }).response
@@ -30,11 +27,12 @@ const PluginPage: React.FC = () => {
   const measureIframeContentHeight = useCallback(() => {
     const iframe = iframeRef.current;
     const doc = iframe?.contentDocument;
-    if (!doc?.documentElement) return;
+    const body = doc?.body;
+    if (!body) return;
     const h = Math.max(
-      doc.documentElement.scrollHeight,
-      doc.body?.scrollHeight ?? 0,
-      doc.documentElement.offsetHeight,
+      body.scrollHeight,
+      body.offsetHeight,
+      Math.ceil(body.getBoundingClientRect().height),
     );
     if (h > 0) {
       setIframeHeightPx(Math.max(Math.ceil(h), 120));
@@ -133,7 +131,6 @@ const PluginPage: React.FC = () => {
 
       <div
         className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden"
-        style={{ maxHeight: IFRAME_MAX_HEIGHT_CSS }}
       >
         <iframe
           ref={iframeRef}
@@ -141,7 +138,6 @@ const PluginPage: React.FC = () => {
           className="w-full border-none block"
           style={{
             height: iframeHeightPx,
-            maxHeight: IFRAME_MAX_HEIGHT_CSS,
             overflow: 'auto',
           }}
           title={`Plugin Page - ${pluginId}`}
