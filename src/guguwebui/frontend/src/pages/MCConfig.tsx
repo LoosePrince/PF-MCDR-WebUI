@@ -19,8 +19,9 @@ import {
   Zap
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { NiceSelect } from '../components/NiceSelect';
 import serverLang from '../i18n/server_lang.json';
 import api, { isCancel } from '../utils/api';
@@ -36,6 +37,39 @@ interface RconConfig {
   rcon_host: string;
   rcon_port: number;
   rcon_password: string;
+}
+
+type McUrlPatch = Partial<{ q: string | null; category: string | null }>;
+
+function mergeMcSearchParams(prev: URLSearchParams, patch: McUrlPatch): URLSearchParams {
+  const next = new URLSearchParams(prev);
+  for (const k of ['q', 'category'] as const) {
+    if (!(k in patch)) continue;
+    const v = patch[k];
+    if (v === null || v === undefined || v === '') {
+      next.delete(k);
+    } else {
+      next.set(k, v);
+    }
+  }
+  return next;
+}
+
+function normalizeMcUrlPatch(patch: McUrlPatch): McUrlPatch {
+  const out: McUrlPatch = {};
+  for (const k of Object.keys(patch) as (keyof McUrlPatch)[]) {
+    if (!(k in patch)) continue;
+    const v = patch[k];
+    if (v === undefined) continue;
+    if (k === 'q' && (v === '' || v === null)) {
+      out.q = null;
+    } else if (k === 'category' && (v === 'all' || v === null)) {
+      out.category = null;
+    } else {
+      out[k] = v as never;
+    }
+  }
+  return out;
 }
 
 const MCConfig: React.FC = () => {
@@ -57,6 +91,24 @@ const MCConfig: React.FC = () => {
 
   const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSyncRef = useRef<string>('');
+
+  const applyMcUrlPatch = useCallback(
+    (patch: McUrlPatch, replace = true) => {
+      const normalized = normalizeMcUrlPatch(patch);
+      setSearchParams(
+        (prev) => {
+          const n = mergeMcSearchParams(prev, normalized);
+          urlSyncRef.current = n.toString();
+          return n;
+        },
+        { replace }
+      );
+    },
+    [setSearchParams]
+  );
+
   const categories: Category[] = useMemo(() => [
     { id: 'all', name: t('page.mc.categories.all'), icon: SlidersHorizontal, keys: [] },
     { id: 'basic', name: t('page.mc.categories.basic'), icon: Server, keys: ['motd', 'server-port', 'server-ip', 'level-name', 'max-players', 'gamemode', 'difficulty'] },
@@ -66,6 +118,8 @@ const MCConfig: React.FC = () => {
     { id: 'world', name: t('page.mc.categories.world'), icon: Globe2, keys: ['level-seed', 'level-type', 'generate-structures', 'generator-settings', 'max-world-size', 'max-build-height'] },
     { id: 'security', name: t('page.mc.categories.security'), icon: ShieldCheck, keys: ['white-list', 'enforce-whitelist', 'online-mode', 'prevent-proxy-connections', 'player-idle-timeout', 'spawn-protection'] },
   ], [t]);
+
+  const categoryIds = useMemo(() => categories.map((c) => c.id), [categories]);
 
   const booleanKeys = [
     'accepts-transfers', 'pvp', 'hardcore', 'online-mode', 'enable-status', 'enable-query', 'enable-rcon',
@@ -83,6 +137,27 @@ const MCConfig: React.FC = () => {
     'function-permission-level': ['1', '2', '3', '4'],
     'op-permission-level': ['1', '2', '3', '4']
   };
+
+  const searchKey = searchParams.toString();
+  useEffect(() => {
+    if (searchKey === urlSyncRef.current) return;
+    const q = searchParams.get('q') ?? '';
+    setSearchQuery(q);
+    const cat = searchParams.get('category');
+    if (cat && categoryIds.includes(cat)) {
+      setActiveCategory(cat);
+    } else if (cat) {
+      setSearchParams(
+        (prev) => {
+          const n = mergeMcSearchParams(prev, { category: null });
+          urlSyncRef.current = n.toString();
+          return n;
+        },
+        { replace: true }
+      );
+    }
+    urlSyncRef.current = searchKey;
+  }, [searchKey, searchParams, categoryIds, setSearchParams]);
 
   useEffect(() => {
     // 创建 AbortController 用于取消请求
@@ -279,7 +354,11 @@ const MCConfig: React.FC = () => {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSearchQuery(v);
+                applyMcUrlPatch({ q: v || null });
+              }}
               placeholder={t('page.mc.search')}
               className="pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500/50 outline-none w-full md:w-64 transition-all"
             />
@@ -303,7 +382,10 @@ const MCConfig: React.FC = () => {
             return (
               <button
                 key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
+                onClick={() => {
+                  setActiveCategory(cat.id);
+                  applyMcUrlPatch({ category: cat.id === 'all' ? null : cat.id });
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeCategory === cat.id
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 font-bold'
                   : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-blue-400'

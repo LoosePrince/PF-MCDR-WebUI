@@ -17,8 +17,9 @@ import {
   Zap
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { NiceSelect } from '../components/NiceSelect';
 import { MCDR_SITE_URL } from '../constants';
 import api, { isCancel } from '../utils/api';
@@ -59,8 +60,11 @@ interface MCDRConfigData extends Record<string, unknown> {
   debug?: Record<string, boolean>;
 }
 
+type MCDRTab = 'config' | 'permission';
+
 const MCDRConfig: React.FC = () => {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'config' | 'permission'>('config');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,6 +86,36 @@ const MCDRConfig: React.FC = () => {
   const [newPlayerName, setNewPlayerName] = useState('');
   const [playerAddingToLevel, setPlayerAddingToLevel] = useState<string | null>(null);
   const [showHandlerModal, setShowHandlerModal] = useState(false);
+
+  const setTabInUrl = useCallback(
+    (tab: MCDRTab) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('tab', tab);
+          return next;
+        },
+        { replace: false }
+      );
+    },
+    [setSearchParams]
+  );
+
+  useEffect(() => {
+    const raw = searchParams.get('tab');
+    if (raw === 'permission' || raw === 'config') {
+      setActiveTab(raw);
+    } else if (raw !== null && raw !== '') {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('tab');
+          return next;
+        },
+        { replace: true }
+      );
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     // 创建 AbortController 用于取消请求
@@ -240,7 +274,10 @@ const MCDRConfig: React.FC = () => {
 
   const TabButton = ({ id, icon: Icon, label }: { id: typeof activeTab, icon: LucideIcon, label: string }) => (
     <button
-      onClick={() => setActiveTab(id)}
+      onClick={() => {
+        setActiveTab(id);
+        setTabInUrl(id);
+      }}
       className={`flex items-center space-x-2 px-6 py-3 rounded-xl transition-all duration-200 ${activeTab === id
         ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'

@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { VersionSelectModal } from '../components/VersionSelectModal';
 import api, { isCancel } from '../utils/api';
 
@@ -69,6 +70,32 @@ type VersionItem = {
   date?: string;
   downloads?: number;
 };
+
+type PluginUrlPatch = Partial<{
+  plugin_id: string | null;
+  config: string | null;
+  mode: string | null;
+  q: string | null;
+  status: string | null;
+}>;
+
+const PLUGIN_TAB_IDS = ['all', 'loaded', 'unloaded', 'disabled'] as const;
+type PluginTabId = (typeof PLUGIN_TAB_IDS)[number];
+
+function mergePluginSearchParams(prev: URLSearchParams, patch: PluginUrlPatch): URLSearchParams {
+  const next = new URLSearchParams(prev);
+  const keys: (keyof PluginUrlPatch)[] = ['plugin_id', 'config', 'mode', 'q', 'status'];
+  for (const k of keys) {
+    if (!(k in patch)) continue;
+    const v = patch[k];
+    if (v === null || v === undefined || v === '') {
+      next.delete(k);
+    } else {
+      next.set(k, v);
+    }
+  }
+  return next;
+}
 
 // 懒加载 CodeMirror 编辑器组件
 const CodeMirrorEditor: React.FC<{ value: string; onChange: (value: string) => void; theme: 'light' | 'dark' }> = ({ value, onChange, theme }) => {
@@ -119,7 +146,7 @@ const LocalPlugins: React.FC = () => {
   const [plugins, setPlugins] = useState<PluginMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'loaded' | 'unloaded' | 'disabled'>('all');
+  const [activeTab, setActiveTab] = useState<PluginTabId>('all');
 
   // Task state
   const [installingTaskId, setInstallingTaskId] = useState<string | null>(null);
@@ -156,6 +183,16 @@ const LocalPlugins: React.FC = () => {
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [availableVersions, setAvailableVersions] = useState<VersionItem[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSyncRef = useRef<string>('');
+
+  const notify = useCallback((msg: string, type: 'success' | 'error') => {
+    setNotificationMsg(msg);
+    setNotificationType(type);
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  }, []);
 
   const fetchPlugins = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -201,7 +238,7 @@ const LocalPlugins: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [t, notify]);
 
   useEffect(() => {
     // 创建 AbortController 用于取消请求
@@ -216,12 +253,65 @@ const LocalPlugins: React.FC = () => {
     };
   }, [fetchPlugins]);
 
-  const notify = (msg: string, type: 'success' | 'error') => {
-    setNotificationMsg(msg);
-    setNotificationType(type);
-    setShowNotification(true);
-    setTimeout(() => setShowNotification(false), 3000);
-  };
+  const closeConfigModal = useCallback(() => {
+    setShowConfigModal(false);
+    setSearchParams((prev) => {
+      const n = mergePluginSearchParams(prev, { plugin_id: null, config: null, mode: null });
+      urlSyncRef.current = n.toString();
+      return n;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const syncUrlOpenConfigList = useCallback(
+    (pluginId: string) => {
+      setSearchParams((prev) => {
+        const n = mergePluginSearchParams(prev, {
+          plugin_id: pluginId,
+          config: null,
+          mode: null
+        });
+        urlSyncRef.current = n.toString();
+        return n;
+      }, { replace: false });
+    },
+    [setSearchParams]
+  );
+
+  const syncUrlEditingFile = useCallback(
+    (pluginId: string, file: string, mode: 'code' | 'form' | 'web') => {
+      setSearchParams((prev) => {
+        const n = mergePluginSearchParams(prev, {
+          plugin_id: pluginId,
+          config: file,
+          mode: mode === 'code' ? null : mode
+        });
+        urlSyncRef.current = n.toString();
+        return n;
+      }, { replace: false });
+    },
+    [setSearchParams]
+  );
+
+  const syncListFiltersToUrl = useCallback(
+    (partial: { q?: string; status?: PluginTabId }) => {
+      setSearchParams(
+        (prev) => {
+          const n = mergePluginSearchParams(prev, {
+            ...(partial.q !== undefined
+              ? { q: partial.q.trim() ? partial.q : null }
+              : {}),
+            ...(partial.status !== undefined
+              ? { status: partial.status === 'all' ? null : partial.status }
+              : {})
+          });
+          urlSyncRef.current = n.toString();
+          return n;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   const pollTaskStatus = useCallback(async (taskId: string) => {
     if (taskPollingRef.current) {
@@ -262,7 +352,7 @@ const LocalPlugins: React.FC = () => {
     } finally {
       taskPollingRef.current = false;
     }
-  }, [fetchPlugins, operatingPluginId, t]);
+  }, [fetchPlugins, operatingPluginId, notify, t]);
 
   useEffect(() => {
     if (installingTaskId) {
@@ -376,6 +466,7 @@ const LocalPlugins: React.FC = () => {
   };
 
   const openConfig = async (plugin: PluginMetadata) => {
+    syncUrlOpenConfigList(plugin.id);
     setSelectedPlugin(plugin);
     setLoadingConfigs(true);
     setShowConfigModal(true);
@@ -392,53 +483,173 @@ const LocalPlugins: React.FC = () => {
     }
   };
 
-  const handleEditFile = async (file: string, mode: 'code' | 'form' | 'web' = 'code') => {
-    setEditingFile(file);
-    setEditorMode(mode);
-    setLoadingConfigs(true);
-    try {
-      if (mode === 'code') {
-        const resp = await api.get(`/load_config_file?path=${encodeURIComponent(file)}`);
-        const data = resp.data;
-        setConfigContent(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
-      } else if (mode === 'web') {
-        // Force auto type to get HTML from backend
-        const resp = await api.get(`/load_config?path=${encodeURIComponent(file)}&type=auto`);
-        if (resp.data && resp.data.type === 'html') {
-          setConfigContent(resp.data.content);
-        } else {
-          // Fallback to code if web fails or not available
-          setEditorMode('code');
-          notify(t('plugins.config_modal.cannot_edit_form'), 'error');
-        }
-      } else {
-        // Force json type to avoid auto-switching to HTML
-        const resp = await api.get(`/load_config?path=${encodeURIComponent(file)}&type=json`);
-
-        // Validation: If backend still returns HTML structure when JSON is requested, ignore it
-        if (resp.data && resp.data.type === 'html') {
-          notify(t('plugins.config_modal.cannot_edit_form'), 'error');
-          setEditorMode('code');
-          return;
-        }
-
-        setConfigData(resp.data);
-        // Fetch translations - explicitly set type=json to avoid HTML return
-        try {
-          const transResp = await api.get(`/load_config?path=${encodeURIComponent(file)}&translation=true&type=json`);
-          setConfigTranslations(transResp.data);
-        } catch (e) {
-          console.error('Failed to load translations:', e);
-          setConfigTranslations(null);
-        }
+  const handleEditFile = useCallback(
+    async (
+      file: string,
+      mode: 'code' | 'form' | 'web' = 'code',
+      options?: { skipUrlSync?: boolean; pluginIdForUrl?: string }
+    ) => {
+      const pid = options?.pluginIdForUrl ?? selectedPlugin?.id;
+      if (!options?.skipUrlSync && pid) {
+        syncUrlEditingFile(pid, file, mode);
       }
-    } catch (error) {
-      notify(t('plugins.msg.load_file_failed'), 'error');
-      setEditingFile(null);
-    } finally {
-      setLoadingConfigs(false);
+      setEditingFile(file);
+      setEditorMode(mode);
+      setLoadingConfigs(true);
+      try {
+        if (mode === 'code') {
+          const resp = await api.get(`/load_config_file?path=${encodeURIComponent(file)}`);
+          const data = resp.data;
+          setConfigContent(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+        } else if (mode === 'web') {
+          // Force auto type to get HTML from backend
+          const resp = await api.get(`/load_config?path=${encodeURIComponent(file)}&type=auto`);
+          if (resp.data && resp.data.type === 'html') {
+            setConfigContent(resp.data.content);
+          } else {
+            // Fallback to code if web fails or not available
+            setEditorMode('code');
+            notify(t('plugins.config_modal.cannot_edit_form'), 'error');
+          }
+        } else {
+          // Force json type to avoid auto-switching to HTML
+          const resp = await api.get(`/load_config?path=${encodeURIComponent(file)}&type=json`);
+
+          // Validation: If backend still returns HTML structure when JSON is requested, ignore it
+          if (resp.data && resp.data.type === 'html') {
+            notify(t('plugins.config_modal.cannot_edit_form'), 'error');
+            setEditorMode('code');
+            return;
+          }
+
+          setConfigData(resp.data);
+          // Fetch translations - explicitly set type=json to avoid HTML return
+          try {
+            const transResp = await api.get(`/load_config?path=${encodeURIComponent(file)}&translation=true&type=json`);
+            setConfigTranslations(transResp.data);
+          } catch (e) {
+            console.error('Failed to load translations:', e);
+            setConfigTranslations(null);
+          }
+        }
+      } catch (error) {
+        notify(t('plugins.msg.load_file_failed'), 'error');
+        setEditingFile(null);
+      } finally {
+        setLoadingConfigs(false);
+      }
+    },
+    [selectedPlugin?.id, syncUrlEditingFile, t, notify]
+  );
+
+  const backToConfigFileList = useCallback(() => {
+    const pid = selectedPlugin?.id;
+    setEditingFile(null);
+    if (pid) {
+      syncUrlOpenConfigList(pid);
     }
-  };
+  }, [selectedPlugin?.id, syncUrlOpenConfigList]);
+
+  const searchKey = searchParams.toString();
+  useEffect(() => {
+    if (searchKey === urlSyncRef.current) return;
+
+    const params = new URLSearchParams(searchKey);
+    const qParam = params.get('q') ?? '';
+    setSearchQuery(qParam);
+    const statusParam = params.get('status');
+    if (statusParam && PLUGIN_TAB_IDS.includes(statusParam as PluginTabId)) {
+      setActiveTab(statusParam as PluginTabId);
+    } else if (statusParam) {
+      setSearchParams(
+        (prev) => {
+          const n = mergePluginSearchParams(prev, { status: null });
+          urlSyncRef.current = n.toString();
+          return n;
+        },
+        { replace: true }
+      );
+    }
+
+    if (loading) {
+      const pluginIdParamEarly = params.get('plugin_id');
+      if (!pluginIdParamEarly) {
+        urlSyncRef.current = searchKey;
+      }
+      return;
+    }
+
+    const pluginIdParam = params.get('plugin_id');
+    if (!pluginIdParam) {
+      urlSyncRef.current = searchKey;
+      return;
+    }
+
+    const plugin = plugins.find((p) => p.id === pluginIdParam);
+    if (!plugin) {
+      notify(t('plugins.no_plugins_found'), 'error');
+      setSearchParams((prev) => {
+        const n = mergePluginSearchParams(prev, { plugin_id: null, config: null, mode: null });
+        urlSyncRef.current = n.toString();
+        return n;
+      }, { replace: true });
+      return;
+    }
+
+    const configParam = params.get('config');
+    const modeParam = params.get('mode');
+    const mode: 'code' | 'form' | 'web' =
+      modeParam === 'form' || modeParam === 'web' ? modeParam : 'code';
+
+    let cancelled = false;
+    void (async () => {
+      setSelectedPlugin(plugin);
+      setLoadingConfigs(true);
+      setShowConfigModal(true);
+      setEditingFile(null);
+      setConfigData(null);
+      setConfigTranslations(null);
+      try {
+        const resp = await api.get(`/list_config_files?plugin_id=${plugin.id}`);
+        if (cancelled) return;
+        const files = resp.data.files || [];
+        setConfigFiles(files);
+
+        if (configParam) {
+          const path = configParam;
+          const fileMeta = files.find((f: { path: string }) => f.path === path);
+          if (fileMeta) {
+            let useMode = mode;
+            if (useMode === 'web' && !fileMeta.has_web) {
+              useMode = 'code';
+              setSearchParams((prev) => {
+                const n = mergePluginSearchParams(prev, { mode: null });
+                urlSyncRef.current = n.toString();
+                return n;
+              }, { replace: true });
+            }
+            await handleEditFile(path, useMode, { skipUrlSync: true, pluginIdForUrl: plugin.id });
+          } else {
+            notify(t('plugins.msg.load_file_failed'), 'error');
+            setSearchParams((prev) => {
+              const n = mergePluginSearchParams(prev, { config: null, mode: null });
+              urlSyncRef.current = n.toString();
+              return n;
+            }, { replace: true });
+          }
+        }
+      } catch {
+        if (!cancelled) notify(t('plugins.msg.load_config_files_failed'), 'error');
+      } finally {
+        if (!cancelled) setLoadingConfigs(false);
+      }
+      if (!cancelled) urlSyncRef.current = searchKey;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, plugins, searchKey, handleEditFile, notify, t, setSearchParams]);
 
   const handleSaveFile = async () => {
     if (!editingFile) return;
@@ -459,6 +670,9 @@ const LocalPlugins: React.FC = () => {
 
       if (resp.data.status === 'success') {
         notify(t('page.mcdr.msg.save_success'), 'success');
+        if (selectedPlugin) {
+          syncUrlOpenConfigList(selectedPlugin.id);
+        }
         setEditingFile(null);
       } else {
         notify(t('plugins.msg.save_failed_prefix', { message: resp.data.message }), 'error');
@@ -579,15 +793,22 @@ const LocalPlugins: React.FC = () => {
             type="text"
             placeholder={t('plugins.search_placeholder')}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setSearchQuery(v);
+              syncListFiltersToUrl({ q: v });
+            }}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500/50 outline-none transition-all"
           />
         </div>
         <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg shrink-0">
-          {(['all', 'loaded', 'unloaded', 'disabled'] as const).map((tab) => (
+          {PLUGIN_TAB_IDS.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                setActiveTab(tab);
+                syncListFiltersToUrl({ status: tab });
+              }}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === tab
                 ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -718,7 +939,7 @@ const LocalPlugins: React.FC = () => {
       {/* Config Modal */}
       <Modal
         isOpen={showConfigModal}
-        onClose={() => setShowConfigModal(false)}
+        onClose={closeConfigModal}
         title={t('plugins.config_modal.title') + ' - ' + selectedPlugin?.name}
         fullWidth={!!editingFile}
       >
@@ -731,7 +952,7 @@ const LocalPlugins: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <button
-                  onClick={() => setEditingFile(null)}
+                  onClick={backToConfigFileList}
                   className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
                 >
                   <ArrowLeft size={18} />
@@ -804,7 +1025,7 @@ const LocalPlugins: React.FC = () => {
                   </span>
                 )}
                 <button
-                  onClick={() => setEditingFile(null)}
+                  onClick={backToConfigFileList}
                   className="px-6 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition-all font-bold"
                 >
                   {t('common.cancel')}

@@ -30,6 +30,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
@@ -91,6 +92,65 @@ interface PluginVersion {
   downloads?: number;
 }
 
+type OnlineUrlPatch = Partial<{
+  repo: string | null;
+  q: string | null;
+  sort: string | null;
+  order: string | null;
+  page: string | null;
+  detail: string | null;
+  readme: string | null;
+  install: string | null;
+  versions: string | null;
+}>;
+
+function mergeOnlineSearchParams(prev: URLSearchParams, patch: OnlineUrlPatch): URLSearchParams {
+  const next = new URLSearchParams(prev);
+  const keys: (keyof OnlineUrlPatch)[] = [
+    'repo',
+    'q',
+    'sort',
+    'order',
+    'page',
+    'detail',
+    'readme',
+    'install',
+    'versions'
+  ];
+  for (const k of keys) {
+    if (!(k in patch)) continue;
+    const v = patch[k];
+    if (v === null || v === undefined || v === '') {
+      next.delete(k);
+    } else {
+      next.set(k, v);
+    }
+  }
+  return next;
+}
+
+/** 与列表默认值一致时不写入 URL：sort=time, order=desc, page=1, 空 q */
+function normalizeOnlineUrlPatch(patch: OnlineUrlPatch): OnlineUrlPatch {
+  const out: OnlineUrlPatch = {};
+  for (const k of Object.keys(patch) as (keyof OnlineUrlPatch)[]) {
+    if (!(k in patch)) continue;
+    const v = patch[k];
+    if (v === undefined) continue;
+    if (k === 'sort' && v === 'time') {
+      out.sort = null;
+    } else if (k === 'order' && v === 'desc') {
+      out.order = null;
+    } else if (k === 'page' && (v === '1' || v === '')) {
+      out.page = null;
+    } else if (k === 'q' && (v === '' || v === null)) {
+      out.q = null;
+    } else {
+      out[k] = v as never;
+    }
+  }
+  return out;
+}
+
 // --- 组件实现 ---
 
 const OnlinePlugins: React.FC = () => {
@@ -147,6 +207,25 @@ const OnlinePlugins: React.FC = () => {
   const [operatingPluginId, setOperatingPluginId] = useState<string>('');
   const taskPollingRef = useRef(false);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSyncRef = useRef<string>('');
+  const lastDetailSyncRef = useRef<string | null>(null);
+  const lastReadmeSyncRef = useRef<string | null>(null);
+  const lastInstallSyncRef = useRef<string | null>(null);
+  const lastVersionsSyncRef = useRef<string | null>(null);
+  const openPluginDetailsRef = useRef<
+    (plugin: OnlinePlugin, options?: { skipUrlSync?: boolean }) => Promise<void>
+  >(() => Promise.resolve());
+  const openReadmeModalRef = useRef<
+    (plugin: OnlinePlugin, options?: { skipUrlSync?: boolean }) => Promise<void>
+  >(() => Promise.resolve());
+  const openInstallConfirmRef = useRef<
+    (plugin: OnlinePlugin, options?: { skipUrlSync?: boolean }) => void
+  >(() => {});
+  const openVersionSelectorRef = useRef<
+    (plugin: OnlinePlugin, options?: { skipUrlSync?: boolean }) => Promise<void>
+  >(() => Promise.resolve());
+
   // 提示通知
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState('');
@@ -158,6 +237,21 @@ const OnlinePlugins: React.FC = () => {
     setShowNotification(true);
     setTimeout(() => setShowNotification(false), 3000);
   };
+
+  const applyOnlineUrlPatch = useCallback(
+    (patch: OnlineUrlPatch, replace = false) => {
+      const normalized = normalizeOnlineUrlPatch(patch);
+      setSearchParams(
+        (prev) => {
+          const n = mergeOnlineSearchParams(prev, normalized);
+          urlSyncRef.current = n.toString();
+          return n;
+        },
+        { replace }
+      );
+    },
+    [setSearchParams]
+  );
 
   const getErrorMeta = (err: unknown): { name?: string; code?: string; message?: string } => {
     if (!err || typeof err !== 'object') return {}
@@ -203,7 +297,7 @@ const OnlinePlugins: React.FC = () => {
         });
       }
       setRepositories(repos);
-      if (!selectedRepo && repos.length > 0) setSelectedRepo(repos[0].url);
+      setSelectedRepo((prev) => (prev || (repos.length > 0 ? repos[0].url : '')));
     } catch (error: unknown) {
       // 忽略取消的请求错误
       const meta = getErrorMeta(error)
@@ -212,7 +306,7 @@ const OnlinePlugins: React.FC = () => {
       }
       console.error('Failed to fetch repositories:', error);
     }
-  }, [t, selectedRepo]);
+  }, [t]);
 
   const fetchPlugins = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -264,6 +358,123 @@ const OnlinePlugins: React.FC = () => {
       };
     }
   }, [selectedRepo, fetchPlugins, repositories.length]);
+
+  const searchKey = searchParams.toString();
+  useEffect(() => {
+    if (searchKey === urlSyncRef.current) return;
+    if (repositories.length === 0) return;
+
+    const params = new URLSearchParams(searchKey);
+    const repoParam = params.get('repo');
+    if (repoParam) {
+      const match = repositories.find((r) => r.url === repoParam);
+      if (match) {
+        setSelectedRepo(repoParam);
+      } else {
+        setSearchParams(
+          (prev) => {
+            const n = mergeOnlineSearchParams(prev, { repo: null });
+            urlSyncRef.current = n.toString();
+            return n;
+          },
+          { replace: true }
+        );
+      }
+    }
+
+    const q = params.get('q') ?? '';
+    setSearchQuery(q);
+
+    const sort = params.get('sort');
+    if (sort === 'name' || sort === 'time' || sort === 'downloads') {
+      setSortBy(sort);
+    }
+
+    const order = params.get('order');
+    if (order === 'asc' || order === 'desc') {
+      setSortOrder(order);
+    }
+
+    const pageStr = params.get('page');
+    const pageNum = pageStr ? parseInt(pageStr, 10) : 1;
+    if (!Number.isNaN(pageNum) && pageNum >= 1) {
+      setCurrentPage(pageNum);
+    }
+
+    urlSyncRef.current = searchKey;
+  }, [searchKey, repositories, setSearchParams]);
+
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(searchKey);
+    const detailId = params.get('detail');
+    if (!detailId) {
+      lastDetailSyncRef.current = null;
+      return;
+    }
+    if (lastDetailSyncRef.current === detailId) return;
+    const plugin = plugins.find((p) => p.id === detailId);
+    if (plugin) {
+      lastDetailSyncRef.current = detailId;
+      void openPluginDetailsRef.current(plugin, { skipUrlSync: true });
+    } else {
+      applyOnlineUrlPatch({ detail: null }, true);
+    }
+  }, [loading, plugins, searchKey, applyOnlineUrlPatch]);
+
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(searchKey);
+    const readmeId = params.get('readme');
+    if (!readmeId) {
+      lastReadmeSyncRef.current = null;
+      return;
+    }
+    if (lastReadmeSyncRef.current === readmeId) return;
+    const plugin = plugins.find((p) => p.id === readmeId);
+    if (plugin) {
+      lastReadmeSyncRef.current = readmeId;
+      void openReadmeModalRef.current(plugin, { skipUrlSync: true });
+    } else {
+      applyOnlineUrlPatch({ readme: null }, true);
+    }
+  }, [loading, plugins, searchKey, applyOnlineUrlPatch]);
+
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(searchKey);
+    const installId = params.get('install');
+    if (!installId) {
+      lastInstallSyncRef.current = null;
+      return;
+    }
+    if (lastInstallSyncRef.current === installId) return;
+    const plugin = plugins.find((p) => p.id === installId);
+    if (plugin) {
+      lastInstallSyncRef.current = installId;
+      openInstallConfirmRef.current(plugin, { skipUrlSync: true });
+    } else {
+      applyOnlineUrlPatch({ install: null }, true);
+    }
+  }, [loading, plugins, searchKey, applyOnlineUrlPatch]);
+
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(searchKey);
+    const versionsId = params.get('versions');
+    if (!versionsId) {
+      lastVersionsSyncRef.current = null;
+      return;
+    }
+    if (lastVersionsSyncRef.current === versionsId) return;
+    const plugin = plugins.find((p) => p.id === versionsId);
+    if (plugin) {
+      lastVersionsSyncRef.current = versionsId;
+      void openVersionSelectorRef.current(plugin, { skipUrlSync: true });
+    } else {
+      applyOnlineUrlPatch({ versions: null }, true);
+    }
+  }, [loading, plugins, searchKey, applyOnlineUrlPatch]);
 
   // 工具函数：比对版本
   const getPluginStatus = (pluginId: string, remoteVersion: string) => {
@@ -363,6 +574,8 @@ const OnlinePlugins: React.FC = () => {
         setTaskProgress(null);
         setShowTaskModal(true);
         setShowVersionModal(false);
+        applyOnlineUrlPatch({ versions: null }, true);
+        lastVersionsSyncRef.current = null;
       } else {
         notify(t('plugins.msg.install_failed_prefix', { message: resp.data.error }), 'error');
       }
@@ -372,7 +585,16 @@ const OnlinePlugins: React.FC = () => {
   };
 
   // 版本查询逻辑
-  const openVersionSelector = async (plugin: OnlinePlugin) => {
+  const openVersionSelector = async (plugin: OnlinePlugin, options?: { skipUrlSync?: boolean }) => {
+    if (!options?.skipUrlSync) {
+      applyOnlineUrlPatch({
+        versions: plugin.id,
+        readme: null,
+        install: null,
+        detail: null
+      });
+      lastVersionsSyncRef.current = plugin.id;
+    }
     setVersionTargetPluginId(plugin.id);
     setVersionTargetPluginName(plugin.name);
     const local = localPlugins.find(p => p.id === plugin.id);
@@ -397,15 +619,26 @@ const OnlinePlugins: React.FC = () => {
     } catch (error) {
       notify(t('page.online_plugins.msg.versions_failed'), 'error');
       setShowVersionModal(false);
+      applyOnlineUrlPatch({ versions: null }, true);
+      lastVersionsSyncRef.current = null;
     } finally {
       setLoadingVersions(false);
     }
   };
 
-  const openInstallConfirm = (plugin: OnlinePlugin) => {
+  const openInstallConfirm = (plugin: OnlinePlugin, options?: { skipUrlSync?: boolean }) => {
     if (plugin.id === 'guguwebui') {
       notify(t('plugins.msg.cannot_install_webui'), 'error');
       return;
+    }
+    if (!options?.skipUrlSync) {
+      applyOnlineUrlPatch({
+        install: plugin.id,
+        readme: null,
+        versions: null,
+        detail: null
+      });
+      lastInstallSyncRef.current = plugin.id;
     }
     setPendingInstallPlugin(plugin);
     setShowInstallConfirmModal(true);
@@ -414,7 +647,12 @@ const OnlinePlugins: React.FC = () => {
   const closeInstallConfirm = () => {
     setShowInstallConfirmModal(false);
     setPendingInstallPlugin(null);
+    applyOnlineUrlPatch({ install: null }, true);
+    lastInstallSyncRef.current = null;
   };
+
+  openVersionSelectorRef.current = openVersionSelector;
+  openInstallConfirmRef.current = openInstallConfirm;
 
   // 解析catalogue URL
   const parseCatalogueUrl = (readmeUrl: string): string => {
@@ -444,7 +682,17 @@ const OnlinePlugins: React.FC = () => {
     }
   };
 
-  const openPluginDetails = async (plugin: OnlinePlugin) => {
+  const openPluginDetails = async (plugin: OnlinePlugin, options?: { skipUrlSync?: boolean }) => {
+    if (!options?.skipUrlSync) {
+      applyOnlineUrlPatch({
+        detail: plugin.id,
+        readme: null,
+        install: null,
+        versions: null
+      });
+      lastDetailSyncRef.current = plugin.id;
+    }
+
     // 处理历史记录
     if (selectedPlugin && selectedPlugin.id !== plugin.id) {
       setPluginHistory(prev => [...prev, selectedPlugin]);
@@ -472,11 +720,22 @@ const OnlinePlugins: React.FC = () => {
     }
   };
 
-  // 打开文档弹窗
-  const openReadmeModal = async (plugin: OnlinePlugin) => {
+  openPluginDetailsRef.current = openPluginDetails;
+
+  const openReadmeModal = async (plugin: OnlinePlugin, options?: { skipUrlSync?: boolean }) => {
     if (!plugin.readme_url) {
       notify(t('page.online_plugins.msg.no_readme'), 'info');
       return;
+    }
+
+    if (!options?.skipUrlSync) {
+      applyOnlineUrlPatch({
+        readme: plugin.id,
+        install: null,
+        versions: null,
+        detail: null
+      });
+      lastReadmeSyncRef.current = plugin.id;
     }
 
     setReadmeUrl(plugin.readme_url);
@@ -501,6 +760,8 @@ const OnlinePlugins: React.FC = () => {
       setLoadingReadmeContent(false);
     }
   };
+
+  openReadmeModalRef.current = openReadmeModal;
 
   // 切换文档类型
   const switchReadmeType = async (type: 'readme' | 'catalogue') => {
@@ -590,6 +851,7 @@ const OnlinePlugins: React.FC = () => {
     } else {
       setSelectedRepo(url);
       setCurrentPage(1);
+      applyOnlineUrlPatch({ repo: url, page: null });
     }
   };
 
@@ -640,7 +902,11 @@ const OnlinePlugins: React.FC = () => {
             type="text"
             placeholder={t('page.online_plugins.search')}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setSearchQuery(v);
+              applyOnlineUrlPatch({ q: v || null }, true);
+            }}
             className="w-full pl-9 pr-4 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-purple-500/50 outline-none transition-all"
           />
         </div>
@@ -650,10 +916,14 @@ const OnlinePlugins: React.FC = () => {
               key={sort}
               onClick={() => {
                 if (sortBy === sort) {
-                  setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                  const nextOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+                  setSortOrder(nextOrder);
+                  applyOnlineUrlPatch({ sort, order: nextOrder }, true);
                 } else {
+                  const nextOrder = sort === 'name' ? 'asc' : 'desc';
                   setSortBy(sort);
-                  setSortOrder(sort === 'name' ? 'asc' : 'desc');
+                  setSortOrder(nextOrder);
+                  applyOnlineUrlPatch({ sort, order: nextOrder }, true);
                 }
               }}
               className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1.5 ${sortBy === sort
@@ -701,7 +971,11 @@ const OnlinePlugins: React.FC = () => {
             <div className="flex justify-center items-center gap-2 pt-2">
               <button
                 disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                onClick={() => {
+                  const next = Math.max(1, currentPage - 1);
+                  setCurrentPage(next);
+                  applyOnlineUrlPatch({ page: next === 1 ? null : String(next) }, true);
+                }}
                 className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-sm"
               >
                 <ArrowRight size={16} className="rotate-180" />
@@ -711,7 +985,11 @@ const OnlinePlugins: React.FC = () => {
               </div>
               <button
                 disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                onClick={() => {
+                  const next = Math.min(totalPages, currentPage + 1);
+                  setCurrentPage(next);
+                  applyOnlineUrlPatch({ page: next === 1 ? null : String(next) }, true);
+                }}
                 className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-sm"
               >
                 <ArrowRight size={16} />
@@ -762,7 +1040,11 @@ const OnlinePlugins: React.FC = () => {
       {/* Version Choice Modal */}
       <VersionSelectModal
         isOpen={showVersionModal}
-        onClose={() => setShowVersionModal(false)}
+        onClose={() => {
+          setShowVersionModal(false);
+          applyOnlineUrlPatch({ versions: null }, true);
+          lastVersionsSyncRef.current = null;
+        }}
         title={t('plugins.version_modal.title') + (versionTargetPluginName || '')}
         loading={loadingVersions}
         versions={availableVersions}
@@ -821,6 +1103,8 @@ const OnlinePlugins: React.FC = () => {
         onClose={() => {
           setShowDetailModal(false);
           setPluginHistory([]);
+          applyOnlineUrlPatch({ detail: null }, true);
+          lastDetailSyncRef.current = null;
         }}
         title={selectedPlugin?.name || ''}
       >
@@ -1073,6 +1357,7 @@ const OnlinePlugins: React.FC = () => {
                 if (pendingRepo) {
                   setSelectedRepo(pendingRepo);
                   setCurrentPage(1);
+                  applyOnlineUrlPatch({ repo: pendingRepo, page: null });
                   setShowRepoWarningModal(false);
                   localStorage.setItem('skipRepoWarningDate', new Date().toISOString().slice(0, 10));
                 }
@@ -1088,7 +1373,11 @@ const OnlinePlugins: React.FC = () => {
       {/* Readme Document Modal */}
       <Modal
         isOpen={showReadmeModal}
-        onClose={() => setShowReadmeModal(false)}
+        onClose={() => {
+          setShowReadmeModal(false);
+          applyOnlineUrlPatch({ readme: null }, true);
+          lastReadmeSyncRef.current = null;
+        }}
         title={t('page.online_plugins.readme')}
         maxWidthClassName="max-w-6xl"
       >
