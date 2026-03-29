@@ -241,7 +241,24 @@
                 "load_failed": "加载全局样式/脚本失败",
                 "save_success": "全局样式/脚本保存成功",
                 "save_failed_prefix": "保存全局样式/脚本失败: "
-            }
+            },
+            "audit_logs": "操作记录",
+            "audit_logs_desc": "查看业务操作溯源（只读）"
+        },
+        "operation_logs": {
+            "title": "操作记录",
+            "subtitle": "记录配置保存、插件与服务器等操作；存储于 guguwebui_static/audit_log.bin",
+            "empty": "暂无记录",
+            "load_failed": "加载操作记录失败",
+            "col_time": "时间",
+            "col_account": "账户",
+            "col_operation": "操作类型",
+            "col_summary": "摘要",
+            "col_detail": "详情",
+            "view_detail": "查看详情",
+            "detail_title": "操作详情",
+            "load_more": "加载更多",
+            "panel_actor": "面板代理"
         },
         "404": {
             "title": "404 - 页面未找到",

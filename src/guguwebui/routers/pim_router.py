@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.dependencies.auth import get_current_admin, get_current_user
+from guguwebui.services.operation_audit_service import record_operation
 from guguwebui.structures import PimInstallRequest, PimUninstallRequest
 
 router = APIRouter()
@@ -32,7 +33,7 @@ async def api_get_plugin_versions(
 async def api_pim_install_plugin(
     request: Request,
     body: PimInstallRequest,
-    _admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ):
     """安装插件（PIM）"""
     if body.plugin_id == "guguwebui":
@@ -44,6 +45,17 @@ async def api_pim_install_plugin(
         task_id = await request.app.state.plugin_service.install_plugin(
             body.plugin_id, body.version, body.repo_url
         )
+        record_operation(
+            admin,
+            operation_type="pim.install_plugin",
+            summary=f"发起 PIM 安装插件: {body.plugin_id} @ {body.version}",
+            detail={
+                "plugin_id": body.plugin_id,
+                "version": body.version,
+                "repo_url": body.repo_url,
+                "task_id": task_id,
+            },
+        )
         return JSONResponse({"success": True, "task_id": task_id})
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
@@ -53,7 +65,7 @@ async def api_pim_install_plugin(
 async def api_pim_uninstall_plugin(
     request: Request,
     body: PimUninstallRequest,
-    _admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ):
     """卸载插件（PIM）"""
     if body.plugin_id == "guguwebui":
@@ -63,6 +75,12 @@ async def api_pim_uninstall_plugin(
 
     try:
         task_id = await request.app.state.plugin_service.uninstall_plugin(body.plugin_id)
+        record_operation(
+            admin,
+            operation_type="pim.uninstall_plugin",
+            summary=f"发起 PIM 卸载插件: {body.plugin_id}",
+            detail={"plugin_id": body.plugin_id, "task_id": task_id},
+        )
         return JSONResponse({"success": True, "task_id": task_id})
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
@@ -72,7 +90,7 @@ async def api_pim_uninstall_plugin(
 async def api_pim_update_plugin(
     request: Request,
     body: PimInstallRequest,
-    _admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ):
     """更新插件（PIM），本质为指定版本安装"""
     if body.plugin_id == "guguwebui":
@@ -83,6 +101,17 @@ async def api_pim_update_plugin(
     try:
         task_id = await request.app.state.plugin_service.install_plugin(
             body.plugin_id, body.version, body.repo_url
+        )
+        record_operation(
+            admin,
+            operation_type="pim.update_plugin",
+            summary=f"发起 PIM 更新插件: {body.plugin_id} → {body.version}",
+            detail={
+                "plugin_id": body.plugin_id,
+                "version": body.version,
+                "repo_url": body.repo_url,
+                "task_id": task_id,
+            },
         )
         return JSONResponse({"success": True, "task_id": task_id})
     except Exception as e:
@@ -119,13 +148,17 @@ async def api_check_pim_status(
 @router.get("/install_pim_plugin")
 async def api_install_pim_plugin(
     request: Request,
-    _admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ):
     """将PIM作为独立插件安装"""
-    return JSONResponse(
-        {
-            "status": "success",
-            **await request.app.state.plugin_service.install_pim_plugin_action(),
-        }
-    )
+    result = await request.app.state.plugin_service.install_pim_plugin_action()
+    merged = {"status": "success", **result}
+    if isinstance(result, dict) and result.get("status") == "success":
+        record_operation(
+            admin,
+            operation_type="pim.install_pim_bootstrap",
+            summary="安装/启用内置 PIM 模块",
+            detail={k: v for k, v in result.items() if k in ("message", "task_id")},
+        )
+    return JSONResponse(merged)
 

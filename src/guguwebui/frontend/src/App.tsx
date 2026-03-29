@@ -18,6 +18,7 @@ const Chat = lazy(() => import('./pages/Chat'))
 const PlayerChat = lazy(() => import('./pages/PlayerChat'))
 const PluginPage = lazy(() => import('./pages/PluginPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
+const OperationLogs = lazy(() => import('./pages/OperationLogs'))
 
 // 独立页面路径（不需要认证）
 const PUBLIC_PATHS = ['/login', '/player-chat']
@@ -67,6 +68,7 @@ function AppContent() {
                     <Route path="/chat" element={<Chat />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/about" element={<About />} />
+                    <Route path="/operation-logs" element={<OperationLogs />} />
                     <Route path="/plugin-page/:pluginId" element={<PluginPage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

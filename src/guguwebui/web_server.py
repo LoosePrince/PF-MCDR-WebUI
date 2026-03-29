@@ -27,6 +27,7 @@ from guguwebui.dependencies.auth import get_current_admin, get_current_user
 from guguwebui.panel_merge.proxy import ApiProxyDispatchMiddleware
 from guguwebui.panel_merge.routes import router as panel_merge_router
 from guguwebui.PIM import initialize_pim
+from guguwebui.routers.audit_router import router as audit_router
 from guguwebui.routers.chat_router import router as chat_router
 from guguwebui.routers.config_router import router as config_router
 from guguwebui.routers.pim_router import router as pim_router
@@ -374,6 +375,7 @@ app.include_router(plugin_proxy_router, prefix="/api") # 插件代理
 app.include_router(pim_router, prefix="/api") # PIM
 app.include_router(pip_router, prefix="/api") # PIP
 app.include_router(chat_router, prefix="/api") # 聊天
+app.include_router(audit_router, prefix="/api") # 操作审计
 
 
 # ============================================================#
@@ -482,6 +484,20 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ============================================================#
 
 
+def _is_admin_user(request: Request, user: dict) -> bool:
+    """与 get_current_admin 一致，不抛异常。"""
+    if user.get("auth_via") == "panel_token":
+        return True
+    config_service = request.app.state.config_service
+    server_config = config_service.get_config()
+    super_admin_account = str(server_config.get("super_admin_account"))
+    disable_other_admin = server_config.get("disable_other_admin", False)
+    username = user.get("username")
+    if disable_other_admin and str(username) != super_admin_account:
+        return False
+    return True
+
+
 @app.get("/api/checkLogin")
 async def check_login_status(request: Request, user: dict = Depends(get_current_user)):
     username = user.get("username")
@@ -498,13 +514,20 @@ async def check_login_status(request: Request, user: dict = Depends(get_current_
     return JSONResponse({
         "status": "success",
         "username": username,
-        "nickname": nickname
+        "nickname": nickname,
+        "is_admin": _is_admin_user(request, user),
     })
 
 
 @app.get("/terminal")
 async def terminal_page(request: Request, admin: dict = Depends(get_current_admin)):
     """提供终端日志页面 - 使用 React SPA"""
+    return serve_spa_index(request)
+
+
+@app.get("/operation-logs", response_class=HTMLResponse)
+async def operation_logs_page(request: Request, admin: dict = Depends(get_current_admin)):
+    """操作记录（只读）"""
     return serve_spa_index(request)
 
 @app.post("/api/deepseek")

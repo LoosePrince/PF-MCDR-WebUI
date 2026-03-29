@@ -9,6 +9,7 @@ ALGORITHM = "HS256"
 SECRET_KEY = "guguwebui"
 STATIC_PATH = "./guguwebui_static"
 USER_DB_PATH = Path(STATIC_PATH) / "db.json"
+AUDIT_LOG_PATH = Path(STATIC_PATH) / "audit_log.bin"
 PATH_DB_PATH = Path("./config") / "guguwebui" / "config_path.json"
 
 # 插件网页 api_handler：multipart 单文件字段默认最大字节数（超过则 413）

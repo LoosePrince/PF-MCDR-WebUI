@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.dependencies.auth import get_current_admin, get_current_user
+from guguwebui.services.operation_audit_service import record_operation
 from guguwebui.services.server_service import ServerService
 from guguwebui.structures import ServerControl
 
@@ -26,11 +27,18 @@ async def api_get_server_status(
 async def api_control_server(
     request: Request,
     control_info: ServerControl,
-    _admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ):
     """控制Minecraft服务器"""
     server_service: ServerService = request.app.state.server_service
     result = server_service.control_server(control_info.action)
+    if isinstance(result, dict) and result.get("status") == "success":
+        record_operation(
+            admin,
+            operation_type="server.control",
+            summary=f"服务器控制: {control_info.action}",
+            detail={"action": control_info.action},
+        )
     status_code = 200 if result.get("status") == "success" else 400
     return JSONResponse(result, status_code=status_code)
 
@@ -80,12 +88,21 @@ async def api_get_command_suggestions(
 @router.post("/send_command")
 async def api_send_command(
     request: Request,
-    _admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ):
     """发送命令到MCDR终端"""
     data = await request.json()
     server_service: ServerService = request.app.state.server_service
-    result = await server_service.send_command(data.get("command", ""))
+    raw_cmd = data.get("command", "") or ""
+    result = await server_service.send_command(raw_cmd)
+    if isinstance(result, dict) and result.get("status") == "success":
+        preview = raw_cmd.strip()[:500]
+        record_operation(
+            admin,
+            operation_type="mcdr.send_command",
+            summary="执行 MCDR 控制台命令",
+            detail={"command_preview": preview, "length": len(raw_cmd)},
+        )
     status_code = (
         403
         if result.get("message") == "该命令已被禁止执行"

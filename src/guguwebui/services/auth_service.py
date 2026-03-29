@@ -8,6 +8,14 @@ from guguwebui.constant import DEFALUT_CONFIG, user_db
 from guguwebui.utils.auth_util import verify_password
 
 
+def _is_admin_from_config(server_config: dict, username: str) -> bool:
+    disable_other_admin = server_config.get("disable_other_admin", False)
+    super_admin_account = str(server_config.get("super_admin_account"))
+    if disable_other_admin and str(username) != super_admin_account:
+        return False
+    return True
+
+
 class AuthService:
     def __init__(self, server, config_service=None):
         self.server = server
@@ -79,7 +87,8 @@ class AuthService:
                 response = JSONResponse({
                     "status": "success",
                     "message": "登录成功",
-                    "nickname": nickname
+                    "nickname": nickname,
+                    "is_admin": _is_admin_from_config(server_config, account),
                 })
                 response.set_cookie(
                     "token",
@@ -153,7 +162,8 @@ class AuthService:
                     "status": "success",
                     "message": "临时登录成功",
                     "username": username,
-                    "nickname": nickname
+                    "nickname": nickname,
+                    "is_admin": _is_admin_from_config(server_config, username),
                 }
                 response = JSONResponse(response_data)
                 response.set_cookie(

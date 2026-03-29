@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowUpCircle,
   ChevronRight,
+  ClipboardList,
   Clock,
   Info,
   Lock,
@@ -21,6 +22,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCache } from '../context/CacheContext'
 import { useNoticeModal } from '../context/NoticeModalContext'
+import { useAuth } from '../hooks/useAuth'
 import api, { isCancel } from '../utils/api'
 import { fetchNotice, type NoticeData } from '../utils/notice'
 
@@ -50,6 +52,7 @@ type NotificationType = 'success' | 'error'
 
 const Dashboard: React.FC = () => {
   const { t } = useTranslation()
+  const { isAdmin } = useAuth()
   const cache = useCache()
   const noticeModal = useNoticeModal()
   const [serverStatus, setServerStatus] = useState<ServerStatus>({
@@ -734,6 +737,9 @@ const Dashboard: React.FC = () => {
               { key: 'mcdr_config', icon: Settings2, color: 'bg-purple-500', path: './mcdr' },
               { key: 'mc_config', icon: Sliders, color: 'bg-emerald-500', path: './mc' },
               { key: 'online_plugins', icon: Puzzle, color: 'bg-amber-500', path: './online-plugins' },
+              ...(isAdmin
+                ? [{ key: 'audit_logs', icon: ClipboardList, color: 'bg-violet-500', path: './operation-logs' }]
+                : []),
             ].map((item) => (
               <motion.a
                 key={item.key}

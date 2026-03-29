@@ -240,7 +240,24 @@
                 "load_failed": "Failed to load global style/script",
                 "save_success": "Global style/script saved successfully",
                 "save_failed_prefix": "Failed to save global style/script: "
-            }
+            },
+            "audit_logs": "Audit log",
+            "audit_logs_desc": "Business-level actions (read-only)"
+        },
+        "operation_logs": {
+            "title": "Audit log",
+            "subtitle": "Config, plugins, server actions; stored as guguwebui_static/audit_log.bin",
+            "empty": "No entries yet",
+            "load_failed": "Failed to load audit log",
+            "col_time": "Time",
+            "col_account": "Account",
+            "col_operation": "Operation",
+            "col_summary": "Summary",
+            "col_detail": "Details",
+            "view_detail": "View details",
+            "detail_title": "Entry details",
+            "load_more": "Load more",
+            "panel_actor": "Panel proxy"
         },
         "404": {
             "title": "404 - Page Not Found",

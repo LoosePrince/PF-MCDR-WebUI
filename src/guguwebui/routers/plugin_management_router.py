@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.dependencies.auth import get_current_admin, get_current_user
+from guguwebui.services.operation_audit_service import record_operation
 from guguwebui.structures import PluginInfo, ToggleConfig
 from guguwebui import state as gugu_state
 
@@ -42,26 +43,39 @@ async def api_get_online_plugins(
 async def api_toggle_plugin(
     request: Request,
     request_body: ToggleConfig,
-    _admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ):
     """切换插件状态（加载/卸载）"""
-    return JSONResponse(
-        request.app.state.plugin_service.toggle_plugin(
-            request_body.plugin_id, request_body.status
-        )
+    result = request.app.state.plugin_service.toggle_plugin(
+        request_body.plugin_id, request_body.status
     )
+    if isinstance(result, dict) and result.get("status") == "success":
+        verb = "启用" if request_body.status else "禁用"
+        record_operation(
+            admin,
+            operation_type="plugin.toggle",
+            summary=f"{verb}插件: {request_body.plugin_id}",
+            detail={"plugin_id": request_body.plugin_id, "load": request_body.status},
+        )
+    return JSONResponse(result)
 
 
 @router.post("/reload_plugin")
 async def api_reload_plugin(
     request: Request,
     plugin_info: PluginInfo,
-    _admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ):
     """重载插件"""
-    return JSONResponse(
-        request.app.state.plugin_service.reload_plugin(plugin_info.plugin_id)
-    )
+    result = request.app.state.plugin_service.reload_plugin(plugin_info.plugin_id)
+    if isinstance(result, dict) and result.get("status") == "success":
+        record_operation(
+            admin,
+            operation_type="plugin.reload",
+            summary=f"重载插件: {plugin_info.plugin_id}",
+            detail={"plugin_id": plugin_info.plugin_id},
+        )
+    return JSONResponse(result)
 
 
 @router.get("/list_config_files")

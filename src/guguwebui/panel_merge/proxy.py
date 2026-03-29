@@ -32,6 +32,7 @@ def is_proxy_candidate_path(path: str) -> bool:
         "/api/checkLogin",
         "/api/servers",
         "/api/panel_merge_config",
+        "/api/audit_logs",
     ]:
         return False
     # OpenAPI 文档与语言列表也保持主服本地（避免跨服混淆）
@@ -70,6 +71,7 @@ def is_admin_api_path(path: str) -> bool:
         "/api/check_pim_status",
         "/api/deepseek",
         "/api/online-plugins",
+        "/api/audit_logs",
     }
     if path in admin_exact:
         return True
