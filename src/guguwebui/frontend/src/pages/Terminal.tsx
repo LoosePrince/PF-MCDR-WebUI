@@ -64,6 +64,7 @@ const Terminal: React.FC = () => {
   const suggestionsContainerRef = useRef<HTMLDivElement>(null)
   const suggestionItemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const lastLogCounter = useRef<number>(0)
+  const prevLogsLengthRef = useRef(0)
   const statusFetchingRef = useRef(false)
   const newLogsFetchingRef = useRef(false)
 
@@ -108,12 +109,6 @@ const Terminal: React.FC = () => {
   const showNote = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
     setNotification({ msg, type })
     setTimeout(() => setNotification(null), 3000)
-  }
-
-  const scrollToBottom = () => {
-    if (terminalContainerRef.current) {
-      terminalContainerRef.current.scrollTop = terminalContainerRef.current.scrollHeight
-    }
   }
 
   // --- Effects ---
@@ -171,11 +166,23 @@ const Terminal: React.FC = () => {
     }
   }, [autoRefresh, initialLoadComplete])
 
-  // Scroll on logs change
+  // Scroll on logs change：首次加载/清空后回填/大批量变化用即时滚动，避免整页长距离动画；少量追加用平滑滚动
   useEffect(() => {
-    if (autoScroll) {
-      scrollToBottom()
+    if (!autoScroll) return
+    const el = terminalContainerRef.current
+    if (!el) return
+
+    if (logs.length === 0) {
+      prevLogsLengthRef.current = 0
+      return
     }
+
+    const prev = prevLogsLengthRef.current
+    const delta = logs.length - prev
+    prevLogsLengthRef.current = logs.length
+
+    const bulk = prev === 0 || delta < 0 || delta > 50
+    el.scrollTo({ top: el.scrollHeight, behavior: bulk ? 'auto' : 'smooth' })
   }, [logs, autoScroll])
 
   // Auto-scroll suggestions when selected index changes
@@ -652,7 +659,7 @@ const Terminal: React.FC = () => {
       <div className="flex-1 relative bg-[#0c0c0c] rounded-2xl border border-slate-800 shadow-inner overflow-hidden flex flex-col font-mono text-sm leading-relaxed group">
         <div
           ref={terminalContainerRef}
-          className="flex-1 overflow-y-auto p-4 space-y-0.5 custom-scrollbar scroll-smooth"
+          className="flex-1 overflow-y-auto p-4 space-y-0.5 custom-scrollbar"
         >
           {logs.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-3 opacity-50">
