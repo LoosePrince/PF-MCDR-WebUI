@@ -312,7 +312,9 @@
                 "desc_before": "点击下方按钮获取6位验证码，然后在游戏内使用 ",
                 "desc_after": " 命令进行验证。",
                 "your_code": "您的验证码：",
-                "expire_hint": "验证码将在10分钟后过期"
+                "expire_hint": "验证码将在10分钟后过期",
+                "full_command": "完整命令（复制后在游戏内聊天框粘贴发送以验证）",
+                "copy_command": "复制"
             },
             "verify": {
                 "title": "游戏内验证",
@@ -362,7 +364,8 @@
                 "set_password_failed": "设置密码失败",
                 "login_failed": "登录失败",
                 "send_failed": "发送失败",
-                "network_send_failed": "网络错误，发送失败"
+                "network_send_failed": "网络错误，发送失败",
+                "copy_success": "已复制到剪贴板"
             }
         },
         "about": {

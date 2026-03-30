@@ -311,7 +311,9 @@
                 "desc_before": "Click below to get a 6-digit code, then use ",
                 "desc_after": " command in-game to verify.",
                 "your_code": "Your Code:",
-                "expire_hint": "Expires in 10 minutes"
+                "expire_hint": "Expires in 10 minutes",
+                "full_command": "Full Command (copy and paste in-game chat to verify)",
+                "copy_command": "Copy"
             },
             "verify": {
                 "title": "In-Game Verification",
@@ -361,7 +363,8 @@
                 "set_password_failed": "Failed to set password",
                 "login_failed": "Login failed",
                 "send_failed": "Failed to send message",
-                "network_send_failed": "Network error, failed to send"
+                "network_send_failed": "Network error, failed to send",
+                "copy_success": "Copied to clipboard"
             }
         },
         "about": {

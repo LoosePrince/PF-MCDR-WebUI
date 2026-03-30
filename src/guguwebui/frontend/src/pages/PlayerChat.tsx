@@ -69,6 +69,7 @@ const PlayerChat: React.FC = () => {
   const [isSettingPassword, setIsSettingPassword] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [copyFeedback, setCopyFeedback] = useState('')
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -252,6 +253,32 @@ const PlayerChat: React.FC = () => {
     setTimeout(() => setAuthError(''), 3000)
   }
 
+  const copyText = async (text: string) => {
+    const safeText = text || ''
+    if (!safeText) return
+    try {
+      await navigator.clipboard.writeText(safeText)
+      setCopyFeedback(t('page.chat.msg.copy_success'))
+      setTimeout(() => setCopyFeedback(''), 1500)
+    } catch {
+      // Fallback for browsers without clipboard permission
+      const textarea = document.createElement('textarea')
+      textarea.value = safeText
+      textarea.style.position = 'fixed'
+      textarea.style.left = '-9999px'
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      try {
+        document.execCommand('copy')
+        setCopyFeedback(t('page.chat.msg.copy_success'))
+        setTimeout(() => setCopyFeedback(''), 1500)
+      } finally {
+        document.body.removeChild(textarea)
+      }
+    }
+  }
+
   const loadChatMessages = async (limit = 50, beforeId = 0) => {
     if (isLoadingMessages) return
     setIsLoadingMessages(true)
@@ -387,8 +414,9 @@ const PlayerChat: React.FC = () => {
       } else {
         setAuthError(resp.data.message || t('page.chat.msg.login_failed'))
       }
-    } catch (e) {
-      setAuthError(t('page.chat.msg.network_retry'))
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } }
+      setAuthError(err.response?.data?.message || t('page.chat.msg.network_retry'))
     } finally {
       setIsLoggingIn(false)
     }
@@ -783,13 +811,26 @@ const PlayerChat: React.FC = () => {
             ) : (
               <div className="space-y-6">
                 <div className="flex justify-between relative px-2">
-                  {[1, 2, 3].map((step) => (
-                    <div key={step} className="flex flex-col items-center z-10">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${currentStep >= step ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'}`}>
-                        {step}
+                  {[1, 2, 3].map((step) => {
+                    const canClick = step <= currentStep
+                    return (
+                      <div key={step} className="flex flex-col items-center z-10">
+                        <button
+                          type="button"
+                          disabled={!canClick}
+                          onClick={() => canClick && setCurrentStep(step as 1 | 2 | 3)}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
+                            currentStep >= step
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
+                          } ${canClick ? 'cursor-pointer hover:opacity-90' : 'cursor-not-allowed opacity-60'}`}
+                          aria-label={`chat-step-${step}`}
+                        >
+                          {step}
+                        </button>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                   <div className="absolute top-4 left-0 w-full h-0.5 bg-slate-100 dark:bg-slate-800 -z-0" />
                 </div>
 
@@ -817,6 +858,28 @@ const PlayerChat: React.FC = () => {
                         <p className="text-xs font-bold text-slate-400">{t('page.chat.get_code.your_code')}</p>
                         <div className="text-3xl font-black tracking-[0.3em] text-blue-600 dark:text-blue-400 bg-slate-50 dark:bg-slate-800/50 py-4 rounded-2xl border-2 border-dashed border-blue-100 dark:border-blue-900/30">
                           {verificationCode}
+                        </div>
+                        <div className="space-y-3">
+                          <p className="text-xs font-bold text-slate-400">{t('page.chat.get_code.full_command')}</p>
+                          <div className="flex items-center justify-center gap-2">
+                            <code className="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-800/50 rounded-xl font-mono text-xs text-slate-800 dark:text-slate-200 text-left break-all">
+                              {`!!webui verify ${verificationCode}`}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => copyText(`!!webui verify ${verificationCode}`)}
+                              className="shrink-0 px-3 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-all disabled:opacity-50"
+                              disabled={!verificationCode}
+                              aria-label="copy-full-command"
+                            >
+                              {t('page.chat.get_code.copy_command')}
+                            </button>
+                          </div>
+                          {copyFeedback ? (
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                              {copyFeedback}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                       <button onClick={handleCheckVerification} disabled={isChecking} className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2">

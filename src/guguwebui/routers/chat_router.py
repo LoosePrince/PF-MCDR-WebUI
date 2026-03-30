@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.dependencies.auth import get_current_admin, get_current_user
@@ -111,16 +111,26 @@ async def chat_clear_messages(
 
 
 @router.post("/chat/send_message")
-async def send_chat_message(request: Request, user: dict = Depends(get_current_user)):
+async def send_chat_message(request: Request):
     """发送聊天消息到游戏"""
     data = await request.json()
     player_id = data.get("player_id", "")
+    session_id = data.get("session_id", "")
     chat_service: ChatService = request.app.state.chat_service
+
+    # 玩家聊天页允许匿名访问；若当前是 WebUI 登录用户且与 player_id 一致，则按管理员通道发送
+    is_admin = False
+    try:
+        user = await get_current_user(request)
+        is_admin = bool(user and user.get("username") == player_id)
+    except HTTPException:
+        is_admin = False
+
     result = await chat_service.send_message(
         data.get("message", "").strip(),
         player_id,
-        data.get("session_id", ""),
-        (user and user.get("username") == player_id),
+        session_id,
+        is_admin,
     )
     return JSONResponse(
         result, status_code=chat_service.get_status_code_for_result(result)

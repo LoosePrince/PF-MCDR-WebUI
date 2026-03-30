@@ -66,6 +66,11 @@ function requestExplicitlyLocal(config: { headers?: unknown } | undefined): bool
 
 let lastSlaveOfflineSwitchAt = 0
 const SLAVE_OFFLINE_DEBOUNCE_MS = 1500
+const NO_REDIRECT_ON_401_PATH_SUFFIXES = ['/login', '/player-chat']
+
+function shouldSkip401Redirect(pathname: string): boolean {
+  return NO_REDIRECT_ON_401_PATH_SUFFIXES.some((suffix) => pathname.endsWith(suffix))
+}
 
 // 请求拦截器：注入目标服务器（多服面板合并）
 instance.interceptors.request.use((config) => {
@@ -83,8 +88,8 @@ instance.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // 如果未授权且不在登录页，跳转到登录页
-      if (!window.location.pathname.endsWith('/login')) {
+      // 未授权时默认跳登录页，但公共玩家聊天页允许匿名访问
+      if (!shouldSkip401Redirect(window.location.pathname)) {
         window.location.href = `${getBasePath()}/login`
       }
     } else if (
