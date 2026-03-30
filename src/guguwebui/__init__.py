@@ -8,8 +8,8 @@ from mcdreforged.api.command import Literal, Text
 from mcdreforged.api.event import LiteralEvent
 from mcdreforged.api.types import PluginServerInterface
 
-from guguwebui.utils.dependency_checker import check_and_install_dependencies
 import guguwebui.state as gugu_state
+from guguwebui.utils.dependency_checker import check_and_install_dependencies
 
 # 全局变量声明
 web_server_interface = None
@@ -276,7 +276,6 @@ def _do_startup(server: PluginServerInterface):
     host = plugin_config['host']
     port = plugin_config['port']
 
-    register_command(server, host, port)
     amount_static_files(server)
     app.mount("/static", StaticFiles(directory=f"{STATIC_PATH}/static"), name="static")
     app.mount("/assets", StaticFiles(directory=f"{STATIC_PATH}/static/assets"), name="assets")
@@ -302,8 +301,16 @@ def _do_startup(server: PluginServerInterface):
 
 
 def on_load(server: PluginServerInterface, _old):
-    """立即返回，依赖检查与完整启动在后台线程中异步执行，避免阻塞 MCDR 看门狗。"""
-    server.logger.info("启动 WebUI 中...")
+    """注册命令后，异步启动其余 WebUI 逻辑，避免阻塞 MCDR 看门狗。"""
+    from guguwebui.constant import DEFALUT_CONFIG
+
+    # 注册命令
+    plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
+    host = plugin_config.get("host", DEFALUT_CONFIG["host"])
+    port = plugin_config.get("port", DEFALUT_CONFIG["port"])
+    register_command(server, host, port)
+
+    server.logger.info("启动 WebUI 中（其余部分在后台线程异步完成）...")
     threading.Thread(target=_bootstrap, args=(server,), daemon=False).start()
 
 
@@ -646,9 +653,12 @@ def register_command(server: PluginServerInterface, host: str, port: int):
     # 注册指令
     server.register_command(
         Literal('!!webui')
+        .requires(lambda src: src.has_permission(3))
+        .runs(lambda src, ctx: src.reply(__get_help_message()))
         .then(
             Literal('create')
             .requires(lambda src: src.has_permission(3))
+            .runs(lambda src, ctx: src.reply(__get_help_message()))
             .then(
                 Text('account')
                 .then(
@@ -660,6 +670,7 @@ def register_command(server: PluginServerInterface, host: str, port: int):
         .then(
             Literal('change')
             .requires(lambda src: src.has_permission(3))
+            .runs(lambda src, ctx: src.reply(__get_help_message()))
             .then(
                 Text('account')
                 .then(
@@ -679,6 +690,7 @@ def register_command(server: PluginServerInterface, host: str, port: int):
         .then(
             Literal('verify')
             .requires(lambda src: src.has_permission(1))
+            .runs(lambda src, ctx: src.reply(__get_help_message()))
             .then(
                 Text('code')
                 .runs(lambda src, ctx: verify_chat_code_command(src, ctx))
