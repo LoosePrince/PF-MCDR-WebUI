@@ -987,7 +987,7 @@
 
   ```json
   {
-    "query": "你的问题",
+    "query": "您的问题",
     "system_prompt": "可选的系统指令",
     "model": "可选模型名",
     "api_key": "可选临时密钥",
