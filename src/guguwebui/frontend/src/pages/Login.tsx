@@ -1,24 +1,29 @@
 import { motion } from 'framer-motion'
-import { ArrowRight, Check, KeyRound, Languages, Loader2, Lock, Moon, Sun, User, Zap } from 'lucide-react'
+import { ArrowRight, Check, KeyRound, Languages, Loader2, Lock, Moon, QrCode, Sun, User, Zap } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import VersionFooter from '../components/VersionFooter'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
+import api from '../utils/api'
 
 const Login: React.FC = () => {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const { login, loginWithTempCode, isAuthenticated } = useAuth()
+  const { login, loginWithTempCode, isAuthenticated, checkLoginStatus } = useAuth()
   const { mode, setMode, label: themeLabel } = useTheme()
-  const [loginMode, setLoginMode] = useState<'password' | 'tempCode'>('password')
+  const [loginMode, setLoginMode] = useState<'qqQr' | 'password' | 'tempCode'>('qqQr')
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [tempCode, setTempCode] = useState('')
   const [remember, setRemember] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const [qrImageUrl, setQrImageUrl] = useState('')
+  const [qrState, setQrState] = useState<'idle' | 'wait' | 'used' | 'error' | 'ok'>('idle')
+  const [qrMessage, setQrMessage] = useState('')
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -36,20 +41,99 @@ const Login: React.FC = () => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    try {
+      if (loginMode === 'qqQr') {
+        await (async () => {
+          setQrImageUrl('')
+          setQrState('idle')
+          setQrMessage('')
 
-    let result
-    if (loginMode === 'password') {
-      result = await login(account, password, remember)
-    } else {
-      result = await loginWithTempCode(tempCode)
-    }
+          const startResp = await api.post('/login/qq_qr/start')
+          const data = startResp.data || {}
+          const code = String(data.code || '')
+          const img = String(data.qrImageUrl || '')
 
-    if (result.success) {
-      navigate('/index')
-    } else {
-      setError(result.message || t('login.msg.login_failed'))
+          if (!code) {
+            throw new Error('Missing qq login code')
+          }
+          setQrImageUrl(img)
+          setQrState('wait')
+          setQrMessage(t('login.qq_qr_scanning'))
+
+          const intervalMs = 2000
+          const timeoutMs = 180000
+          const startedAt = Date.now()
+
+          const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+
+          while (Date.now() - startedAt < timeoutMs) {
+            await sleep(intervalMs)
+            try {
+              const statusResp = await api.get('/login/qq_qr/status', {
+                params: { code },
+              })
+              const st = statusResp.data || {}
+              const stState = String(st.state || '')
+              const stMsg = String(st.message || '')
+
+              if (stState === 'wait') {
+                setQrState('wait')
+                setQrMessage(stMsg || t('login.qq_qr_scanning'))
+                continue
+              }
+
+              if (stState === 'used') {
+                setQrState('used')
+                setQrMessage(stMsg || t('login.qq_qr_expired'))
+                setError(stMsg || t('login.qq_qr_expired'))
+                return
+              }
+
+              if (stState === 'ok') {
+                setQrState('ok')
+                setQrMessage(stMsg || t('login.login'))
+                await checkLoginStatus()
+                navigate('/index')
+                return
+              }
+
+              // other states treated as failure
+              setQrState('error')
+              setQrMessage(stMsg || t('login.msg.login_failed'))
+              setError(stMsg || t('login.msg.login_failed'))
+              return
+            } catch (err: unknown) {
+              const ax = err as { response?: { data?: { message?: string } } }
+              const msg = ax?.response?.data?.message || t('login.msg.login_failed')
+              setQrState('error')
+              setQrMessage(msg)
+              setError(msg)
+              return
+            }
+          }
+
+          const timeoutMsg = t('login.qq_qr_timeout')
+          setQrState('error')
+          setQrMessage(timeoutMsg)
+          setError(timeoutMsg)
+        })()
+      } else {
+        let result
+        if (loginMode === 'password') {
+          result = await login(account, password, remember)
+        } else {
+          result = await loginWithTempCode(tempCode)
+        }
+
+        if (result.success) {
+          navigate('/index')
+        } else {
+          setError(result.message || t('login.msg.login_failed'))
+        }
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -180,7 +264,7 @@ const Login: React.FC = () => {
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 px-4 py-3 rounded-xl text-sm font-medium"
+                className="bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 px-4 py-3 rounded-xl text-sm font-medium whitespace-pre-line"
               >
                 {error}
               </motion.div>
@@ -191,13 +275,27 @@ const Login: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
+                  setLoginMode('qqQr')
+                  setError('')
+                }}
+                className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${loginMode === 'qqQr'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <QrCode className="inline-block w-4 h-4 mr-2" />
+                {t('login.qq_qr_login')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   setLoginMode('password')
                   setError('')
                 }}
                 className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${loginMode === 'password'
                   ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                  }`}
+                }`}
               >
                 {t('login.password_login')}
               </button>
@@ -217,7 +315,36 @@ const Login: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              {loginMode === 'password' ? (
+              {loginMode === 'qqQr' ? (
+                <div className="space-y-3">
+                  <div className="text-sm text-slate-600 dark:text-slate-300">
+                    {t('login.qq_qr_hint')}
+                  </div>
+
+                  {qrImageUrl ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <img
+                        src={qrImageUrl}
+                        alt="QQ QR"
+                        className="w-56 h-56 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 shadow-sm"
+                      />
+                      <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        {qrMessage || t('login.qq_qr_scanning')}
+                      </div>
+                      {qrState !== 'idle' && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {qrState}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {t('login.qq_qr_empty')}
+                    </div>
+                  )}
+
+                </div>
+              ) : loginMode === 'password' ? (
                 <>
                   <div className="space-y-1.5">
                     <label htmlFor="account" className="block text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">
@@ -317,7 +444,9 @@ const Login: React.FC = () => {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span>{t('login.login')}</span>
+                  <span>
+                    {loginMode === 'qqQr' ? t('login.qq_qr_start') : t('login.login')}
+                  </span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </div>
               )}

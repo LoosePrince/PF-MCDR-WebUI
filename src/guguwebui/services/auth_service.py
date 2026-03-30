@@ -1,5 +1,6 @@
 import datetime
 import secrets
+from typing import Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -189,6 +190,94 @@ class AuthService:
                 {"status": "error", "message": "请填写完整的登录信息。"},
                 status_code=400,
             )
+
+    async def login_with_account(
+        self,
+        request: Request,
+        account: str,
+        remember: bool = False,
+        state: Optional[str] = None,
+    ):
+        """
+        QR 扫码登录只需要账号存在（username=uin），无需密码验证。
+        成功时会设置 session + token cookie，返回与现有登录接口一致的 JSON 结构。
+        """
+        now = datetime.datetime.now(datetime.timezone.utc)
+        server_config = self.server.load_config_simple(
+            "config.json", DEFALUT_CONFIG, echo_in_console=False
+        )
+        root_path = request.scope.get("root_path", "")
+        cookie_path = root_path if root_path else "/"
+
+        account = (account or "").replace("<", "").replace(">", "").strip()
+        if not account:
+            return JSONResponse(
+                {"status": "error", "message": "无效的账号。"},
+                status_code=400,
+            )
+
+        disable_other_admin = server_config.get("disable_other_admin", False)
+        super_admin_account = str(server_config.get("super_admin_account"))
+        if not self.login_admin_check(account, disable_other_admin, super_admin_account):
+            return JSONResponse(
+                {"status": "error", "message": "只有超级管理才能登录。"},
+                status_code=403,
+            )
+
+        if account not in user_db["user"]:
+            create_cmd = f"!!webui create {account} <password>"
+            return JSONResponse(
+                {
+                    "status": "error",
+                    "message": (
+                        f"该QQ号({account})尚未注册为 guguwebui 账户。\n"
+                        f"请在 MCDR 控制台执行：{create_cmd}\n"
+                        "提示：密码可任意设置（用于以后密码登录/修改密码），扫码登录只依赖账号已存在。"
+                    ),
+                    "state": state,
+                },
+                status_code=401,
+            )
+
+        token = secrets.token_hex(16)
+        expiry = now + (
+            datetime.timedelta(days=365) if remember else datetime.timedelta(days=1)
+        )
+        max_age = (
+            datetime.timedelta(days=365) if remember else datetime.timedelta(days=1)
+        ).total_seconds()
+
+        request.session["logged_in"] = True
+        request.session["token"] = token
+        request.session["username"] = account
+
+        user_db["token"][token] = {
+            "user_name": account,
+            "expire_time": str(expiry),
+        }
+        user_db.save()
+
+        nickname = user_db.get("qq_nicknames", {}).get(str(account))
+
+        response_data = {
+            "status": "success",
+            "message": "登录成功",
+            "nickname": nickname,
+            "is_admin": _is_admin_from_config(server_config, account),
+        }
+        if state:
+            response_data["state"] = state
+
+        response = JSONResponse(response_data)
+        response.set_cookie(
+            "token",
+            token,
+            expires=expiry,
+            path=cookie_path,
+            httponly=True,
+            max_age=max_age,
+        )
+        return response
 
     async def logout(self, request: Request, response):
         """

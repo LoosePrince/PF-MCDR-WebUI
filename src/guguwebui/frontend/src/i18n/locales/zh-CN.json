@@ -947,6 +947,13 @@
         "temp_code": "临时登录码",
         "placeholder_temp_code": "请输入临时登录码",
         "temp_code_hint": "临时登录码有效期为15分钟",
+        "qq_qr_login": "扫码登录",
+        "qq_qr_start": "开始扫码登录",
+        "qq_qr_hint": "使用 QQ 扫码登录。扫码成功后，仅当该 QQ 号已注册为 WebUI 账户时才可登录。",
+        "qq_qr_scanning": "正在等待扫码登录...",
+        "qq_qr_empty": "点击\"开始扫码登录\"获取二维码。",
+        "qq_qr_expired": "二维码已过期，请重新开始扫码登录。",
+        "qq_qr_timeout": "等待超时，请重新开始扫码登录。",
         "go_chat": "我是玩家，我需要访问服务器聊天页",
         "msg": {
             "login_failed": "登录失败"

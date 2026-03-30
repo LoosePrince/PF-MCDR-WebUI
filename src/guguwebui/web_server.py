@@ -43,6 +43,7 @@ from guguwebui.services.config_service import ConfigService
 from guguwebui.services.file_service import FileService
 from guguwebui.services.pip_service import PipService
 from guguwebui.services.plugin_service import PluginService
+from guguwebui.services.qq_qr_login_service import QQQRCodeLoginService
 from guguwebui.services.server_service import ServerService
 from guguwebui.state import (RCON_ONLINE_CACHE, PluginApiHandlerParams,
                              bind_plugin_pages_registry_to_server, pip_tasks)
@@ -336,6 +337,85 @@ async def login(
     )
 
 
+@app.post("/api/login/qq_qr/start")
+async def qq_qr_login_start(request: Request):
+    """
+    启动 QQ 扫码登录。
+    返回：
+      - code：轮询用的 code
+      - qrImageUrl：二维码图片地址
+    """
+    qr = await asyncio.to_thread(QQQRCodeLoginService.request_login_code)
+    return JSONResponse(
+        {
+            "status": "success",
+            "code": qr.get("code", ""),
+            "qrImageUrl": qr.get("qrImageUrl", ""),
+        }
+    )
+
+
+@app.get("/api/login/qq_qr/status")
+async def qq_qr_login_status(request: Request, code: str = ""):
+    """
+    轮询 QQ 扫码登录状态；成功后会直接在本次响应中写入 token cookie。
+    """
+    if not code:
+        return JSONResponse(
+            {"status": "error", "message": "Missing qq login code。"},
+            status_code=400,
+        )
+
+    result = await asyncio.to_thread(QQQRCodeLoginService.query_status, code)
+    state = str(result.get("state", "error"))
+
+    if state == "wait":
+        return JSONResponse(
+            {
+                "status": "success",
+                "state": "wait",
+                "message": "正在等待扫码登录...",
+                "ret": "66",
+            }
+        )
+
+    if state == "used":
+        return JSONResponse(
+            {
+                "status": "success",
+                "state": "used",
+                "message": "二维码已过期，请重新开始扫码登录。",
+                "ret": "65",
+            }
+        )
+
+    if state == "ok":
+        uin = str(result.get("uin", "") or "")
+        if not uin:
+            return JSONResponse(
+                {
+                    "status": "error",
+                    "message": "扫码成功，但未获取到 QQ uin。",
+                },
+                status_code=500,
+            )
+        return await request.app.state.auth_service.login_with_account(
+            request=request,
+            account=uin,
+            remember=False,
+            state="ok",
+        )
+
+    return JSONResponse(
+        {
+            "status": "success",
+            "state": "error",
+            "message": f"扫码状态查询失败：{result.get('msg', '')}",
+        },
+        status_code=200,
+    )
+
+
 # logout Endpoints
 @app.get("/logout", response_class=RedirectResponse)
 async def logout(request: Request):
@@ -419,8 +499,6 @@ async def settings(request: Request, admin: dict = Depends(get_current_admin)):
 async def about(request: Request, user: dict = Depends(get_current_user)):
     return serve_spa_index(request)
 
-
-# 公开聊天页 - 使用 React SPA
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request):
     server_service: ServerService = request.app.state.server_service
@@ -428,8 +506,6 @@ async def chat_page(request: Request):
         return serve_spa_index(request)  # 返回 SPA，由前端处理 404
     return serve_spa_index(request)
 
-
-# 玩家聊天页 - 独立页面，使用 React SPA
 @app.get("/player-chat", response_class=HTMLResponse)
 async def player_chat_page(request: Request):
     server_service: ServerService = request.app.state.server_service
@@ -437,6 +513,16 @@ async def player_chat_page(request: Request):
         return serve_spa_index(request)  # 返回 SPA，由前端处理 404
     return serve_spa_index(request)
 
+
+@app.get("/terminal", response_class=HTMLResponse)
+async def terminal_page(request: Request, admin: dict = Depends(get_current_admin)):
+    """提供终端日志页面 - 使用 React SPA"""
+    return serve_spa_index(request)
+
+@app.get("/operation-logs", response_class=HTMLResponse)
+async def operation_logs_page(request: Request, admin: dict = Depends(get_current_admin)):
+    """操作记录（只读）"""
+    return serve_spa_index(request)
 
 # 404 page - 返回 SPA index.html，由前端处理 404
 @app.exception_handler(404)
@@ -517,18 +603,6 @@ async def check_login_status(request: Request, user: dict = Depends(get_current_
         "nickname": nickname,
         "is_admin": _is_admin_user(request, user),
     })
-
-
-@app.get("/terminal")
-async def terminal_page(request: Request, admin: dict = Depends(get_current_admin)):
-    """提供终端日志页面 - 使用 React SPA"""
-    return serve_spa_index(request)
-
-
-@app.get("/operation-logs", response_class=HTMLResponse)
-async def operation_logs_page(request: Request, admin: dict = Depends(get_current_admin)):
-    """操作记录（只读）"""
-    return serve_spa_index(request)
 
 @app.post("/api/deepseek")
 async def query_deepseek(

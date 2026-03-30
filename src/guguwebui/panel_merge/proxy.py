@@ -28,6 +28,8 @@ def is_proxy_candidate_path(path: str) -> bool:
     # 登录/登出/校验登录：必须由主服本地处理（cookie 建立在主服域）
     if path in [
         "/api/login",
+        "/api/login/qq_qr/start",
+        "/api/login/qq_qr/status",
         "/api/logout",
         "/api/checkLogin",
         "/api/servers",

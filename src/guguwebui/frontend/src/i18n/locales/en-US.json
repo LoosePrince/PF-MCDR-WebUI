@@ -868,6 +868,13 @@
         "temp_code": "Temporary Code",
         "placeholder_temp_code": "Enter temporary code",
         "temp_code_hint": "Temporary code expires in 15 minutes",
+        "qq_qr_login": "QR Login",
+        "qq_qr_start": "Start QR Login",
+        "qq_qr_hint": "Use QQ QR login. After scanning, you can log in only if that QQ number has been registered as a WebUI account.",
+        "qq_qr_scanning": "Waiting for scan...",
+        "qq_qr_empty": "Click \"Start QR Login\" to get a QR code.",
+        "qq_qr_expired": "QR code expired. Please try again.",
+        "qq_qr_timeout": "Timed out waiting for scan. Please try again.",
         "go_chat": "I'm a player, I need to access the server chat page",
         "msg": {
             "login_failed": "Login failed"
