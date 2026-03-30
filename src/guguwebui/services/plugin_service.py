@@ -1,10 +1,12 @@
 import datetime
 import os
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
 
-from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL, PF_PLUGIN_CATALOGUE_URL
+from guguwebui.constant import (MCDR_OFFICIAL_CATALOGUE_URL,
+                                PF_PLUGIN_CATALOGUE_URL)
 from guguwebui.utils.file_util import __copyFile, extract_metadata
 from guguwebui.utils.mc_util import get_plugins_info, load_plugin_info
 from guguwebui.utils.mcdr_adapter import MCDRAdapter
@@ -54,12 +56,18 @@ class PluginService:
                             child_src = f"{src_folder}/{name}"
                             child_dst = str(Path(dst_folder) / name)
                             try:
-                                with plugin_server.open_bundled_file(child_src) as _:
-                                    __copyFile(plugin_server, child_src, child_dst)
+                                # 直接复制文件；失败再尝试按目录递归，避免双重 open 导致误判
+                                __copyFile(plugin_server, child_src, child_dst)
                             except Exception:
+                                self.server.logger.debug(
+                                    f"按文件复制失败，尝试按目录递归: {child_src} -> {child_dst}"
+                                )
                                 if not copy_folder_from_package(
                                     plugin_server, child_src, child_dst
                                 ):
+                                    self.server.logger.error(
+                                        f"目录递归复制也失败: {child_src} -> {child_dst}"
+                                    )
                                     return False
                         return True
                     except Exception as _e:
@@ -71,17 +79,46 @@ class PluginService:
                             pass
                         return False
 
-                pim_helper_src = "guguwebui/utils/PIM/pim_helper"
-                if not copy_folder_from_package(
-                    self.server, pim_helper_src, pim_plugin_dir
-                ):
-                    raise FileNotFoundError(
-                        f"PIM source directory not found inside package: {pim_helper_src}"
-                    )
-
-                meta_src = "guguwebui/utils/PIM/mcdreforged.plugin.json"
+                pim_helper_src = "guguwebui/PIM/pim_helper"
+                meta_src = "guguwebui/PIM/mcdreforged.plugin.json"
                 meta_dst = os.path.join(plugin_root_dir, "mcdreforged.plugin.json")
-                __copyFile(self.server, meta_src, meta_dst)
+                copied = False
+                meta_copied = False
+
+                # 优先本地文件系统路径（目录插件/源码模式最稳定）
+                pkg_root = Path(__file__).resolve().parents[1]  # .../guguwebui
+                local_pim_dir = pkg_root / "PIM" / "pim_helper"
+                local_meta = pkg_root / "PIM" / "mcdreforged.plugin.json"
+                if local_pim_dir.exists() and local_pim_dir.is_dir():
+                    shutil.rmtree(pim_plugin_dir, ignore_errors=True)
+                    os.makedirs(pim_plugin_dir, exist_ok=True)
+                    shutil.copytree(
+                        local_pim_dir,
+                        Path(pim_plugin_dir),
+                        dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("__pycache__"),
+                    )
+                    copied = True
+                if local_meta.exists() and local_meta.is_file():
+                    Path(meta_dst).parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(local_meta, meta_dst)
+                    meta_copied = True
+
+                # 本地不存在时再回退到包内资源复制（压缩包插件模式兜底）
+                if not copied:
+                    copied = copy_folder_from_package(self.server, pim_helper_src, pim_plugin_dir)
+                if copied and not meta_copied:
+                    __copyFile(self.server, meta_src, meta_dst)
+                    meta_copied = True
+
+                if not copied:
+                    raise FileNotFoundError(
+                        f"PIM source directory not found (package or filesystem): {pim_helper_src}"
+                    )
+                if not meta_copied:
+                    raise FileNotFoundError(
+                        f"PIM metadata not found (package or filesystem): {meta_src}"
+                    )
 
                 pim_plugin_path = os.path.join(plugins_dir, "pim_helper.mcdr")
                 with zipfile.ZipFile(
