@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 import requests
 
 from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL
+from guguwebui.utils.github_proxy import build_github_fallback_urls
 
 from .models import ExtendedVersionRequirement, PluginData, ReleaseData
 
@@ -211,6 +212,27 @@ class RegistryManager:
         self.logger = logging.getLogger('PIM.RegistryManager')
         os.makedirs(self.cache_dir, exist_ok=True)
 
+    def _get_with_fallback(self, url: str, headers: Dict[str, str], timeout: int) -> Optional[requests.Response]:
+        """对 GitHub 文件地址启用 ghfast 代理回退。"""
+        candidate_urls = build_github_fallback_urls(url)
+        for index, candidate_url in enumerate(candidate_urls):
+            try:
+                resp = requests.get(candidate_url, timeout=timeout, headers=headers)
+                if resp.status_code == 200:
+                    return resp
+                if index + 1 < len(candidate_urls):
+                    self.logger.warning(
+                        f"拉取元数据返回 {resp.status_code}，准备切换备用地址: {candidate_url}"
+                    )
+            except Exception as e:
+                if index + 1 < len(candidate_urls):
+                    self.logger.warning(
+                        f"拉取元数据失败，准备切换备用地址: {candidate_url}, error: {e}"
+                    )
+                else:
+                    self.logger.error(f"下载元数据失败: {e}, URL: {candidate_url}")
+        return None
+
     def get_meta(self, url: str, ignore_ttl: bool = False) -> MetaRegistry:
         """获取元数据"""
         if url == MCDR_OFFICIAL_CATALOGUE_URL:
@@ -239,8 +261,8 @@ class RegistryManager:
         try:
             # 增加重试机制和更长的超时时间
             headers = {'User-Agent': 'MCDR-PIM-Registry/1.0'}
-            response = requests.get(url, timeout=10, headers=headers)
-            if response.status_code == 200:
+            response = self._get_with_fallback(url, timeout=10, headers=headers)
+            if response and response.status_code == 200:
                 if url.endswith('.xz'):
                     with open(cache_xz_file, 'wb') as f:
                         f.write(response.content)

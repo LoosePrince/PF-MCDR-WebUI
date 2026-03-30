@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
+from guguwebui.utils.github_proxy import build_github_fallback_urls
+
 from .downloader import ReleaseDownloader
 from .models import PluginData, ReleaseData
 from .resolver import PluginDependencyResolver
@@ -31,6 +33,34 @@ class PluginInstaller:
         self._github_release_asset_url_cache: Dict[str, str] = {}
         # Cache expanded GitHub releases to provide full version selection UX.
         self._github_repo_releases_cache: Dict[str, List[ReleaseData]] = {}
+
+    def _github_get_with_fallback(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        timeout: int,
+    ) -> Optional[requests.Response]:
+        """GitHub 请求失败时自动回退到 ghfast 代理。"""
+        candidate_urls = build_github_fallback_urls(url)
+        for index, candidate_url in enumerate(candidate_urls):
+            try:
+                resp = requests.get(candidate_url, headers=headers, timeout=timeout)
+                if resp.status_code == 200:
+                    return resp
+                if index + 1 < len(candidate_urls):
+                    self.logger.warning(
+                        f"GitHub 请求返回 {resp.status_code}，准备切换备用地址: {candidate_url}"
+                    )
+            except Exception as e:
+                if index + 1 < len(candidate_urls):
+                    self.logger.warning(
+                        f"GitHub 请求失败，准备切换备用地址: {candidate_url}, error: {e}"
+                    )
+                else:
+                    self.logger.warning(
+                        f"GitHub 请求失败: {e}, URL: {candidate_url}"
+                    )
+        return None
 
     def _resolve_github_mcdreforged_asset_url(
         self,
@@ -95,12 +125,12 @@ class PluginInstaller:
 
             url = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
             try:
-                resp = requests.get(url, headers=headers, timeout=timeout)
+                resp = self._github_get_with_fallback(url, headers, timeout)
             except Exception as e:
                 self.logger.warning(f"GitHub release API request failed: {e}, URL: {url}")
                 continue
 
-            if resp.status_code != 200:
+            if not resp or resp.status_code != 200:
                 continue
 
             try:
@@ -198,9 +228,9 @@ class PluginInstaller:
         # 基于需求的简化：只取前 per_page 个 releases（通常足够）
         url = f"https://api.github.com/repos/{owner}/{repo}/releases?per_page={per_page}"
         try:
-            resp = requests.get(url, headers=headers, timeout=timeout)
-            if resp.status_code != 200:
-                self.logger.warning(f"GitHub releases API request failed: {resp.status_code}, URL: {url}")
+            resp = self._github_get_with_fallback(url, headers, timeout)
+            if not resp or resp.status_code != 200:
+                self.logger.warning(f"GitHub releases API request failed, URL: {url}")
                 self._github_repo_releases_cache[repo_key] = []
                 return []
             data = resp.json()
