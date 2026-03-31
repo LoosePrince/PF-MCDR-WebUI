@@ -104,8 +104,8 @@ def serve_spa_index(request: Request) -> HTMLResponse:
     return HTMLResponse(content=content)
 
 
-# 全局LogWatcher实例
-log_watcher = LogWatcher()
+# 全局 LogWatcher 实例
+log_watcher = None
 
 # ============================================================#
 # HTTP client session (for proxy)

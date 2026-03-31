@@ -9,6 +9,13 @@ from pathlib import Path
 from guguwebui.constant import DEFALUT_CONFIG, SERVER_PATH
 from guguwebui.utils.types import StateType
 
+MCDR_FILE_LOG_PATTERN = re.compile(
+    r"^\[MCDR\]\s+\[(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]\s+\[(?P<context>[^\]]+)\]\s+(?P<rest>.*)$"
+)
+MC_FILE_LOG_PATTERN = re.compile(
+    r"^\[(?P<time>\d{2}:\d{2}:\d{2})\]\s+\[(?P<context>[^\]]+)\]:\s*(?P<message>.*)$"
+)
+
 
 def clean_color_codes(text):
     """清理 Minecraft 颜色代码和 ANSI 转义序列"""
@@ -171,15 +178,128 @@ class FileLogCapture(threading.Thread):
                 for raw_line in file:
                     line = raw_line.rstrip("\r\n")
                     if line.strip():
-                        self.log_watcher._add_raw_log(
-                            message=line,
-                            level="INFO",
-                            source=source,
-                        )
+                        self._parse_and_add_line(line, source)
                 self._positions[file_key] = file.tell()
         except Exception:
             # 兼容模式是降级路径，不应因读取异常影响主流程
             return
+
+    def _parse_and_add_line(self, line: str, source: str):
+        if source == "MCDR":
+            parsed = self._parse_mcdr_line(line)
+            if parsed:
+                self.log_watcher._add_raw_log(**parsed)
+                return
+        if source == "Server":
+            parsed = self._parse_mc_line(line)
+            if parsed:
+                self.log_watcher._add_raw_log(**parsed)
+                return
+
+        # 无法识别格式时，回退保留原样
+        self.log_watcher._add_raw_log(message=line, level="INFO", source=source)
+
+    def _parse_mcdr_line(self, line: str):
+        line = clean_color_codes(line).strip()
+
+        match = MCDR_FILE_LOG_PATTERN.match(line)
+        if not match:
+            # 兜底：兼容 MCDR 行里出现嵌套方括号等导致正则匹配失败的情况
+            # 目标是尽可能提取最后一个 "]: " 之后的真正 message
+            msg_match = re.match(r"^.*\]:\s*(?P<message>.*)$", line)
+            if not msg_match:
+                return None
+
+            level_match = re.search(r"/(?P<level>[A-Z]+)\]", line)
+            level = (level_match.group("level") if level_match else "INFO").upper()
+
+            ts_match = re.search(
+                r"\[(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]",
+                line,
+            )
+            if ts_match:
+                ts_str = ts_match.group("ts")
+                try:
+                    timestamp = datetime.datetime.strptime(
+                        ts_str, "%Y-%m-%d %H:%M:%S.%f"
+                    ).timestamp()
+                except ValueError:
+                    timestamp = time.time()
+            else:
+                timestamp = time.time()
+
+            return {
+                "message": msg_match.group("message").strip(),
+                "level": level,
+                "source": "MCDR",
+                "timestamp": timestamp,
+            }
+
+        ts_str = match.group("ts")
+        context = match.group("context")
+        rest = match.group("rest").strip()
+
+        level = "INFO"
+        source = "MCDR"
+        if "/" in context:
+            left, right = context.rsplit("/", 1)
+            source = left or "MCDR"
+            level = right or "INFO"
+        elif context:
+            source = context
+
+        # 常见 MCDR 行会以 "xxx]: message" 结尾，这里统一取 message
+        message = rest
+        if ": " in rest:
+            message = rest.split(": ", 1)[1].strip()
+        if not message:
+            message = rest
+
+        try:
+            timestamp = datetime.datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S.%f").timestamp()
+        except ValueError:
+            timestamp = time.time()
+
+        return {
+            "message": message,
+            "level": level,
+            "source": source,
+            "timestamp": timestamp,
+        }
+
+    def _parse_mc_line(self, line: str):
+        line = clean_color_codes(line).strip()
+        match = MC_FILE_LOG_PATTERN.match(line)
+        if not match:
+            return None
+
+        time_str = match.group("time")
+        context = match.group("context")
+        message = match.group("message").strip()
+
+        level = "INFO"
+        source = "Server"
+        if "/" in context:
+            left, right = context.rsplit("/", 1)
+            source = left or "Server"
+            level = right or "INFO"
+        elif context:
+            source = context
+
+        try:
+            today = datetime.datetime.now().strftime("%Y-%m-%d")
+            timestamp = datetime.datetime.strptime(
+                f"{today} {time_str}", "%Y-%m-%d %H:%M:%S"
+            ).timestamp()
+        except ValueError:
+            timestamp = time.time()
+
+        return {
+            "message": message or line,
+            "level": level,
+            "source": source,
+            "timestamp": timestamp,
+        }
 
     def run(self):
         while self.running:
@@ -439,6 +559,14 @@ class LogWatcher:
 
         self.stdout_interceptor.stop_interception()
         self.mc_log_capture.stop()
+        state = self._get_shared_state()
+        if state.get("intercepted") and state.get("original_emit"):
+            try:
+                logging.StreamHandler.emit = state["original_emit"]
+            except Exception:
+                pass
+            state["intercepted"] = False
+            state["original_emit"] = None
         try:
             from .mcdr_adapter import MCDRAdapter
 
