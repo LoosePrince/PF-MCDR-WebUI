@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { ArrowRight, Check, KeyRound, Languages, Loader2, Lock, Moon, QrCode, Sun, User, Zap } from 'lucide-react'
+import QRCode from 'qrcode'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -51,11 +52,15 @@ const Login: React.FC = () => {
           const startResp = await api.post('/login/qq_qr/start')
           const data = startResp.data || {}
           const code = String(data.code || '')
-          const img = String(data.qrImageUrl || '')
+          const qrUrl = String(data.qrUrl || '')
 
-          if (!code) {
+          if (!code || !qrUrl) {
             throw new Error('Missing qq login code')
           }
+          const img = await QRCode.toDataURL(qrUrl, {
+            width: 300,
+            margin: 1,
+          })
           setQrImageUrl(img)
           setQrState('wait')
           setQrMessage(t('login.qq_qr_scanning'))

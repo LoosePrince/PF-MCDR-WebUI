@@ -361,14 +361,14 @@ async def qq_qr_login_start(request: Request):
     启动 QQ 扫码登录。
     返回：
       - code：轮询用的 code
-      - qrImageUrl：二维码图片地址
+      - qrUrl：二维码内容地址（前端据此生成二维码）
     """
     qr = await asyncio.to_thread(QQQRCodeLoginService.request_login_code)
     return JSONResponse(
         {
             "status": "success",
             "code": qr.get("code", ""),
-            "qrImageUrl": qr.get("qrImageUrl", ""),
+            "qrUrl": qr.get("qrUrl", ""),
         }
     )
 

@@ -1,5 +1,4 @@
 from typing import Any, Dict
-from urllib.parse import quote
 
 import requests
 
@@ -34,7 +33,7 @@ class QQQRCodeLoginService:
         Returns:
           {
             "code": str,
-            "qrImageUrl": str
+            "qrUrl": str
           }
         """
         url = "https://q.qq.com/ide/devtoolAuth/GetLoginCode"
@@ -49,12 +48,7 @@ class QQQRCodeLoginService:
             raise RuntimeError("GetLoginCode failed (missing data.code).")
 
         qr_url = f"https://h5.qzone.qq.com/qqq/code/{code}?_proxy=1&from=ide"
-        qr_image_url = (
-            "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data="
-            + quote(qr_url, safe="")
-        )
-
-        return {"code": code, "qrImageUrl": qr_image_url}
+        return {"code": code, "qrUrl": qr_url}
 
     @staticmethod
     def query_status(code: str) -> Dict[str, str]:
