@@ -33,9 +33,6 @@ def clean_color_codes(text):
     text = re.sub(r"\[\d+(?:;\d+)*m", "", text)
     text = re.sub(r"\[0m", "", text)
 
-    # 清理可能残留的其他ANSI代码格式
-    text = re.sub(r"(?<!\[)\[\d*[a-z](?!\])", "", text)
-
     return text
 
 
@@ -461,7 +458,7 @@ class LogWatcher:
 
                 log_entries.append(
                     {
-                        "line_number": i,
+                        "line_number": i + 1,
                         "counter": entry["counter"],
                         "timestamp": datetime.datetime.fromtimestamp(
                             entry["timestamp"]
@@ -489,7 +486,7 @@ class LogWatcher:
                     formatted_content = self._format_log_entry(entry)
                     new_logs.append(
                         {
-                            "line_number": i,
+                            "line_number": i + 1,
                             "counter": entry["counter"],
                             "timestamp": datetime.datetime.fromtimestamp(
                                 entry["timestamp"]

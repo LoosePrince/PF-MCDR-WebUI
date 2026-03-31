@@ -57,7 +57,6 @@ const Terminal: React.FC = () => {
   // Auto-scroll & Refresh
   const [autoScroll, setAutoScroll] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [initialLoadComplete, setInitialLoadComplete] = useState(false)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const terminalContainerRef = useRef<HTMLDivElement>(null)
@@ -669,7 +668,7 @@ const Terminal: React.FC = () => {
           ) : (
             logs.map((log, idx) => (
               <div key={`${log.counter || idx}-${log.time}`} className={`break-words whitespace-pre-wrap ${getLogClass(log.content)} hover:bg-white/5`}>
-                <span className="select-none opacity-30 mr-3 text-xs w-8 inline-block text-right">{log.line_number || idx + 1}</span>
+                <span className="select-none opacity-30 mr-3 text-xs w-8 inline-block text-right">{log.line_number ?? idx + 1}</span>
                 {log.content}
               </div>
             ))
