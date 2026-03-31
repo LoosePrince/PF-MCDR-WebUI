@@ -834,6 +834,14 @@
                 "default_ai_query": "Analyze these logs and provide possible causes and solutions.",
                 "system_prompt": "You are a Minecraft server and MCDR log expert. Please answer in English."
             },
+            "inline_ai": {
+                "title": "AI Analysis",
+                "loading": "Analyzing error log...",
+                "expand": "Click to expand",
+                "collapse": "Collapse",
+                "retry": "Retry",
+                "failed": "AI analysis failed"
+            },
             "ai_modal": {
                 "title": "AI Analysis",
                 "settings": "AI Settings",

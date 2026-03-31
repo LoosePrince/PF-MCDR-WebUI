@@ -43,6 +43,117 @@ interface AIConfig {
   ai_api_key_configured: boolean
 }
 
+interface InlineAnalysisEntry {
+  status: 'loading' | 'success' | 'error'
+  content: string
+}
+
+interface InlineAnalysisBinding {
+  errorKey: string
+  expanded: boolean
+}
+
+const ERROR_CONTEXT_LINES = 4
+const ERROR_CONTEXT_SIDE_LIMIT = 500
+const FREE_AI_API_URL = 'https://ai-api.xzt.plus/v1/chat/completions'
+const INLINE_AI_QUERY_TEMPLATE = [
+  '请分析以下 Minecraft/MCDR 报错，并严格按下面格式输出：',
+  '第1行必须是“简要结论：<一句话结论>”',
+  '从第2行开始再写详细分析，必须包含“可能原因”和“解决方案”',
+  '',
+  '报错上下文如下：'
+].join('\n')
+
+const isErrorLog = (content: string) => {
+  const text = content || ''
+  return /(?:\bERROR\b|\[E\]|\bFATAL\b|Exception|Traceback|Caused by|Unhandled)/i.test(text)
+}
+
+const buildErrorKey = (content: string) => {
+  const normalized = content
+    .replace(/^\s*\[#\d+\]\s+\[[^\]]+\]\s+\[[^\]]+\]\s*/g, '')
+    .replace(/\b\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\b/g, '')
+    .replace(/\b\d{2}:\d{2}:\d{2}\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+  return normalized || content.trim().toLowerCase()
+}
+
+const takeTailWithinLimit = (lines: string[], limit: number) => {
+  const selected: string[] = []
+  let used = 0
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i]
+    const len = line.length
+    if (used + len > limit) break
+    selected.unshift(line)
+    used += len
+  }
+  return selected
+}
+
+const takeHeadWithinLimit = (lines: string[], limit: number) => {
+  const selected: string[] = []
+  let used = 0
+  for (const line of lines) {
+    const len = line.length
+    if (used + len > limit) break
+    selected.push(line)
+    used += len
+  }
+  return selected
+}
+
+const buildErrorContext = (items: LogItem[], triggerIndex: number) => {
+  const trigger = items[triggerIndex]?.content ?? ''
+  const beforeStart = Math.max(0, triggerIndex - ERROR_CONTEXT_LINES)
+  const afterEnd = Math.min(items.length - 1, triggerIndex + ERROR_CONTEXT_LINES)
+
+  const beforeLines = items.slice(beforeStart, triggerIndex).map((item) => item.content)
+  const afterLines = items.slice(triggerIndex + 1, afterEnd + 1).map((item) => item.content)
+
+  const beforeLimited = takeTailWithinLimit(beforeLines, ERROR_CONTEXT_SIDE_LIMIT)
+  const afterLimited = takeHeadWithinLimit(afterLines, ERROR_CONTEXT_SIDE_LIMIT)
+
+  return [
+    '[Context Before]',
+    ...beforeLimited,
+    '[Triggered Error]',
+    trigger,
+    '[Context After]',
+    ...afterLimited
+  ].join('\n')
+}
+
+const requestFreeAiCompletion = async (
+  query: string,
+  systemPrompt: string,
+  signal?: AbortSignal
+) => {
+  const response = await fetch(FREE_AI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: '',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: query }
+      ]
+    }),
+    signal
+  })
+
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const message = data?.error?.message || data?.message || `HTTP ${response.status}`
+    throw new Error(message)
+  }
+  return data
+}
+
 // --- Components ---
 
 const Terminal: React.FC = () => {
@@ -95,6 +206,10 @@ const Terminal: React.FC = () => {
   // AI Provider: 'xzt_free' = 树梢免费AI, 'custom' = 自定义 API Key
   const [aiProvider, setAiProvider] = useState<'xzt_free' | 'custom'>('xzt_free')
   const [showXztInfoModal, setShowXztInfoModal] = useState(false)
+  const [inlineAnalysisByKey, setInlineAnalysisByKey] = useState<Record<string, InlineAnalysisEntry>>({})
+  const [inlineAnalysisBindingByCounter, setInlineAnalysisBindingByCounter] = useState<Record<number, InlineAnalysisBinding>>({})
+  const inlineAnalyzingKeysRef = useRef<Set<string>>(new Set())
+  const inlineAbortControllersRef = useRef<Map<string, AbortController>>(new Map())
 
   // Notification
   const [notification, setNotification] = useState<{ msg: string, type: 'success' | 'error' | 'info' } | null>(null)
@@ -112,7 +227,18 @@ const Terminal: React.FC = () => {
 
   // --- Effects ---
 
+  useEffect(() => {
+    const abortMap = inlineAbortControllersRef.current
+    const analyzingKeys = inlineAnalyzingKeysRef.current
+    return () => {
+      abortMap.forEach((controller) => controller.abort())
+      abortMap.clear()
+      analyzingKeys.clear()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Initial Load
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // 创建 AbortController 用于取消请求
     const abortController = new AbortController()
@@ -139,9 +265,10 @@ const Terminal: React.FC = () => {
       abortController.abort()
       clearInterval(statusTimer)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto refresh timer (separate effect to handle autoRefresh state properly)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!autoRefresh) return
     if (!initialLoadComplete) return // Wait for initial load to complete
@@ -163,7 +290,7 @@ const Terminal: React.FC = () => {
       abortController.abort()
       clearInterval(refreshTimer)
     }
-  }, [autoRefresh, initialLoadComplete])
+  }, [autoRefresh, initialLoadComplete]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll on logs change：首次加载/清空后回填/大批量变化用即时滚动，避免整页长距离动画；少量追加用平滑滚动
   useEffect(() => {
@@ -197,6 +324,67 @@ const Terminal: React.FC = () => {
       }
     }
   }, [selectedSuggestionIndex, showSuggestions])
+
+  useEffect(() => {
+    const runInlineAnalysis = async (errorKey: string, context: string) => {
+      const controller = new AbortController()
+      inlineAbortControllersRef.current.set(errorKey, controller)
+      inlineAnalyzingKeysRef.current.add(errorKey)
+      setInlineAnalysisByKey((prev) => ({
+        ...prev,
+        [errorKey]: { status: 'loading', content: '' }
+      }))
+
+      try {
+        const data = await requestFreeAiCompletion(
+          `${INLINE_AI_QUERY_TEMPLATE}\n${context}`,
+          t('page.terminal.msg.system_prompt'),
+          controller.signal
+        )
+        const answer = data?.choices?.[0]?.message?.content ?? data?.answer ?? ''
+        const content = answer || t('page.terminal.inline_ai.failed')
+        setInlineAnalysisByKey((prev) => ({
+          ...prev,
+          [errorKey]: { status: 'success', content }
+        }))
+      } catch (e: unknown) {
+        const err = e as { name?: string; message?: string; code?: string }
+        if (isCancel(e) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
+          return
+        }
+        setInlineAnalysisByKey((prev) => ({
+          ...prev,
+          [errorKey]: {
+            status: 'error',
+            content: `${t('page.terminal.inline_ai.failed')}\n\n${err.message || 'Unknown error'}`
+          }
+        }))
+      } finally {
+        inlineAnalyzingKeysRef.current.delete(errorKey)
+        inlineAbortControllersRef.current.delete(errorKey)
+      }
+    }
+
+    const pendingBindings: Record<number, InlineAnalysisBinding> = {}
+    logs.forEach((log, idx) => {
+      if (typeof log.counter !== 'number') return
+      if (!isErrorLog(log.content)) return
+      if (inlineAnalysisBindingByCounter[log.counter]) return
+
+      const errorKey = buildErrorKey(log.content)
+      pendingBindings[log.counter] = { errorKey, expanded: false }
+
+      const existing = inlineAnalysisByKey[errorKey]
+      if (!existing && !inlineAnalyzingKeysRef.current.has(errorKey)) {
+        const context = buildErrorContext(logs, idx)
+        void runInlineAnalysis(errorKey, context)
+      }
+    })
+
+    if (Object.keys(pendingBindings).length > 0) {
+      setInlineAnalysisBindingByCounter((prev) => ({ ...prev, ...pendingBindings }))
+    }
+  }, [inlineAnalysisBindingByCounter, inlineAnalysisByKey, logs, t])
 
   // Handle Selection for Floating Button
   useEffect(() => {
@@ -500,41 +688,45 @@ const Terminal: React.FC = () => {
     const context = selectedText || logs.slice(-200).map(l => l.content).join('\n')
 
     try {
-      const payload: {
-        query: string;
-        system_prompt: string;
-        chat_history?: Array<{ role: 'user' | 'assistant'; content: string }>;
-        api_url?: string;
-        api_key?: string;
-        model?: string;
-      } = {
-        query: `${query}\n\nContext Logs:\n${context}`,
-        system_prompt: t('page.terminal.msg.system_prompt'),
-      }
-      if (aiChatHistory.length > 0) {
-        payload.chat_history = aiChatHistory
-      }
       if (aiProvider === 'xzt_free') {
-        payload.api_url = 'https://ai-api.xzt.plus/v1/chat/completions'
-        payload.api_key = ''
-        payload.model = ''
-      }
-
-      const res = await api.post('/deepseek', payload)
-      if (res.data.status === 'success') {
-        const answer = res.data.choices?.[0]?.message?.content ?? res.data.answer ?? ''
+        const data = await requestFreeAiCompletion(
+          `${query}\n\nContext Logs:\n${context}`,
+          t('page.terminal.msg.system_prompt')
+        )
+        const answer = data?.choices?.[0]?.message?.content ?? data?.answer ?? ''
         setAiChatHistory(prev => [
           ...prev,
           { role: 'user' as const, content: query },
           { role: 'assistant' as const, content: answer }
         ].slice(-10))
       } else {
-        const errorMsg = `Error: ${res.data.message}`
-        setAiChatHistory(prev => [
-          ...prev,
-          { role: 'user' as const, content: query },
-          { role: 'assistant' as const, content: errorMsg }
-        ].slice(-10))
+        const payload: {
+          query: string;
+          system_prompt: string;
+          chat_history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+        } = {
+          query: `${query}\n\nContext Logs:\n${context}`,
+          system_prompt: t('page.terminal.msg.system_prompt'),
+        }
+        if (aiChatHistory.length > 0) {
+          payload.chat_history = aiChatHistory
+        }
+        const res = await api.post('/deepseek', payload)
+        if (res.data.status === 'success') {
+          const answer = res.data.choices?.[0]?.message?.content ?? res.data.answer ?? ''
+          setAiChatHistory(prev => [
+            ...prev,
+            { role: 'user' as const, content: query },
+            { role: 'assistant' as const, content: answer }
+          ].slice(-10))
+        } else {
+          const errorMsg = `Error: ${res.data.message}`
+          setAiChatHistory(prev => [
+            ...prev,
+            { role: 'user' as const, content: query },
+            { role: 'assistant' as const, content: errorMsg }
+          ].slice(-10))
+        }
       }
     } catch (e: unknown) {
       const err = e as { message?: string }
@@ -559,6 +751,69 @@ const Terminal: React.FC = () => {
     if (content.includes('Command')) return 'text-blue-400'
     if (content.match(/<\w+>/)) return 'text-purple-300' // User names etc?
     return 'text-slate-400'
+  }
+
+  const toggleInlineAnalysisExpanded = (counter?: number) => {
+    if (typeof counter !== 'number') return
+    setInlineAnalysisBindingByCounter((prev) => {
+      const current = prev[counter]
+      if (!current) return prev
+      return {
+        ...prev,
+        [counter]: {
+          ...current,
+          expanded: !current.expanded
+        }
+      }
+    })
+  }
+
+  const retryInlineAnalysis = async (counter?: number) => {
+    if (typeof counter !== 'number') return
+    const binding = inlineAnalysisBindingByCounter[counter]
+    if (!binding) return
+    if (inlineAnalyzingKeysRef.current.has(binding.errorKey)) return
+
+    const triggerIndex = logs.findIndex((item) => item.counter === counter)
+    if (triggerIndex < 0) return
+    const context = buildErrorContext(logs, triggerIndex)
+
+    const controller = new AbortController()
+    inlineAbortControllersRef.current.set(binding.errorKey, controller)
+    inlineAnalyzingKeysRef.current.add(binding.errorKey)
+    setInlineAnalysisByKey((prev) => ({
+      ...prev,
+      [binding.errorKey]: { status: 'loading', content: '' }
+    }))
+
+    try {
+      const data = await requestFreeAiCompletion(
+        `${INLINE_AI_QUERY_TEMPLATE}\n${context}`,
+        t('page.terminal.msg.system_prompt'),
+        controller.signal
+      )
+      const answer = data?.choices?.[0]?.message?.content ?? data?.answer ?? ''
+      const content = answer || t('page.terminal.inline_ai.failed')
+      setInlineAnalysisByKey((prev) => ({
+        ...prev,
+        [binding.errorKey]: { status: 'success', content }
+      }))
+    } catch (e: unknown) {
+      const err = e as { name?: string; message?: string; code?: string }
+      if (isCancel(e) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
+        return
+      }
+      setInlineAnalysisByKey((prev) => ({
+        ...prev,
+        [binding.errorKey]: {
+          status: 'error',
+          content: `${t('page.terminal.inline_ai.failed')}\n\n${err.message || 'Unknown error'}`
+        }
+      }))
+    } finally {
+      inlineAnalyzingKeysRef.current.delete(binding.errorKey)
+      inlineAbortControllersRef.current.delete(binding.errorKey)
+    }
   }
 
   return (
@@ -667,9 +922,56 @@ const Terminal: React.FC = () => {
             </div>
           ) : (
             logs.map((log, idx) => (
-              <div key={`${log.counter || idx}-${log.time}`} className={`break-words whitespace-pre-wrap ${getLogClass(log.content)} hover:bg-white/5`}>
-                <span className="select-none opacity-30 mr-3 text-xs w-8 inline-block text-right">{log.line_number ?? idx + 1}</span>
-                {log.content}
+              <div key={`${log.counter || idx}-${log.time}`}>
+                <div className={`break-words whitespace-pre-wrap ${getLogClass(log.content)} hover:bg-white/5`}>
+                  <span className="select-none opacity-30 mr-3 text-xs w-8 inline-block text-right">{log.line_number ?? idx + 1}</span>
+                  {log.content}
+                </div>
+                {typeof log.counter === 'number' && inlineAnalysisBindingByCounter[log.counter] && (
+                  <div className="ml-11 mt-1 mb-2 rounded-lg border border-purple-500/20 bg-slate-900/60 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2 text-xs text-purple-200">
+                      <div className="flex items-center gap-1">
+                        <Bot size={14} />
+                        <span>{t('page.terminal.inline_ai.title')}</span>
+                      </div>
+                      {inlineAnalysisByKey[inlineAnalysisBindingByCounter[log.counter].errorKey]?.status === 'error' && (
+                        <button
+                          type="button"
+                          className="text-purple-300 hover:text-white underline"
+                          onClick={() => retryInlineAnalysis(log.counter)}
+                        >
+                          {t('page.terminal.inline_ai.retry')}
+                        </button>
+                      )}
+                    </div>
+                    {inlineAnalysisByKey[inlineAnalysisBindingByCounter[log.counter].errorKey]?.status === 'loading' && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-slate-300">
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>{t('page.terminal.inline_ai.loading')}</span>
+                      </div>
+                    )}
+                    {inlineAnalysisByKey[inlineAnalysisBindingByCounter[log.counter].errorKey]?.status !== 'loading' && (
+                      <div className="mt-2">
+                        <div className="dark">
+                          <div className={`markdown-body max-w-none text-xs text-slate-200 [&_a]:text-blue-400 ${inlineAnalysisBindingByCounter[log.counter].expanded ? '' : 'line-clamp-2'}`}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                              {inlineAnalysisByKey[inlineAnalysisBindingByCounter[log.counter].errorKey]?.content || ''}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="mt-1 text-xs text-purple-300 hover:text-white underline"
+                          onClick={() => toggleInlineAnalysisExpanded(log.counter)}
+                        >
+                          {inlineAnalysisBindingByCounter[log.counter].expanded
+                            ? t('page.terminal.inline_ai.collapse')
+                            : t('page.terminal.inline_ai.expand')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))
           )}

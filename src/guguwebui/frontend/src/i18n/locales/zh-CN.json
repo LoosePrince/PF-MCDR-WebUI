@@ -913,6 +913,14 @@
                 "default_ai_query": "请分析这些日志并给出可能的原因和解决方案。",
                 "system_prompt": "你是一名精通 Minecraft 服务器与 MCDR 的日志分析专家，请用简体中文回答。"
             },
+            "inline_ai": {
+                "title": "AI 分析",
+                "loading": "正在分析报错...",
+                "expand": "点击展开",
+                "collapse": "收起",
+                "retry": "重试",
+                "failed": "AI 分析失败"
+            },
             "ai_modal": {
                 "title": "日志 AI 分析",
                 "settings": "AI 设置",
