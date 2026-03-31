@@ -169,17 +169,32 @@ def init_app(server_instance):
     if log_watcher:
         log_watcher.stop()
 
-    # 初始化LogWatcher实例，将 server_instance 传递给它
-    log_watcher = LogWatcher(server_interface=server_instance)
-
-    # 设置日志捕获 - 直接调用此方法确保与MCDR内部日志系统连接
-    log_watcher._setup_log_capture()
-
-    # 注册MCDR事件监听器，每种事件只注册一次
-    server_instance.register_event_listener(MCDRPluginEvents.GENERAL_INFO, on_mcdr_info)
-    server_instance.register_event_listener(
-        MCDRPluginEvents.USER_INFO, on_server_output
+    server_config = server_instance.load_config_simple(
+        "config.json", DEFALUT_CONFIG, echo_in_console=False
     )
+    log_capture_compat_mode = server_config.get("log_capture_compat_mode", False)
+
+    # 初始化 LogWatcher，根据配置选择捕获模式
+    log_watcher = LogWatcher(
+        server_interface=server_instance,
+        compat_mode=log_capture_compat_mode,
+    )
+
+    if not log_capture_compat_mode:
+        # 标准模式：连接 MCDR 内部日志系统
+        log_watcher._setup_log_capture()
+
+    # 仅标准模式注册事件监听，兼容模式通过读文件获取日志
+    # 双事件统一交给 on_server_output，由 LogWatcher 做去重与内容兜底提取：
+    # - GENERAL_INFO 覆盖面更广（含服务端输出）
+    # - USER_INFO 在部分环境下可补充用户来源信息
+    if not log_capture_compat_mode:
+        server_instance.register_event_listener(
+            MCDRPluginEvents.GENERAL_INFO, on_server_output
+        )
+        server_instance.register_event_listener(
+            MCDRPluginEvents.USER_INFO, on_server_output
+        )
     # 注册玩家进出事件，刷新RCON在线缓存
     server_instance.register_event_listener(
         MCDRPluginEvents.PLAYER_JOINED, on_player_joined
@@ -229,7 +244,10 @@ def init_app(server_instance):
     except Exception as e:
         server_instance.logger.error(f"内置PIM模块初始化失败: {e}")
 
-    server_instance.logger.debug("WebUI日志捕获器已初始化，将直接从MCDR捕获日志")
+    if log_capture_compat_mode:
+        server_instance.logger.info("WebUI 日志捕获兼容模式已启用，将通过读取日志文件获取日志")
+    else:
+        server_instance.logger.debug("WebUI 日志捕获器已初始化，将直接从 MCDR 捕获日志")
 
 
 # check_repository_cache 函数已移至 utils.py

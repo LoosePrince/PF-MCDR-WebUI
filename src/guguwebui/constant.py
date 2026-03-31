@@ -59,6 +59,7 @@ DEFALUT_CONFIG = {
     "disable_other_admin": False,
     "allow_temp_password": True,
     "force_standalone": False,  # 是否强制独立运行（忽略fastapi_mcdr插件）
+    "log_capture_compat_mode": False,  # 日志捕获兼容模式（通过读取日志文件获取）
     "ai_api_key": "",  # AI API密钥
     "ai_model": "deepseek-chat",  # AI模型名称
     "ai_api_url": "https://api.deepseek.com/chat/completions",  # 自定义API链接

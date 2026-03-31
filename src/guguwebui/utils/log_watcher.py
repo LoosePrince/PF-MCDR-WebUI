@@ -4,7 +4,9 @@ import re
 import sys
 import threading
 import time
+from pathlib import Path
 
+from guguwebui.constant import DEFALUT_CONFIG, SERVER_PATH
 from guguwebui.utils.types import StateType
 
 
@@ -136,6 +138,56 @@ class StdoutInterceptor:
                 self.buffer = lines[-1]
 
 
+class FileLogCapture(threading.Thread):
+    """兼容模式：通过读取日志文件捕获日志。"""
+
+    def __init__(self, log_watcher, mcdr_log_path: Path, mc_log_path: Path, interval: float = 1.0):
+        super().__init__(name="File-Log-Capture")
+        self.daemon = True
+        self.running = True
+        self.log_watcher = log_watcher
+        self.mcdr_log_path = mcdr_log_path
+        self.mc_log_path = mc_log_path
+        self.interval = interval
+        self._positions = {"mcdr": 0, "mc": 0}
+
+    def stop(self):
+        self.running = False
+
+    def _read_new_lines(self, file_path: Path, source: str):
+        if not file_path.exists() or not file_path.is_file():
+            return
+
+        file_key = "mcdr" if source == "MCDR" else "mc"
+        last_position = self._positions[file_key]
+        try:
+            file_size = file_path.stat().st_size
+            if file_size < last_position:
+                # 文件轮转或截断后，从头读取
+                last_position = 0
+
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
+                file.seek(last_position)
+                for raw_line in file:
+                    line = raw_line.rstrip("\r\n")
+                    if line.strip():
+                        self.log_watcher._add_raw_log(
+                            message=line,
+                            level="INFO",
+                            source=source,
+                        )
+                self._positions[file_key] = file.tell()
+        except Exception:
+            # 兼容模式是降级路径，不应因读取异常影响主流程
+            return
+
+    def run(self):
+        while self.running:
+            self._read_new_lines(self.mcdr_log_path, "MCDR")
+            self._read_new_lines(self.mc_log_path, "Server")
+            time.sleep(self.interval)
+
+
 class LogWatcher:
     # 使用 sys 模块存储共享状态，确保在插件重载时日志不会丢失
     @staticmethod
@@ -151,8 +203,9 @@ class LogWatcher:
             }
         return sys._guguwebui_log_state
 
-    def __init__(self, server_interface=None):
+    def __init__(self, server_interface=None, compat_mode=False):
         self.server_interface = server_interface
+        self.compat_mode = bool(compat_mode)
         self._patterns = []
         self._result = {}
         self._watching = False
@@ -164,13 +217,45 @@ class LogWatcher:
         self.mcdr_log_handler = LogHandler(self)
         self.mc_log_capture = MCServerLogCapture(self)
         self.stdout_interceptor = StdoutInterceptor(self)
+        self.file_log_capture = None
 
-        # 初始化捕获
-        self._setup_intercepted_emit()
-        self.stdout_interceptor.start_interception()
-        self.mc_log_capture.start()
+        if self.compat_mode:
+            mcdr_log_path, mc_log_path = self._resolve_log_paths()
+            self.file_log_capture = FileLogCapture(self, mcdr_log_path, mc_log_path)
+            self.file_log_capture.start()
+        else:
+            # 初始化捕获
+            self._setup_intercepted_emit()
+            self.stdout_interceptor.start_interception()
+            self.mc_log_capture.start()
+
+    def _resolve_log_paths(self) -> tuple[Path, Path]:
+        mcdr_candidates = [
+            Path("./logs/MCDR.log"),
+            Path("./MCDR.log"),
+        ]
+        mc_candidates = [
+            SERVER_PATH / "logs" / "latest.log",
+            Path("./server/logs/latest.log"),
+        ]
+        if self.server_interface:
+            try:
+                config = self.server_interface.load_config_simple(
+                    "config.json", DEFALUT_CONFIG, echo_in_console=False
+                )
+                server_logs_path = config.get("server_logs_path", "")
+                if isinstance(server_logs_path, str) and server_logs_path.strip():
+                    mc_candidates.insert(0, Path(server_logs_path.strip()))
+            except Exception:
+                pass
+
+        mcdr_log_path = next((path for path in mcdr_candidates if path.exists()), mcdr_candidates[0])
+        mc_log_path = next((path for path in mc_candidates if path.exists()), mc_candidates[0])
+        return mcdr_log_path, mc_log_path
 
     def _setup_intercepted_emit(self):
+        if self.compat_mode:
+            return
         state = self._get_shared_state()
         if state["intercepted"]:
             return
@@ -306,17 +391,36 @@ class LogWatcher:
             }
 
     def on_mcdr_info(self, server, info):
-        if hasattr(info, "content"):
-            source = getattr(info, "source", "MCDR")
-            self._add_raw_log(message=info.content, level="INFO", source=source)
+        if self.compat_mode:
+            return
+        self.on_general_info(server, info)
 
     def on_server_output(self, server, info):
-        if hasattr(info, "content"):
-            source = getattr(info, "source", "Server")
-            self._add_raw_log(message=info.content, level="INFO", source=source)
+        if self.compat_mode:
+            return
+        self.on_general_info(server, info)
+
+    def on_general_info(self, _server, info):
+        if self.compat_mode:
+            return
+        if info is None:
+            return
+
+        content = getattr(info, "content", None)
+        if not content:
+            content = getattr(info, "raw_content", None)
+        if not content and hasattr(info, "__str__"):
+            content = str(info)
+        if not content:
+            return
+
+        source = getattr(info, "source", "Server")
+        self._add_raw_log(message=str(content), level="INFO", source=str(source))
 
     def _setup_log_capture(self):
         """手动触发 MCDR 日志钩子"""
+        if self.compat_mode:
+            return
         try:
             from .mcdr_adapter import MCDRAdapter
 
@@ -328,6 +432,11 @@ class LogWatcher:
             pass
 
     def stop(self):
+        if self.compat_mode:
+            if self.file_log_capture:
+                self.file_log_capture.stop()
+            return
+
         self.stdout_interceptor.stop_interception()
         self.mc_log_capture.stop()
         try:

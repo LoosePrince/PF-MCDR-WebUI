@@ -158,6 +158,7 @@ class ConfigService:
             ),
             "chat_session_expire_hours": config.get("chat_session_expire_hours", 24),
             "force_standalone": config.get("force_standalone", False),
+            "log_capture_compat_mode": config.get("log_capture_compat_mode", False),
             "icp_records": config.get("icp_records", []),
             "chat_message_count": chat_message_count,
         }
@@ -215,6 +216,8 @@ class ConfigService:
                 )
             if config_info.force_standalone is not None:
                 web_config["force_standalone"] = config_info.force_standalone
+            if config_info.log_capture_compat_mode is not None:
+                web_config["log_capture_compat_mode"] = config_info.log_capture_compat_mode
             if config_info.icp_records is not None:
                 web_config["icp_records"] = config_info.icp_records
             # 多服面板合并

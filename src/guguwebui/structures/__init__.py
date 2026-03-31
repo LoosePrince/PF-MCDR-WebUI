@@ -56,6 +56,7 @@ class SaveConfig(BaseModel):
     chat_verification_expire_minutes: Optional[int] = None
     chat_session_expire_hours: Optional[int] = None
     force_standalone: Optional[bool] = None
+    log_capture_compat_mode: Optional[bool] = None
     icp_records: Optional[list] = None
     # 多服面板合并
     panel_role: Optional[str] = None  # "master" | "slave"
