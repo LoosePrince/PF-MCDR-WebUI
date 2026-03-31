@@ -300,18 +300,63 @@ def _do_startup(server: PluginServerInterface):
 # ============================================================#
 
 
+def _handle_dependencies_and_reload(server: PluginServerInterface):
+    """在后台线程中处理依赖安装，然后重载插件"""
+    try:
+        # 导入依赖检查器
+        from guguwebui.utils.dependency_checker import check_and_install_dependencies
+        
+        server.logger.info("开始自动安装缺失的依赖...")
+        check_and_install_dependencies(server)
+        
+        # 依赖安装成功，执行重载命令（使用MCDR的execute_command API）
+        server.logger.info("依赖安装完成，正在重载插件...")
+        server.execute_command("!!MCDR plugin reload guguwebui")
+        
+    except Exception as e:
+        # 依赖安装失败
+        server.logger.error(f"自动安装依赖失败: {e}")
+        server.logger.error("请手动安装以下依赖后重试:")
+        server.logger.error("pip install passlib fastapi>=0.68.0 javaproperties mcdreforged>=2.3.0 pydantic requests ruamel.yaml starlette uvicorn>=0.15.0 itsdangerous jinja2 argon2_cffi python-multipart typing-extensions aiohttp mcstatus")
+        
+        # 执行卸载命令（使用MCDR的execute_command API）
+        server.logger.info("正在卸载插件...")
+        server.execute_command("!!MCDR plugin unload guguwebui")
+
+
 def on_load(server: PluginServerInterface, _old):
     """注册命令后，异步启动其余 WebUI 逻辑，避免阻塞 MCDR 看门狗。"""
-    from guguwebui.constant import DEFALUT_CONFIG
+    # 直接使用dependency_checker中的函数检查passlib是否已安装
+    try:
+        from guguwebui.utils.dependency_checker import is_package_installed
+        
+        # 检查passlib是否已安装（这是constant.py需要的核心依赖）
+        if is_package_installed("passlib"):
+            # passlib已安装，正常导入并继续
+            from guguwebui.constant import DEFALUT_CONFIG
+            
+            plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
+            host = plugin_config.get("host", DEFALUT_CONFIG["host"])
+            port = plugin_config.get("port", DEFALUT_CONFIG["port"])
+            register_command(server, host, port)
 
-    # 注册命令
-    plugin_config = server.load_config_simple("config.json", DEFALUT_CONFIG, echo_in_console=False)
-    host = plugin_config.get("host", DEFALUT_CONFIG["host"])
-    port = plugin_config.get("port", DEFALUT_CONFIG["port"])
-    register_command(server, host, port)
-
-    server.logger.info("启动 WebUI 中（其余部分在后台线程异步完成）...")
-    threading.Thread(target=_bootstrap, args=(server,), daemon=False).start()
+            server.logger.info("启动 WebUI 中（其余部分在后台线程异步完成）...")
+            threading.Thread(target=_bootstrap, args=(server,), daemon=False).start()
+        else:
+            # passlib未安装，启动异步依赖处理
+            server.logger.warning("检测到passlib未安装，将在后台线程中自动安装依赖...")
+            server.logger.info("依赖安装完成后会自动重载插件")
+            
+            # 启动后台线程处理依赖
+            threading.Thread(target=_handle_dependencies_and_reload, args=(server,), daemon=False).start()
+            
+    except Exception as e:
+        # 其他异常情况
+        server.logger.error(f"插件启动过程中发生错误: {e}")
+        server.logger.error("将在后台线程中尝试修复依赖问题...")
+        
+        # 启动后台线程处理依赖
+        threading.Thread(target=_handle_dependencies_and_reload, args=(server,), daemon=False).start()
 
 
 def mount_to_fastapi_mcdr(server: PluginServerInterface, fastapi_mcdr):
