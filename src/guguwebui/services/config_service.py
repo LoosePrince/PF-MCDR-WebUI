@@ -158,7 +158,7 @@ class ConfigService:
             ),
             "chat_session_expire_hours": config.get("chat_session_expire_hours", 24),
             "force_standalone": config.get("force_standalone", False),
-            "log_capture_compat_mode": config.get("log_capture_compat_mode", False),
+            "log_capture_compat_mode": config.get("log_capture_compat_mode", True),
             "icp_records": config.get("icp_records", []),
             "chat_message_count": chat_message_count,
         }

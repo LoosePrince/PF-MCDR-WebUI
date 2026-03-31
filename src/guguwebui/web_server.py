@@ -172,7 +172,7 @@ def init_app(server_instance):
     server_config = server_instance.load_config_simple(
         "config.json", DEFALUT_CONFIG, echo_in_console=False
     )
-    log_capture_compat_mode = server_config.get("log_capture_compat_mode", False)
+    log_capture_compat_mode = server_config.get("log_capture_compat_mode", True)
 
     # 初始化 LogWatcher，根据配置选择捕获模式
     log_watcher = LogWatcher(
