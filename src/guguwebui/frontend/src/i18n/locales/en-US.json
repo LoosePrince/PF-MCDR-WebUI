@@ -836,6 +836,7 @@
             },
             "inline_ai": {
                 "title": "AI Analysis",
+                "analyze": "Analyze this error",
                 "loading": "Analyzing error log...",
                 "expand": "Click to expand",
                 "collapse": "Collapse",

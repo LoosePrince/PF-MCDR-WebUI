@@ -325,67 +325,6 @@ const Terminal: React.FC = () => {
     }
   }, [selectedSuggestionIndex, showSuggestions])
 
-  useEffect(() => {
-    const runInlineAnalysis = async (errorKey: string, context: string) => {
-      const controller = new AbortController()
-      inlineAbortControllersRef.current.set(errorKey, controller)
-      inlineAnalyzingKeysRef.current.add(errorKey)
-      setInlineAnalysisByKey((prev) => ({
-        ...prev,
-        [errorKey]: { status: 'loading', content: '' }
-      }))
-
-      try {
-        const data = await requestFreeAiCompletion(
-          `${INLINE_AI_QUERY_TEMPLATE}\n${context}`,
-          t('page.terminal.msg.system_prompt'),
-          controller.signal
-        )
-        const answer = data?.choices?.[0]?.message?.content ?? data?.answer ?? ''
-        const content = answer || t('page.terminal.inline_ai.failed')
-        setInlineAnalysisByKey((prev) => ({
-          ...prev,
-          [errorKey]: { status: 'success', content }
-        }))
-      } catch (e: unknown) {
-        const err = e as { name?: string; message?: string; code?: string }
-        if (isCancel(e) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
-          return
-        }
-        setInlineAnalysisByKey((prev) => ({
-          ...prev,
-          [errorKey]: {
-            status: 'error',
-            content: `${t('page.terminal.inline_ai.failed')}\n\n${err.message || 'Unknown error'}`
-          }
-        }))
-      } finally {
-        inlineAnalyzingKeysRef.current.delete(errorKey)
-        inlineAbortControllersRef.current.delete(errorKey)
-      }
-    }
-
-    const pendingBindings: Record<number, InlineAnalysisBinding> = {}
-    logs.forEach((log, idx) => {
-      if (typeof log.counter !== 'number') return
-      if (!isErrorLog(log.content)) return
-      if (inlineAnalysisBindingByCounter[log.counter]) return
-
-      const errorKey = buildErrorKey(log.content)
-      pendingBindings[log.counter] = { errorKey, expanded: false }
-
-      const existing = inlineAnalysisByKey[errorKey]
-      if (!existing && !inlineAnalyzingKeysRef.current.has(errorKey)) {
-        const context = buildErrorContext(logs, idx)
-        void runInlineAnalysis(errorKey, context)
-      }
-    })
-
-    if (Object.keys(pendingBindings).length > 0) {
-      setInlineAnalysisBindingByCounter((prev) => ({ ...prev, ...pendingBindings }))
-    }
-  }, [inlineAnalysisBindingByCounter, inlineAnalysisByKey, logs, t])
-
   // Handle Selection for Floating Button
   useEffect(() => {
     const handleSelection = () => {
@@ -768,27 +707,32 @@ const Terminal: React.FC = () => {
     })
   }
 
-  const retryInlineAnalysis = async (counter?: number) => {
+  const requestInlineAnalysis = async (counter?: number) => {
     if (typeof counter !== 'number') return
-    const binding = inlineAnalysisBindingByCounter[counter]
-    if (!binding) return
-    if (inlineAnalyzingKeysRef.current.has(binding.errorKey)) return
 
     const triggerIndex = logs.findIndex((item) => item.counter === counter)
     if (triggerIndex < 0) return
-    const context = buildErrorContext(logs, triggerIndex)
+
+    const errorKey = inlineAnalysisBindingByCounter[counter]?.errorKey
+      ?? buildErrorKey(logs[triggerIndex].content)
+    if (inlineAnalyzingKeysRef.current.has(errorKey)) return
+
+    setInlineAnalysisBindingByCounter((prev) => ({
+      ...prev,
+      [counter]: prev[counter] ?? { errorKey, expanded: false }
+    }))
 
     const controller = new AbortController()
-    inlineAbortControllersRef.current.set(binding.errorKey, controller)
-    inlineAnalyzingKeysRef.current.add(binding.errorKey)
+    inlineAbortControllersRef.current.set(errorKey, controller)
+    inlineAnalyzingKeysRef.current.add(errorKey)
     setInlineAnalysisByKey((prev) => ({
       ...prev,
-      [binding.errorKey]: { status: 'loading', content: '' }
+      [errorKey]: { status: 'loading', content: '' }
     }))
 
     try {
       const data = await requestFreeAiCompletion(
-        `${INLINE_AI_QUERY_TEMPLATE}\n${context}`,
+        `${INLINE_AI_QUERY_TEMPLATE}\n${buildErrorContext(logs, triggerIndex)}`,
         t('page.terminal.msg.system_prompt'),
         controller.signal
       )
@@ -796,7 +740,7 @@ const Terminal: React.FC = () => {
       const content = answer || t('page.terminal.inline_ai.failed')
       setInlineAnalysisByKey((prev) => ({
         ...prev,
-        [binding.errorKey]: { status: 'success', content }
+        [errorKey]: { status: 'success', content }
       }))
     } catch (e: unknown) {
       const err = e as { name?: string; message?: string; code?: string }
@@ -805,14 +749,14 @@ const Terminal: React.FC = () => {
       }
       setInlineAnalysisByKey((prev) => ({
         ...prev,
-        [binding.errorKey]: {
+        [errorKey]: {
           status: 'error',
           content: `${t('page.terminal.inline_ai.failed')}\n\n${err.message || 'Unknown error'}`
         }
       }))
     } finally {
-      inlineAnalyzingKeysRef.current.delete(binding.errorKey)
-      inlineAbortControllersRef.current.delete(binding.errorKey)
+      inlineAnalyzingKeysRef.current.delete(errorKey)
+      inlineAbortControllersRef.current.delete(errorKey)
     }
   }
 
@@ -927,8 +871,10 @@ const Terminal: React.FC = () => {
                   <span className="select-none opacity-30 mr-3 text-xs w-8 inline-block text-right">{log.line_number ?? idx + 1}</span>
                   {log.content}
                 </div>
-                {typeof log.counter === 'number' && inlineAnalysisBindingByCounter[log.counter] && (
-                  <div className="ml-11 mt-1 mb-2 rounded-lg border border-purple-500/20 bg-slate-900/60 px-3 py-2">
+                {typeof log.counter === 'number' && isErrorLog(log.content) && (
+                  <>
+                    {inlineAnalysisBindingByCounter[log.counter] ? (
+                      <div className="ml-11 mt-1 mb-2 rounded-lg border border-purple-500/20 bg-slate-900/60 px-3 py-2">
                     <div className="flex items-center justify-between gap-2 text-xs text-purple-200">
                       <div className="flex items-center gap-1">
                         <Bot size={14} />
@@ -938,7 +884,7 @@ const Terminal: React.FC = () => {
                         <button
                           type="button"
                           className="text-purple-300 hover:text-white underline"
-                          onClick={() => retryInlineAnalysis(log.counter)}
+                          onClick={() => requestInlineAnalysis(log.counter)}
                         >
                           {t('page.terminal.inline_ai.retry')}
                         </button>
@@ -971,6 +917,17 @@ const Terminal: React.FC = () => {
                       </div>
                     )}
                   </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="ml-11 mt-1 mb-2 inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-slate-900/60 px-3 py-1.5 text-xs text-purple-200 hover:border-purple-400 hover:text-white transition-colors"
+                        onClick={() => requestInlineAnalysis(log.counter)}
+                      >
+                        <BrainCircuit size={14} />
+                        {t('page.terminal.inline_ai.analyze')}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             ))

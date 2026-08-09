@@ -915,6 +915,7 @@
             },
             "inline_ai": {
                 "title": "AI 分析",
+                "analyze": "分析此报错",
                 "loading": "正在分析报错...",
                 "expand": "点击展开",
                 "collapse": "收起",
