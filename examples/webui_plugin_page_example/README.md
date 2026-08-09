@@ -3,7 +3,8 @@
 本示例演示如何：
 
 1. **注册插件网页**：在 WebUI 侧边栏「插件网页」中出现入口，并在面板内以 iframe 展示 HTML。
-2. **注册可选后端处理器**：浏览器请求 `/api/plugin/<plugin_id>/...` 时，由 MCDR 进程内 Python 函数处理（路径与查询/体见 `params`）。
+2. **声明侧边栏图标**：支持 Lucide 图标名、Emoji 或相对于网页 HTML 的图片路径。
+3. **注册可选后端处理器**：浏览器请求 `/api/plugin/<plugin_id>/...` 时，由 MCDR 进程内 Python 函数处理（路径与查询/体见 `params`）。
 
 ## 安装
 
@@ -23,7 +24,7 @@
 ## 说明
 
 - **网页路径**：在 `on_load` 中用 `Path(__file__).parent / "static" / "demo.html"` 指向静态 HTML，避免写死工作目录。
-- **侧边栏**：由 `register_plugin_page` 自动登记；列表数据来自 `GET /api/plugins/web_pages`。
+- **侧边栏**：由 `register_plugin_page` 自动登记；列表数据来自 `GET /api/plugins/web_pages`。可通过 `icon` 声明图标，例如 Lucide 名称 `"Wrench"`、Emoji `"🔧"`，或相对于 HTML 的图片路径 `"assets/icon.png"`。
 - **自定义 API**：`register_plugin_page(..., api_handler=..., upload_max_bytes=...)`；`upload_max_bytes` 可选，用于单插件覆盖上传大小上限。前端请求形如  
   `GET ${root}/api/plugin/webui_plugin_page_example/hello`（若部署在子路径，`root` 为 `/guguwebui` 等，示例 HTML 内从 `window.parent.__GUGU_CONFIG__` 读取）。
 

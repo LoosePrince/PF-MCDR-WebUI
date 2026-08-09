@@ -72,6 +72,7 @@
         "disable": "Disable",
         "all": "All",
         "plugin_web_pages": "Plugin Web Pages",
+        "plugin_page_source": "Added by plugin {{pluginId}}",
         "config": "Config",
         "reload": "Reload",
         "uninstall": "Uninstall",

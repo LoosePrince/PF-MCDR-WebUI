@@ -15,6 +15,7 @@ class PluginPageEntry:
     name: Optional[str] = None
     api_handler: Optional[Callable[..., Any]] = None
     upload_max_bytes: Optional[int] = None
+    icon: Optional[str] = None
 
 
 class PluginApiHandlerParams(TypedDict):

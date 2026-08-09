@@ -1,6 +1,19 @@
 import { AnimatePresence, motion } from 'framer-motion'
+import type { LucideIcon } from 'lucide-react'
 import {
   Bell,
+  ChartNoAxesCombined,
+  Cloud,
+  Code,
+  Cpu,
+  Database,
+  FileText,
+  Folder,
+  Gauge,
+  Globe,
+  Heart,
+  Home,
+  KeyRound,
   ChevronDown,
   ChevronRight,
   Gamepad2,
@@ -10,12 +23,29 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Monitor,
   Moon,
+  Music,
+  Network,
+  Package,
+  Palette,
+  PanelLeft,
+  Plug,
   Puzzle,
+  Rocket,
+  Search,
+  Server,
+  Settings,
   Settings2,
+  Shield,
   Sliders,
+  Store,
   Sun,
   Terminal,
+  Trophy,
+  User,
+  Workflow,
+  Wrench,
   X,
   Zap
 } from 'lucide-react'
@@ -39,6 +69,95 @@ type ServerStatusType = 'online' | 'offline' | 'loading' | 'error'
 
 type TargetServer = { id: string; name: string; enabled: boolean; isLocal: boolean }
 
+type PluginPage = { id: string; path: string; name?: string | null; icon?: string | null }
+
+const IMAGE_ICON_PATH_PATTERN = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i
+
+const isRelativeImageIcon = (icon?: string | null) => {
+  if (!icon || !IMAGE_ICON_PATH_PATTERN.test(icon)) return false
+  return !/^(?:[a-z][a-z\d+.-]*:|[\\/])/i.test(icon)
+}
+
+const PLUGIN_LUCIDE_ICONS: Record<string, LucideIcon> = {
+  bell: Bell,
+  chartnoaxescombined: ChartNoAxesCombined,
+  cloud: Cloud,
+  code: Code,
+  cpu: Cpu,
+  database: Database,
+  filetext: FileText,
+  folder: Folder,
+  gauge: Gauge,
+  globe: Globe,
+  heart: Heart,
+  home: Home,
+  keyround: KeyRound,
+  layoutdashboard: LayoutDashboard,
+  messagesquare: MessageSquare,
+  monitor: Monitor,
+  music: Music,
+  network: Network,
+  package: Package,
+  palette: Palette,
+  panelleft: PanelLeft,
+  plug: Plug,
+  puzzle: Puzzle,
+  rocket: Rocket,
+  search: Search,
+  server: Server,
+  settings: Settings,
+  shield: Shield,
+  sliders: Sliders,
+  store: Store,
+  terminal: Terminal,
+  trophy: Trophy,
+  user: User,
+  workflow: Workflow,
+  wrench: Wrench,
+  zap: Zap,
+}
+
+const normalizeLucideIconName = (icon: string) => icon.replace(/[\s_-]/g, '').toLowerCase()
+const isEmojiIcon = (icon: string) => /\p{Extended_Pictographic}/u.test(icon)
+
+const PluginPageIcon: React.FC<{ pageId: string; icon?: string | null }> = ({ pageId, icon }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const isImageIcon = isRelativeImageIcon(icon)
+
+  useEffect(() => {
+    if (!isImageIcon) {
+      setImageUrl(null)
+      return
+    }
+
+    let active = true
+    let objectUrl: string | null = null
+    void api.get(`/plugins/web_pages/${encodeURIComponent(pageId)}/icon`, { responseType: 'blob' })
+      .then((response) => {
+        objectUrl = URL.createObjectURL(response.data as Blob)
+        if (active) setImageUrl(objectUrl)
+        else URL.revokeObjectURL(objectUrl)
+      })
+      .catch(() => {
+        if (active) setImageUrl(null)
+      })
+
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [isImageIcon, pageId])
+
+  if (isImageIcon && imageUrl) {
+    return <img src={imageUrl} alt="" className="w-5 h-5 shrink-0 object-contain" />
+  }
+
+  const Icon = icon ? PLUGIN_LUCIDE_ICONS[normalizeLucideIconName(icon)] : undefined
+  if (Icon) return <Icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+  if (icon && !isImageIcon && isEmojiIcon(icon)) return <span className="w-5 shrink-0 text-center leading-5" aria-hidden="true">{icon}</span>
+  return <Puzzle className="w-5 h-5 shrink-0" aria-hidden="true" />
+}
+
 const statusColors: Record<ServerStatusType, string> = {
   online: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-100 dark:border-green-900/30',
   offline: 'bg-slate-50 dark:bg-slate-900/20 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800',
@@ -53,8 +172,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024)
-  const [pluginPages, setPluginPages] = useState<{ id: string; path: string; name?: string | null }[]>([])
-  const [isPluginPagesOpen, setIsPluginPagesOpen] = useState(false)
+  const [pluginPages, setPluginPages] = useState<PluginPage[]>([])
+  const [isPluginPagesOpen, setIsPluginPagesOpen] = useState(true)
   const [serverStatus, setServerStatus] = useState<ServerStatusType>('loading')
   const [servers, setServers] = useState<TargetServer[]>([{ id: 'local', name: 'local', enabled: true, isLocal: true }])
   const [targetServerId, setTargetServerIdState] = useState<string>(getTargetServerId())
@@ -240,8 +359,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {pluginPages.length > 0 && (
               <div className="pt-2">
                 <button
-                  onClick={() => setIsPluginPagesOpen(!isPluginPagesOpen)}
-                  className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-200 transition-colors group"
+                  onClick={() => setIsPluginPagesOpen((open) => !open)}
+                  className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-violet-500 dark:text-violet-300 uppercase tracking-wider hover:text-violet-700 dark:hover:text-violet-100 transition-colors group"
                 >
                   <span className="flex items-center gap-2">
                     <Puzzle size={14} className="group-hover:rotate-12 transition-transform" />
@@ -253,30 +372,33 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   />
                 </button>
 
-                <AnimatePresence>
+                <AnimatePresence initial={false}>
                   {isPluginPagesOpen && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="overflow-hidden space-y-1 mt-1 px-2"
+                      className="overflow-hidden space-y-1 mt-1"
                     >
                       {pluginPages.map((page) => {
                         const path = `/plugin-page/${page.id}`
                         const isActive = location.pathname === path
-                            const label = page.name && String(page.name).trim() ? String(page.name) : page.id
+                        const label = page.name && String(page.name).trim() ? String(page.name) : page.id
+                        const sourceHint = t('plugins.plugin_page_source', { pluginId: page.id })
                         return (
                           <Link
                             key={page.id}
                             to={path}
-                            className={`flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 ${isActive
-                              ? 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20'
-                              : 'text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                            title={sourceHint}
+                            aria-label={`${label}，${sourceHint}`}
+                            className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl border transition-all duration-200 relative group ${isActive
+                              ? 'text-violet-700 bg-violet-50 border-violet-200 dark:text-violet-200 dark:bg-violet-900/20 dark:border-violet-800/60'
+                              : 'text-slate-600 border-violet-100/80 hover:bg-violet-50/60 hover:border-violet-200 dark:text-slate-400 dark:border-violet-900/30 dark:hover:bg-violet-900/10 dark:hover:border-violet-800/60'
                               }`}
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-40" />
-                                <span className="truncate text-xs font-mono">{label}</span>
+                            <PluginPageIcon pageId={page.id} icon={page.icon} />
+                            <span className="truncate">{label}</span>
                           </Link>
                         )
                       })}

@@ -73,6 +73,7 @@
         "disable": "禁用",
         "all": "全部",
         "plugin_web_pages": "插件网页",
+        "plugin_page_source": "由插件 {{pluginId}} 添加",
         "config": "配置",
         "reload": "重载",
         "uninstall": "卸载",

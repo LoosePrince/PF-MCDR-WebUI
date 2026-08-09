@@ -115,6 +115,7 @@ def on_load(server: PluginServerInterface, old) -> None:
         PLUGIN_ID,
         html_path,
         name='WebUI 插件页示例',
+        icon='Wrench',
         api_handler=_api_handler,
         upload_max_bytes=2 * 1024 * 1024,  # 可选：该插件单文件上传上限（2 MiB）
     )
