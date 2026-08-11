@@ -548,6 +548,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     setTargetServerId(sid)
                   }}
                   title={t('nav.server')}
+                  menuPlacement="top"
                   options={servers
                     .filter(s => s.enabled || s.id === 'local')
                     .map(s => ({ value: s.id, label: s.name || s.id }))}

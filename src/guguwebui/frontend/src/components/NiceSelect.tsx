@@ -11,9 +11,16 @@ interface NiceSelectProps {
   onChange: (v: string) => void;
   options: NiceSelectOption[];
   title?: string;
+  menuPlacement?: 'bottom' | 'top';
 }
 
-export const NiceSelect: React.FC<NiceSelectProps> = ({ value, onChange, options, title }) => {
+export const NiceSelect: React.FC<NiceSelectProps> = ({
+  value,
+  onChange,
+  options,
+  title,
+  menuPlacement = 'bottom',
+}) => {
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.value === value) || options[0];
 
@@ -38,7 +45,9 @@ export const NiceSelect: React.FC<NiceSelectProps> = ({ value, onChange, options
         />
       </button>
       {open && (
-        <div className="absolute z-20 mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shadow-lg max-h-60 overflow-y-auto">
+        <div
+          className={`absolute z-20 w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shadow-lg max-h-60 overflow-y-auto ${menuPlacement === 'top' ? 'bottom-full mb-2' : 'mt-2'}`}
+        >
           {options.map(opt => (
             <button
               key={opt.value}
