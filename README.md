@@ -101,7 +101,7 @@ WebUI 提供事件分发机制，允许其他插件监听或向 WebUI 发送消�
 A: 因为我乐意。
 
 **Q: 会支持MC服务器管理的功能吗？如模组管理、玩家管理、白名单等等……** <br>
-A: 并不会深入涉及管理MC服务器，如有这方面的需求请查询MC服务器面板，仅可能会支持很小一部分，例如终端、重启服务器，更多的不在我们的范畴中。
+A: 列入计划中...，等我（树梢）有空或者欢迎大佬来贡献代码AwA！
 
 **Q: 可以加入开发吗？** <br>
 A: 当然可以，您可以提交 [pr](https://github.com/PFingan-Code/PF-MCDR-WebUI/pulls) 或者参与交流来参与开发。
@@ -110,7 +110,7 @@ A: 当然可以，您可以提交 [pr](https://github.com/PFingan-Code/PF-MCDR-W
 A: 我只会中文，您要是愿意可以参与，目前已有中文（zh-CN）和英文（en-US），在 [i18n/locales 文件夹](https://github.com/PFingan-Code/PF-MCDR-WebUI/tree/main/src/guguwebui/frontend/src/i18n/locales)。
 
 **Q: 如何获取正在测试的开发版？** <br>
-A: 前往 [Releases页面](https://github.com/PFingan-Code/PF-MCDR-WebUI/releases?q=beta+build) 下载最新的预发布版本（Pre-release），这些版本会在每次代码更新后自动生成。或者您也可以自己打包`src`中的文件到`zip`，修改后缀为`.mcdr`。
+A: 前往 [Releases页面](https://github.com/PFingan-Code/PF-MCDR-WebUI/releases?q=beta+build) 下载最新的预发布版本（Pre-release），这些版本会在每次代码更新后自动生成。或者您也可以自己执行前端构建后、打包`src`中的文件到`zip`，修改后缀为`.mcdr`。
 
 **Q: 我有个插件，我觉得很适合WebUI，可以作为WebUI的前置吗？** <br>
 A: WebUI不打算使用任何插件前置，如果有好的方案我们会考虑直接加入WebUI并在关于页感谢贡献。
@@ -125,11 +125,9 @@ A: 查看 [插件兼容](https://pf-doc.pfingan.com/main/#/PF-webui/开发/插�
 
 ## 🤝 贡献与致谢
 
-| 贡献人 | 说明 |
-|---|---|
-| [树梢 (LoosePrince)](https://github.com/LoosePrince) | 功能设计、文档编写、Web设计、前端编写 |
-| [雪开 (XueK66)](https://github.com/XueK66) | 代码开发、维护、功能设计 |
-| 见 [贡献者](https://github.com/PFingan-Code/PF-MCDR-WebUI/graphs/contributors) | 贡献者 |
+| 代码贡献 |
+|---|
+| <a href="https://github.com/PFingan-Code/PF-MCDR-WebUI/graphs/contributors"><img src="https://contrib.rocks/image?repo=PFingan-Code/PF-MCDR-WebUI" /></a> |
 
 | 贡献项目 | 功能 | 备注 |
 |---|---|---|
@@ -146,6 +144,6 @@ A: 查看 [插件兼容](https://pf-doc.pfingan.com/main/#/PF-webui/开发/插�
 
 ## 有BUG或是新的IDEA
 
-如果需要更多联动或提交想法和问题请提交 [issues](https://github.com/PFingan-Code/PF-MCDR-WebUI/issues) 或 QQ [树梢 (1377820366)](http://wpa.qq.com/msgrd?v=3&uin=1377820366&site=qq&menu=yes) 提交！ <br />
-如需要帮助或者交流请通过 QQ群 [726741344](https://qm.qq.com/q/TqmRHmTmcU) 进行询问或者交流 <br />
-视情况添加，请勿联系他人。
+- 如果需要更多联动或提交想法和问题请提交 [issues](https://github.com/PFingan-Code/PF-MCDR-WebUI/issues) ，也可以联系 QQ [树梢 (1377820366)](http://wpa.qq.com/msgrd?v=3&uin=1377820366&site=qq&menu=yes) 提交！ 
+- 如需要帮助或者交流请通过 QQ群 [726741344](https://qm.qq.com/q/TqmRHmTmcU) 进行询问或者交流
+- 视情况添加，请勿联系他人，以免打扰。
