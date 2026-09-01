@@ -12,3 +12,6 @@ export const MCDR_PLUGINS_PAGE_URL = 'https://mcdreforged.com/zh-CN/plugins'
 /** GitHub API: 公告来自 repo 的 release tag "notice" */
 const PROJECT_GITHUB_REPO_SLUG = 'PFingan-Code/PF-MCDR-WebUI'
 export const GITHUB_NOTICE_URL = `https://api.github.com/repos/${PROJECT_GITHUB_REPO_SLUG}/releases/tags/notice`
+
+/** 服务器状态页面支持的时间范围（与后端 RANGE_MAP 一致） */
+export const STATUS_RANGES = ['10m', '30m', '1h', '6h', '12h', '1d', '3d', '7d'] as const

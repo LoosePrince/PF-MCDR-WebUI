@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import type { LucideIcon } from 'lucide-react'
 import {
+  Activity,
   Bell,
   ChartNoAxesCombined,
   Cloud,
@@ -275,6 +276,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems = [
     { path: '/index', key: 'nav.dashboard', icon: LayoutDashboard },
+    { path: '/status', key: 'nav.server_status', icon: Activity },
     { path: '/mcdr', key: 'nav.mcdr_config', icon: Settings2 },
     { path: '/mc', key: 'nav.mc_config', icon: Gamepad2 },
     { path: '/plugins', key: 'nav.local_plugins', icon: Puzzle },

@@ -1,6 +1,7 @@
 {
     "nav": {
         "dashboard": "仪表盘",
+        "server_status": "服务器状态",
         "mcdr_config": "MCDR 配置",
         "mc_config": "MC 服务器配置",
         "local_plugins": "本地插件",
@@ -244,7 +245,9 @@
                 "save_failed_prefix": "保存全局样式/脚本失败: "
             },
             "audit_logs": "操作记录",
-            "audit_logs_desc": "查看业务操作溯源（只读）"
+            "audit_logs_desc": "查看业务操作溯源（只读）",
+            "server_status": "服务器状态",
+            "server_status_desc": "TPS、CPU、内存等实时监控"
         },
         "operation_logs": {
             "title": "操作记录",
@@ -260,6 +263,45 @@
             "detail_title": "操作详情",
             "load_more": "加载更多",
             "panel_actor": "面板代理"
+        },
+        "status": {
+            "title": "服务器状态",
+            "desc": "实时监控整机与 Minecraft 进程的性能指标",
+            "overview": "概览",
+            "stats_and_charts": "统计表与折线图",
+            "metric": "指标",
+            "current": "当前",
+            "avg": "平均",
+            "min": "最小",
+            "max": "最大",
+            "view_detail": "查看详情",
+            "online": "在线",
+            "offline": "离线",
+            "na": "不可用",
+            "mspt": "MSPT",
+            "cpu": "CPU",
+            "memory": "内存",
+            "swap": "Swap",
+            "disk": "磁盘",
+            "disk_usage": "磁盘占用",
+            "load": "负载",
+            "load_1m": "负载 1分钟",
+            "load_5m": "负载 5分钟",
+            "load_15m": "负载 15分钟",
+            "network": "网络",
+            "network_rx": "下行",
+            "network_tx": "上行",
+            "whole_machine": "整机",
+            "mc_process": "Minecraft 进程",
+            "chart_cpu": "CPU 占用",
+            "chart_memory": "内存占用",
+            "chart_network": "网络实时速度",
+            "group_server": "服务器",
+            "group_cpu": "CPU",
+            "group_memory": "内存",
+            "group_disk": "磁盘",
+            "group_load": "系统负载",
+            "group_network": "网络"
         },
         "404": {
             "title": "404 - 页面未找到",

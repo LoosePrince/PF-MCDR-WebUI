@@ -615,6 +615,16 @@ def on_unload(server: PluginServerInterface):
     except Exception as e:
         server.logger.warning(f"停止日志捕获器时出错: {e}")
 
+    # 停止服务器状态监控
+    try:
+        from .web_server import app as gugu_app
+        monitor_service = getattr(gugu_app.state, "monitor_service", None)
+        if monitor_service is not None:
+            monitor_service.stop()
+            server.logger.debug("服务器状态监控已停止")
+    except Exception as e:
+        server.logger.debug(f"停止服务器状态监控时出错: {e}")
+
     # 停止Web服务器（仅在独立模式下需要）
     try:
         if 'web_server_interface' in globals() and web_server_interface:

@@ -7,6 +7,7 @@ import { useAuth } from './hooks/useAuth'
 // 路由级懒加载，将各页面拆成独立 chunk，减小主包体积
 const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
+const ServerStatus = lazy(() => import('./pages/ServerStatus'))
 const MCDRConfig = lazy(() => import('./pages/MCDRConfig'))
 const MCConfig = lazy(() => import('./pages/MCConfig'))
 const LocalPlugins = lazy(() => import('./pages/LocalPlugins'))
@@ -60,6 +61,7 @@ function AppContent() {
                   <Routes>
                     <Route path="/" element={<Navigate to="/index" replace />} />
                     <Route path="/index" element={<Dashboard />} />
+                    <Route path="/status" element={<ServerStatus />} />
                     <Route path="/mcdr" element={<MCDRConfig />} />
                     <Route path="/mc" element={<MCConfig />} />
                     <Route path="/plugins" element={<LocalPlugins />} />

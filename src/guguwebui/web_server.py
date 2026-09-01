@@ -31,11 +31,13 @@ from guguwebui.routers.audit_router import router as audit_router
 from guguwebui.routers.chat_router import router as chat_router
 from guguwebui.routers.config_router import router as config_router
 from guguwebui.routers.pim_router import router as pim_router
+from guguwebui.routers.monitor_router import router as monitor_router
 from guguwebui.routers.pip_router import router as pip_router
 from guguwebui.routers.plugin_management_router import \
     router as plugin_management_router
 from guguwebui.routers.plugin_proxy_router import router as plugin_proxy_router
 from guguwebui.routers.server_router import router as server_router
+from guguwebui.services.monitor_service import MonitorService
 from guguwebui.services.ai_service import AIService
 from guguwebui.services.auth_service import AuthService
 from guguwebui.services.chat_service import ChatService
@@ -211,6 +213,17 @@ def init_app(server_instance):
     app.state.pip_service = PipService(server_instance)
     app.state.file_service = FileService(server_instance)
     app.state.chat_service = ChatService(server_instance, app.state.config_service)
+
+    # 初始化服务器状态监控（先停止旧实例，避免重复启动）
+    try:
+        old_monitor = getattr(app.state, "monitor_service", None)
+        if old_monitor is not None:
+            old_monitor.stop()
+        app.state.monitor_service = MonitorService(server_instance)
+        app.state.monitor_service.start()
+        server_instance.logger.debug("服务器状态监控已启动")
+    except Exception as e:
+        server_instance.logger.error(f"服务器状态监控初始化失败: {e}")
 
     # 初始化PIM模块
     try:
@@ -469,6 +482,7 @@ app.include_router(panel_merge_router, prefix="/api") # 合并面板
 app.include_router(plugin_management_router, prefix="/api") # 插件管理
 app.include_router(config_router, prefix="/api") # 配置
 app.include_router(server_router, prefix="/api") # 服务器
+app.include_router(monitor_router, prefix="/api") # 服务器状态监控
 app.include_router(plugin_proxy_router, prefix="/api") # 插件代理
 app.include_router(pim_router, prefix="/api") # PIM
 app.include_router(pip_router, prefix="/api") # PIP

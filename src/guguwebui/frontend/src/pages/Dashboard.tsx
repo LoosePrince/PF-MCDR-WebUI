@@ -18,11 +18,15 @@ import {
   Users,
   X
 } from 'lucide-react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCache } from '../context/CacheContext'
 import { useNoticeModal } from '../context/NoticeModalContext'
 import { useAuth } from '../hooks/useAuth'
+import StatusOverviewCard from '../components/StatusOverviewCard'
+
+// 弹窗内含图表库（recharts），懒加载避免拖慢仪表盘首屏
+const ServerStatusModal = lazy(() => import('../components/ServerStatusModal'))
 import api, { isCancel } from '../utils/api'
 import { fetchNotice, type NoticeData } from '../utils/notice'
 
@@ -93,6 +97,7 @@ const Dashboard: React.FC = () => {
 
   const [notice, setNotice] = useState<NoticeData | null>(null)
   const [noticeLoading, setNoticeLoading] = useState<boolean>(true)
+  const [showServerStatusModal, setShowServerStatusModal] = useState<boolean>(false)
 
   const statusFetchingRef = useRef(false)
 
@@ -726,6 +731,9 @@ const Dashboard: React.FC = () => {
           </motion.div>
         </div>
 
+        {/* Server Status Overview */}
+        <StatusOverviewCard onOpenDetail={() => setShowServerStatusModal(true)} />
+
         {/* Feature Navigation */}
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white px-2">
@@ -737,6 +745,7 @@ const Dashboard: React.FC = () => {
               { key: 'mcdr_config', icon: Settings2, color: 'bg-purple-500', path: './mcdr' },
               { key: 'mc_config', icon: Sliders, color: 'bg-emerald-500', path: './mc' },
               { key: 'online_plugins', icon: Puzzle, color: 'bg-amber-500', path: './online-plugins' },
+              { key: 'server_status', icon: Activity, color: 'bg-cyan-500', path: './status' },
               ...(isAdmin
                 ? [{ key: 'audit_logs', icon: ClipboardList, color: 'bg-violet-500', path: './operation-logs' }]
                 : []),
@@ -1071,6 +1080,14 @@ const Dashboard: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Server status modal */}
+      <Suspense fallback={null}>
+        <ServerStatusModal
+          open={showServerStatusModal}
+          onClose={() => setShowServerStatusModal(false)}
+        />
+      </Suspense>
 
       {/* RCON setup modal */}
       <AnimatePresence>

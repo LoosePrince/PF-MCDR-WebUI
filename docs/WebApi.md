@@ -177,6 +177,96 @@
 
 - 使用位置: 首页、控制面板
 
+### 获取服务器状态监控概览
+- 端点: `/api/monitor/overview`
+- 方法: GET
+- 功能: 获取服务器状态最新快照（TPS/MSPT/CPU/内存/Swap/磁盘/负载/网络）。需登录。
+  数据由后台 `MonitorService` 每秒采样；TPS/MSPT 经 RCON 执行 `/tps`、`/mspt` 解析（每 5 秒一次），
+  RCON 未启用或服务端不支持时为 `null`（前端显示 N/A）。
+- 响应:
+
+  ```json
+  {
+    "status": "success",
+    "ts": 1700000000,
+    "online": true,
+    "uptime": 3600,
+    "tps": 19.87,
+    "mspt": 2.1,
+    "cpu": { "system": 12.5, "minecraft": 8.1 },
+    "memory": {
+      "total": 34359738368, "available": 12884901888, "used": 21474836480, "percent": 62.5,
+      "minecraft": 4294967296,
+      "swap_total": 8589934592, "swap_used": 0, "swap_percent": 0.0
+    },
+    "disk": { "path": "server", "total": 107374182400, "used": 48318382080, "percent": 45.0 },
+    "load": { "load1": 1.2, "load5": 1.1, "load15": 1.0 },
+    "network": { "rx": 102400.0, "tx": 51200.0 }
+  }
+  ```
+
+  说明: `cpu.minecraft` / `memory.minecraft` 为 Minecraft 进程组（MCDR 启动的 bash+java 进程树）
+  的占用，CPU 已按整机总核数归一化为百分比；网络为整机 rx/tx 字节每秒。
+
+- 使用位置: 仪表盘服务器状态卡片、`/status` 页面
+
+### 获取监控时间序列
+- 端点: `/api/monitor/history`
+- 方法: GET
+- 参数:
+  - `metric`: `cpu` / `memory` / `network` / `tps` / `mspt` / `load` / `disk`
+  - `range`: `10m` / `30m` / `1h` / `6h` / `12h` / `1d` / `3d` / `7d`
+- 功能: 获取指定指标的时间序列。范围 ≤1h 使用 1 秒精度采样，更大范围使用 1 分钟均值
+  （1 分钟均值持久化于 `guguwebui_static/monitor.db`，插件重载后仍保留）；服务端降采样到不超过 1500 点。
+- 响应:
+
+  ```json
+  {
+    "status": "success",
+    "metric": "cpu",
+    "range": "1h",
+    "sample": "1s",
+    "points": [
+      { "t": 1700000000, "system": 12.5, "minecraft": 8.1 }
+    ]
+  }
+  ```
+
+  说明: `memory` 的 `minecraft` 已按整机总内存归一化为百分比；`network` 返回 `rx`/`tx` 两个字段；
+  其余指标返回 `value`。
+
+- 使用位置: `/status` 页面折线图、仪表盘详情弹窗
+
+### 获取监控统计表
+- 端点: `/api/monitor/table`
+- 方法: GET
+- 参数:
+  - `range`: `10m` / `30m` / `1h` / `6h` / `12h` / `1d` / `3d` / `7d`（默认 `1h`）
+- 功能: 各指标在当前时间范围内的 avg/min/max 统计（范围 ≤1h 使用 1 秒采样，更大范围使用 1 分钟均值）。
+- 响应:
+
+  ```json
+  {
+    "status": "success",
+    "range": "1h",
+    "stats": {
+      "tps": { "avg": 19.8, "min": 19.2, "max": 20.0 },
+      "mspt": { "avg": 2.1, "min": 1.2, "max": 15.6 },
+      "cpu": { "system": {...}, "minecraft": {...} },
+      "memory": { "system": {...}, "minecraft": {...} },
+      "swap": {...}, "disk": {...},
+      "load": { "load1": {...}, "load5": {...}, "load15": {...} },
+      "network": { "rx": {...}, "tx": {...} }
+    }
+  }
+  ```
+
+  说明: 每个统计对象形如 `{ "avg": number|null, "min": number|null, "max": number|null }`，
+  `null` 表示该时间范围内无数据；`memory.minecraft` 保留字节数（表格按 GB 展示），其余字段与
+  overview/history 的单位一致。
+
+- 使用位置: `/status` 页面统计表
+
 ### 控制服务器
 - 端点: `/api/control_server`
 - 方法: POST

@@ -21,7 +21,8 @@ REQUIRED_PACKAGES = [
     'python-multipart',
     'typing-extensions',
     'aiohttp',
-    'mcstatus'
+    'mcstatus',
+    'psutil'
 ]
 
 
@@ -106,7 +107,8 @@ PACKAGE_IMPORT_MAPPING = {
     'itsdangerous': 'itsdangerous',
     'jinja2': 'jinja2',
     'aiohttp': 'aiohttp',
-    'mcstatus': 'mcstatus'
+    'mcstatus': 'mcstatus',
+    'psutil': 'psutil'
 }
 
 

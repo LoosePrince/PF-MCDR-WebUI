@@ -1,6 +1,7 @@
 {
     "nav": {
         "dashboard": "Dashboard",
+        "server_status": "Server Status",
         "mcdr_config": "MCDR Config",
         "mc_config": "MC Server Config",
         "local_plugins": "Local Plugins",
@@ -243,7 +244,9 @@
                 "save_failed_prefix": "Failed to save global style/script: "
             },
             "audit_logs": "Audit log",
-            "audit_logs_desc": "Business-level actions (read-only)"
+            "audit_logs_desc": "Business-level actions (read-only)",
+            "server_status": "Server Status",
+            "server_status_desc": "Real-time TPS, CPU, memory monitoring"
         },
         "operation_logs": {
             "title": "Audit log",
@@ -259,6 +262,45 @@
             "detail_title": "Entry details",
             "load_more": "Load more",
             "panel_actor": "Panel proxy"
+        },
+        "status": {
+            "title": "Server Status",
+            "desc": "Real-time monitoring of system and Minecraft process metrics",
+            "overview": "Overview",
+            "stats_and_charts": "Statistics & Charts",
+            "metric": "Metric",
+            "current": "Current",
+            "avg": "Avg",
+            "min": "Min",
+            "max": "Max",
+            "view_detail": "View details",
+            "online": "Online",
+            "offline": "Offline",
+            "na": "N/A",
+            "mspt": "MSPT",
+            "cpu": "CPU",
+            "memory": "Memory",
+            "swap": "Swap",
+            "disk": "Disk",
+            "disk_usage": "Disk usage",
+            "load": "Load",
+            "load_1m": "Load 1m",
+            "load_5m": "Load 5m",
+            "load_15m": "Load 15m",
+            "network": "Network",
+            "network_rx": "Download",
+            "network_tx": "Upload",
+            "whole_machine": "System",
+            "mc_process": "MC process",
+            "chart_cpu": "CPU Usage",
+            "chart_memory": "Memory Usage",
+            "chart_network": "Network Speed",
+            "group_server": "Server",
+            "group_cpu": "CPU",
+            "group_memory": "Memory",
+            "group_disk": "Disk",
+            "group_load": "Load",
+            "group_network": "Network"
         },
         "404": {
             "title": "404 - Page Not Found",

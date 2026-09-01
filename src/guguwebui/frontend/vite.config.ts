@@ -48,6 +48,10 @@ export default defineConfig({
           if (id.includes('lucide-react')) {
             return 'lucide-vendor';
           }
+          // recharts 图表库及其 d3 依赖
+          if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) {
+            return 'recharts-vendor';
+          }
         },
         // 固定输出文件名，去掉随机哈希
         entryFileNames: 'assets/[name].js',
