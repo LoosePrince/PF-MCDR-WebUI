@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
+import { LogLineSkeleton } from '../components/Skeleton'
 import api, { isCancel } from '../utils/api'
 
 // --- Interfaces ---
@@ -860,10 +861,18 @@ const Terminal: React.FC = () => {
           className="flex-1 overflow-y-auto p-4 space-y-0.5 custom-scrollbar"
         >
           {logs.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-3 opacity-50">
-              <TerminalIcon size={48} />
-              <p>{t('page.terminal.empty')}</p>
-            </div>
+            isLoading ? (
+              <div className="h-full p-4 space-y-0.5">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <LogLineSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-3 opacity-50">
+                <TerminalIcon size={48} />
+                <p>{t('page.terminal.empty')}</p>
+              </div>
+            )
           ) : (
             logs.map((log, idx) => (
               <div key={`${log.counter || idx}-${log.time}`}>

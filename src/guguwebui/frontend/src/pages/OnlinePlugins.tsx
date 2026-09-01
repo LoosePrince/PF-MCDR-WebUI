@@ -36,6 +36,7 @@ import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import { NiceSelect } from '../components/NiceSelect';
 import { VersionSelectModal } from '../components/VersionSelectModal';
+import { PluginCardSkeleton } from '../components/Skeleton';
 import api, { isCancel } from '../utils/api';
 
 // --- 接口定义 ---
@@ -942,9 +943,10 @@ const OnlinePlugins: React.FC = () => {
 
       {/* Plugin Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-24">
-          <Loader2 className="w-10 h-10 text-purple-500 animate-spin mb-4" />
-          <p className="text-sm text-slate-500 animate-pulse">{t('page.online_plugins.loading')}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <PluginCardSkeleton key={i} />
+          ))}
         </div>
       ) : paginatedPlugins.length > 0 ? (
         <div className="space-y-8">

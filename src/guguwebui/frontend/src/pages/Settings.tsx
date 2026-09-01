@@ -22,6 +22,7 @@ import {
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NiceSelect } from '../components/NiceSelect'
+import { SettingsCardSkeleton, Skeleton } from '../components/Skeleton'
 import api, { getTargetServerId, isCancel } from '../utils/api'
 
 interface Repository {
@@ -484,8 +485,21 @@ const Settings: React.FC = () => {
 
   if (loading || !config) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      <div className="space-y-8 pb-12">
+        {/* Header skeleton */}
+        <div className="space-y-2">
+          <Skeleton className="h-9 w-56" />
+          <Skeleton className="h-4 w-80" />
+        </div>
+
+        {/* Settings cards skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SettingsCardSkeleton wide />
+          <SettingsCardSkeleton />
+          <SettingsCardSkeleton />
+          <SettingsCardSkeleton />
+          <SettingsCardSkeleton />
+        </div>
       </div>
     )
   }

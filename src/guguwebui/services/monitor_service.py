@@ -7,9 +7,11 @@
 - 1 分钟均值：保留最近 7 天（SQLite 持久化到 guguwebui_static/monitor.db，
   插件重载 / MCDR 重启后历史数据仍保留）
 
-TPS / MSPT 通过 MCDR RCON 执行 ``/tps``、``/mspt`` 获取（Paper/Spigot 系服务端），
-每 5 秒查询一次并回落复用最近值；RCON 未启用或服务端不支持时对应字段为 None，
-前端显示 N/A。其余系统指标不受影响。
+TPS / MSPT 通过 MCDR RCON 执行 ``/tps``、``/mspt`` 获取，每 5 秒查询一次并回落复用最近值。
+兼容多服务端：/mspt 是原版命令（1.16+），正则同时兼容 Paper 的 ``avg`` 与原版的 ``average``
+输出；TPS 依次尝试 Paper/Spigot 的 ``/tps``、Forge/NeoForge 的 ``/forge tps``，均不可用时
+（原版/Fabric 无 TPS 命令）由 MSPT 推算 ``min(20, 1000/MSPT)`` 作为近似值。RCON 未启用或
+服务端不支持时对应字段为 None，前端显示 N/A。其余系统指标不受影响。
 """
 
 import re
@@ -232,17 +234,17 @@ class MonitorService:
         except Exception:
             pass
 
-        # TPS/MSPT（RCON，5 秒节流，回落复用最近值）
+        # TPS/MSPT（RCON，5 秒节流，回落复用最近值；先查 MSPT 供无 TPS 命令时推算）
         tps = mspt = None
         if running:
             if now - self._last_tps_query >= TPS_QUERY_INTERVAL:
                 self._last_tps_query = now
-                tps_q = self._query_tps()
                 mspt_q = self._query_mspt()
-                if tps_q is not None:
-                    self._last_tps = tps_q
                 if mspt_q is not None:
                     self._last_mspt = mspt_q
+                tps_q = self._query_tps(self._last_mspt)
+                if tps_q is not None:
+                    self._last_tps = tps_q
             tps = self._last_tps
             mspt = self._last_mspt
         else:
@@ -321,22 +323,45 @@ class MonitorService:
     # ------------------------------------------------------------------ #
     # RCON TPS / MSPT
     # ------------------------------------------------------------------ #
-    def _query_tps(self) -> Optional[float]:
+    def _query_tps(self, mspt: Optional[float] = None) -> Optional[float]:
+        """查询 TPS，按服务端类型依次回落：
+
+        1. Paper/Spigot 的 ``/tps``（"TPS from last 1m, 5m, 15m: ..."）
+        2. Forge/NeoForge 加载器内置的 ``/forge tps``（"Overall TPS: ..."，无需装模组）
+        3. 两者都没有（原版/Fabric）：由 MSPT 推算 ``min(20, 1000/MSPT)`` 近似值
+        """
+        # 1) Paper/Spigot
         try:
             resp = self.server.rcon_query("/tps")
-            if not resp:
-                return None
-            m = re.search(r"TPS from last\s+1m,\s*5m,\s*15m:\s*([\d.]+)", resp)
-            return float(m.group(1)) if m else None
+            if resp:
+                m = re.search(r"TPS from last\s+1m,\s*5m,\s*15m:\s*([\d.]+)", resp)
+                if m:
+                    return float(m.group(1))
         except Exception:
-            return None
+            pass
+
+        # 2) Forge/NeoForge
+        try:
+            resp = self.server.rcon_query("/forge tps")
+            if resp:
+                m = re.search(r"Overall\s+TPS:\s*([\d.]+)", resp)
+                if m:
+                    return float(m.group(1))
+        except Exception:
+            pass
+
+        # 3) 由 MSPT 推算（近似值；tick 循环被 GC 等外部阻塞时可能高估）
+        if mspt is not None and mspt > 0:
+            return round(min(20.0, 1000.0 / mspt), 2)
+        return None
 
     def _query_mspt(self) -> Optional[float]:
         try:
             resp = self.server.rcon_query("/mspt")
             if not resp:
                 return None
-            m = re.search(r"([\d.]+)ms\s+avg", resp)
+            # Paper: "2.0ms avg"; 原版 1.16+: "1.85ms average"
+            m = re.search(r"([\d.]+)ms\s+(?:avg|average)", resp)
             return float(m.group(1)) if m else None
         except Exception:
             return None

@@ -30,6 +30,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { VersionSelectModal } from '../components/VersionSelectModal';
+import { ConfigFileRowSkeleton, PluginCardSkeleton } from '../components/Skeleton';
 import api, { isCancel } from '../utils/api';
 
 interface PluginDescription {
@@ -822,9 +823,10 @@ const LocalPlugins: React.FC = () => {
 
       {/* Plugin Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-24">
-          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-          <p className="text-slate-500 animate-pulse">{t('plugins.loading_plugins')}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <PluginCardSkeleton key={i} />
+          ))}
         </div>
       ) : filteredPlugins.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -945,8 +947,10 @@ const LocalPlugins: React.FC = () => {
       >
         <div className="space-y-4">
           {loadingConfigs ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="animate-spin text-blue-500 w-10 h-10" />
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <ConfigFileRowSkeleton key={i} />
+              ))}
             </div>
           ) : editingFile ? (
             <div className="space-y-4">

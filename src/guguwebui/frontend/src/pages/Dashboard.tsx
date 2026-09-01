@@ -24,6 +24,7 @@ import { useCache } from '../context/CacheContext'
 import { useNoticeModal } from '../context/NoticeModalContext'
 import { useAuth } from '../hooks/useAuth'
 import StatusOverviewCard from '../components/StatusOverviewCard'
+import { DashboardStatSkeleton, NoticeRowSkeleton, Skeleton } from '../components/Skeleton'
 
 // 弹窗内含图表库（recharts），懒加载避免拖慢仪表盘首屏
 const ServerStatusModal = lazy(() => import('../components/ServerStatusModal'))
@@ -68,6 +69,7 @@ const Dashboard: React.FC = () => {
     rcon_enabled: false,
     rcon_connected: false,
   })
+  const [rconLoading, setRconLoading] = useState<boolean>(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [webVersion, setWebVersion] = useState<string | null>(null)
   const [systemTime, setSystemTime] = useState<string>('')
@@ -142,6 +144,7 @@ const Dashboard: React.FC = () => {
       setServerStatus(prev => ({ ...prev, status: 'error' }))
     } finally {
       statusFetchingRef.current = false
+      setRconLoading(false)
     }
   }, [cache])
 
@@ -501,6 +504,9 @@ const Dashboard: React.FC = () => {
     error: 'text-rose-500 bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-900/30',
   }
 
+  // 首次拉取服务器状态完成前，控制按钮不可用并展示加载态
+  const statusLoading = serverStatus.status === 'loading'
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -589,10 +595,10 @@ const Dashboard: React.FC = () => {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => handleAction('start')}
-                disabled={serverStatus.status === 'online' || !!actionLoading}
+                disabled={serverStatus.status === 'online' || statusLoading || !!actionLoading}
                 className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-green-500/20 flex items-center gap-2 group"
               >
-                {actionLoading === 'start' ? (
+                {statusLoading || actionLoading === 'start' ? (
                   <RotateCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <Play className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
@@ -601,10 +607,10 @@ const Dashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => handleAction('restart')}
-                disabled={serverStatus.status === 'offline' || !!actionLoading}
+                disabled={serverStatus.status === 'offline' || statusLoading || !!actionLoading}
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2 group"
               >
-                {actionLoading === 'restart' ? (
+                {statusLoading || actionLoading === 'restart' ? (
                   <RotateCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <RotateCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
@@ -613,10 +619,10 @@ const Dashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => handleAction('stop')}
-                disabled={serverStatus.status === 'offline' || !!actionLoading}
+                disabled={serverStatus.status === 'offline' || statusLoading || !!actionLoading}
                 className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-rose-500/20 flex items-center gap-2 group"
               >
-                {actionLoading === 'stop' ? (
+                {statusLoading || actionLoading === 'stop' ? (
                   <RotateCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <Square className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
@@ -633,102 +639,131 @@ const Dashboard: React.FC = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Status Card */}
-          <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
-                <Server className="w-6 h-6" />
-              </div>
-              <div className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[serverStatus.status]}`}>
-                {t(`nav.status_${serverStatus.status}`)}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('page.index.server')}</p>
-              <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                {serverStatus.status === 'online' ? t('page.index.running') : t('page.index.stopped')}
-              </p>
-            </div>
-          </motion.div>
+          {statusLoading ? (
+            <>
+              <motion.div variants={itemVariants}>
+                <DashboardStatSkeleton />
+              </motion.div>
+              <motion.div variants={itemVariants}>
+                <DashboardStatSkeleton showBadge={false} />
+              </motion.div>
+              <motion.div variants={itemVariants}>
+                <DashboardStatSkeleton showBadge={false} />
+              </motion.div>
+              <motion.div variants={itemVariants}>
+                <DashboardStatSkeleton />
+              </motion.div>
+            </>
+          ) : (
+            <>
+              {/* Status Card */}
+              <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
+                    <Server className="w-6 h-6" />
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[serverStatus.status]}`}>
+                    {t(`nav.status_${serverStatus.status}`)}
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('page.index.server')}</p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                    {serverStatus.status === 'online' ? t('page.index.running') : t('page.index.stopped')}
+                  </p>
+                </div>
+                <div className="h-8" />
+              </motion.div>
 
-          {/* Players Card */}
-          <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
-                <Users className="w-6 h-6" />
-              </div>
-              {serverStatus.status === 'online' && (
-                <Activity className="w-4 h-4 text-green-500 animate-pulse" />
-              )}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('page.index.online_players')}</p>
-              <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                {serverStatus.players || '0/0'}
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Version Card */}
-          <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
-                <Tag className="w-6 h-6" />
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                {t('page.index.server_version')}
-              </p>
-              <p className="text-xl font-bold text-slate-900 dark:text-white mt-1 truncate">
-                {serverStatus.version.replace('Version: ', '') || t('page.index.unknown')}
-              </p>
-            </div>
-          </motion.div>
-
-          {/* RCON Status Card */}
-          <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
-                <Lock className="w-6 h-6" />
-              </div>
-              <div
-                className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[rconStatus.rcon_connected ? 'online' : 'offline']
-                  }`}
-              >
-                {rconStatus.rcon_connected ? t('page.index.rcon_connected') : t('page.index.rcon_disconnected')}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                  RCON {t('page.index.connection_status')}
-                </p>
-                <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  {rconStatus.rcon_enabled ? t('page.index.rcon_enabled') : t('page.index.rcon_disabled')}
-                </p>
-              </div>
-              {!rconStatus.rcon_connected && (
-                <button
-                  onClick={() => setShowRconSetupModal(true)}
-                  disabled={settingUpRcon}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors"
-                >
-                  {settingUpRcon ? (
-                    <>
-                      <RotateCw className="w-3 h-3 animate-spin" />
-                      {t('page.mcdr.rcon.setting_up')}
-                    </>
-                  ) : (
-                    <>
-                      <Puzzle className="w-3 h-3" />
-                      {t('page.mcdr.rcon.setup_button')}
-                    </>
+              {/* Players Card */}
+              <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  {serverStatus.status === 'online' && (
+                    <Activity className="w-4 h-4 text-green-500 animate-pulse" />
                   )}
-                </button>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('page.index.online_players')}</p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                    {serverStatus.players || '0/0'}
+                  </p>
+                </div>
+                <div className="h-8" />
+              </motion.div>
+
+              {/* Version Card */}
+              <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
+                    <Tag className="w-6 h-6" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    {t('page.index.server_version')}
+                  </p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white mt-1 truncate">
+                    {serverStatus.version.replace('Version: ', '') || t('page.index.unknown')}
+                  </p>
+                </div>
+                <div className="h-8" />
+              </motion.div>
+
+              {/* RCON Status Card */}
+              {rconLoading ? (
+                <motion.div variants={itemVariants}>
+                  <DashboardStatSkeleton />
+                </motion.div>
+              ) : (
+                <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <div
+                      className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[rconStatus.rcon_connected ? 'online' : 'offline']
+                        }`}
+                    >
+                      {rconStatus.rcon_connected ? t('page.index.rcon_connected') : t('page.index.rcon_disconnected')}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                      RCON {t('page.index.connection_status')}
+                    </p>
+                    <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                      {rconStatus.rcon_enabled ? t('page.index.rcon_enabled') : t('page.index.rcon_disabled')}
+                    </p>
+                  </div>
+                  {/* 固定高度的操作区：按钮显隐不影响卡片宽高 */}
+                  <div className="h-8 flex items-center">
+                    {!rconStatus.rcon_connected && (
+                      <button
+                        onClick={() => setShowRconSetupModal(true)}
+                        disabled={settingUpRcon}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors"
+                      >
+                        {settingUpRcon ? (
+                          <>
+                            <RotateCw className="w-3 h-3 animate-spin" />
+                            {t('page.mcdr.rcon.setting_up')}
+                          </>
+                        ) : (
+                          <>
+                            <Puzzle className="w-3 h-3" />
+                            {t('page.mcdr.rcon.setup_button')}
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
               )}
-            </div>
-          </motion.div>
+            </>
+          )}
         </div>
 
         {/* Server Status Overview */}
@@ -824,11 +859,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* 公告（来自 GitHub release tag notice） */}
-              {noticeLoading && (
-                <div className="flex items-center p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{t('page.index.notice_loading')}</p>
-                </div>
-              )}
+              {noticeLoading && <NoticeRowSkeleton />}
               {!noticeLoading && notice && (
                 <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 overflow-hidden">
                   <button
@@ -898,8 +929,17 @@ const Dashboard: React.FC = () => {
 
             <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4 max-h-64 overflow-y-auto">
               {loadingPipPackages ? (
-                <div className="flex justify-center py-6">
-                  <RotateCw className="w-5 h-5 text-blue-500 animate-spin" />
+                <div className="space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between gap-4 py-2 border-b border-slate-100 dark:border-slate-800/60 last:border-0"
+                    >
+                      <Skeleton className="h-4 w-1/3" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                    </div>
+                  ))}
                 </div>
               ) : pipPackages.length === 0 ? (
                 <p className="text-sm text-center text-slate-500 dark:text-slate-400">
@@ -976,9 +1016,15 @@ const Dashboard: React.FC = () => {
           </div>
 
           {loadingOverall ? (
-            <div className="flex items-center justify-center py-8 text-slate-500 dark:text-slate-400 gap-2">
-              <RotateCw className="w-4 h-4 animate-spin" />
-              <span>{t('common.notice_loading')}</span>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-56 w-full rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-56 w-full rounded-2xl" />
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

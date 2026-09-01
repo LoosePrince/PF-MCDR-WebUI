@@ -21,6 +21,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { NiceSelect } from '../components/NiceSelect';
+import { MCDRConfigSectionSkeleton, Skeleton } from '../components/Skeleton';
 import { MCDR_SITE_URL } from '../constants';
 import api, { isCancel } from '../utils/api';
 
@@ -290,9 +291,39 @@ const MCDRConfig: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-        <p className="text-slate-600 dark:text-slate-400 animate-pulse">{t('common.notice_loading')}</p>
+      <div className="space-y-8 pb-12">
+        {/* Header skeleton */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <Skeleton className="w-8 h-8 rounded-xl" />
+              <Skeleton className="h-8 w-48" />
+            </div>
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-28 rounded-lg" />
+            <Skeleton className="h-10 w-24 rounded-lg" />
+          </div>
+        </div>
+
+        {/* Tabs skeleton */}
+        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl w-fit">
+          <Skeleton className="h-10 w-36 rounded-lg" />
+          <Skeleton className="h-10 w-36 rounded-lg" />
+        </div>
+
+        {/* Config sections skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <MCDRConfigSectionSkeleton />
+            <MCDRConfigSectionSkeleton />
+          </div>
+          <div className="space-y-8">
+            <MCDRConfigSectionSkeleton />
+            <MCDRConfigSectionSkeleton />
+          </div>
+        </div>
       </div>
     );
   }

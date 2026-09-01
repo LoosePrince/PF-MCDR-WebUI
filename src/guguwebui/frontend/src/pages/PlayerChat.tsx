@@ -17,6 +17,7 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import VersionFooter from '../components/VersionFooter'
+import { MessageLineSkeleton } from '../components/Skeleton'
 import api from '../utils/api'
 import { parseRText } from '../utils/rtextParser'
 
@@ -570,7 +571,11 @@ const PlayerChat: React.FC = () => {
                   </button>
                 )}
 
-                {chatDisplayMode === 'mc' ? (
+                {isLoadingMessages && chatMessages.length === 0 ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <MessageLineSkeleton key={i} />
+                  ))
+                ) : chatDisplayMode === 'mc' ? (
                   chatMessages.slice().reverse().map((msg, i) => (
                     <div key={`${msg.id}-${i}`} className="flex items-baseline gap-1.5 py-0.5 font-mono text-sm">
                       <span className="text-slate-500 shrink-0">{formatMessageDateTime(msg.timestamp)}</span>

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import api, { isCancel } from '../utils/api'
 import { formatBytes, formatMspt, formatPercent, formatSpeed, formatTps } from '../utils/format'
 import type { Overview } from './ServerStatusDetail'
+import { MiniStatSkeleton } from './Skeleton'
 
 interface StatusOverviewCardProps {
   onOpenDetail: () => void
@@ -77,6 +78,12 @@ const StatusOverviewCard: React.FC<StatusOverviewCardProps> = ({ onOpenDetail })
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+        {!overview &&
+          Array.from({ length: 8 }).map((_, i) => (
+            <MiniStatSkeleton key={i} />
+          ))}
+        {overview && (
+          <>
         <MiniStat
           label="TPS"
           value={formatTps(overview?.tps)}
@@ -105,6 +112,8 @@ const StatusOverviewCard: React.FC<StatusOverviewCardProps> = ({ onOpenDetail })
           value={formatSpeed(overview?.network.rx)}
           sub={overview ? `↑ ${formatSpeed(overview.network.tx)}` : undefined}
         />
+          </>
+        )}
       </div>
     </div>
   )

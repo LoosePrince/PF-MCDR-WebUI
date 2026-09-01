@@ -16,6 +16,7 @@ import {
   speedAxisTick,
 } from '../utils/format'
 import StatusChart, { ChartPoint, ChartSeriesDef } from './StatusChart'
+import { ChartSkeleton, MiniStatSkeleton, TableRowSkeleton } from './Skeleton'
 
 type RangeKey = (typeof STATUS_RANGES)[number]
 const RANGES: RangeKey[] = [...STATUS_RANGES]
@@ -389,8 +390,10 @@ const ServerStatusDetail: React.FC = () => {
           </span>
         </div>
         {!overview ? (
-          <div className="h-24 flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-            {t('common.notice_loading')}
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <MiniStatSkeleton key={i} />
+            ))}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
@@ -453,11 +456,9 @@ const ServerStatusDetail: React.FC = () => {
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-3 py-8 text-center text-slate-500 dark:text-slate-400">
-                    {t('common.notice_loading')}
-                  </td>
-                </tr>
+                Array.from({ length: 7 }).map((_, i) => (
+                  <TableRowSkeleton key={i} cols={5} />
+                ))
               ) : (
                 rows.map((row) => (
                   <React.Fragment key={row.group}>
@@ -500,8 +501,10 @@ const ServerStatusDetail: React.FC = () => {
 
         {/* 折线图 */}
         {historyLoading && history.cpu.length === 0 ? (
-          <div className="flex items-center justify-center py-10 text-slate-500 dark:text-slate-400 gap-2">
-            <span>{t('common.notice_loading')}</span>
+          <div className="space-y-6">
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
           </div>
         ) : (
           <div className="space-y-6">

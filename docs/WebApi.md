@@ -182,7 +182,9 @@
 - 方法: GET
 - 功能: 获取服务器状态最新快照（TPS/MSPT/CPU/内存/Swap/磁盘/负载/网络）。需登录。
   数据由后台 `MonitorService` 每秒采样；TPS/MSPT 经 RCON 执行 `/tps`、`/mspt` 解析（每 5 秒一次），
-  RCON 未启用或服务端不支持时为 `null`（前端显示 N/A）。
+  `/mspt` 为原版命令（1.16+），兼容 Paper 的 `avg` 与原版的 `average` 输出；TPS 依次尝试
+  `/tps`（Paper/Spigot）、`/forge tps`（Forge/NeoForge 内置），均不可用时由 MSPT 推算
+  `min(20, 1000/MSPT)` 近似值。RCON 未启用或服务端不支持时为 `null`（前端显示 N/A）。
 - 响应:
 
   ```json

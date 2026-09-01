@@ -23,6 +23,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { NiceSelect } from '../components/NiceSelect';
+import { ConfigCardSkeleton, Skeleton } from '../components/Skeleton';
 import serverLang from '../i18n/server_lang.json';
 import api, { isCancel } from '../utils/api';
 
@@ -328,9 +329,38 @@ const MCConfig: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-        <p className="text-slate-600 dark:text-slate-400 animate-pulse">{t('common.notice_loading')}</p>
+      <div className="space-y-6 pb-12 min-h-[calc(100vh-8rem)]">
+        {/* Header skeleton */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <Skeleton className="w-8 h-8 rounded-xl" />
+              <Skeleton className="h-7 w-40" />
+            </div>
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-44 rounded-xl" />
+            <Skeleton className="h-10 w-24 rounded-xl" />
+          </div>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Sidebar categories skeleton */}
+          <div className="w-full lg:w-64 space-y-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-11 w-full rounded-xl" />
+            ))}
+          </div>
+          {/* Config item cards skeleton */}
+          <div className="flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <ConfigCardSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MessageLineSkeleton } from '../components/Skeleton'
 import { useAuth } from '../hooks/useAuth'
 import api from '../utils/api'
 import { parseRText } from '../utils/rtextParser'
@@ -324,15 +325,21 @@ const Chat: React.FC = () => {
             )}
 
             <div className="space-y-0.5 font-mono text-sm">
-              {chatMessages.map((msg, i) => (
-                <div key={`${msg.id}-${i}`} className="flex items-baseline gap-2 py-0.5 group">
-                  <span className="text-slate-500 shrink-0 text-xs">[{formatMessageDateTime(msg.timestamp)}]</span>
-                  <span className={`font-bold shrink-0 ${msg.player_id === username ? 'text-blue-400' : 'text-amber-500'}`}>
-                    {msg.player_id}:
-                  </span>
-                  <span className="text-slate-200 break-words leading-relaxed">{renderMessageContent(msg)}</span>
-                </div>
-              ))}
+              {isLoadingMessages && chatMessages.length === 0 ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <MessageLineSkeleton key={i} variant="terminal" />
+                ))
+              ) : (
+                chatMessages.map((msg, i) => (
+                  <div key={`${msg.id}-${i}`} className="flex items-baseline gap-2 py-0.5 group">
+                    <span className="text-slate-500 shrink-0 text-xs">[{formatMessageDateTime(msg.timestamp)}]</span>
+                    <span className={`font-bold shrink-0 ${msg.player_id === username ? 'text-blue-400' : 'text-amber-500'}`}>
+                      {msg.player_id}:
+                    </span>
+                    <span className="text-slate-200 break-words leading-relaxed">{renderMessageContent(msg)}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

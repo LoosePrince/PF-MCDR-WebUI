@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ClipboardList, RotateCw, X } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { TableRowSkeleton } from '../components/Skeleton'
 import api, { isCancel } from '../utils/api'
 
 interface AuditAccount {
@@ -130,9 +131,23 @@ const OperationLogs: React.FC = () => {
 
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           {loading && records.length === 0 ? (
-            <div className="flex justify-center py-16 text-slate-500 dark:text-slate-400 gap-2">
-              <RotateCw className="w-5 h-5 animate-spin" />
-              {t('common.notice_loading')}
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
+                    <th className="px-4 py-3 whitespace-nowrap">{t('page.operation_logs.col_time')}</th>
+                    <th className="px-4 py-3 whitespace-nowrap">{t('page.operation_logs.col_account')}</th>
+                    <th className="px-4 py-3 whitespace-nowrap">{t('page.operation_logs.col_operation')}</th>
+                    <th className="px-4 py-3 min-w-[12rem]">{t('page.operation_logs.col_summary')}</th>
+                    <th className="px-4 py-3 whitespace-nowrap text-right">{t('page.operation_logs.col_detail')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <TableRowSkeleton key={i} cols={5} />
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : error ? (
             <div className="p-8 text-center text-rose-600 dark:text-rose-400">{error}</div>
