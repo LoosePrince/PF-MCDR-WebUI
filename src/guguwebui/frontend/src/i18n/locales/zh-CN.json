@@ -7,6 +7,7 @@
         "local_plugins": "本地插件",
         "online_plugins": "在线插件",
         "terminal": "终端日志",
+        "players": "玩家管理",
         "web_settings": "Web设置",
         "about": "关于",
         "logout": "退出登录",
@@ -263,6 +264,125 @@
             "detail_title": "操作详情",
             "load_more": "加载更多",
             "panel_actor": "面板代理"
+        },
+        "players": {
+            "title": "玩家管理",
+            "subtitle": "汇总玩家、假人、白名单、OP 与封禁管理",
+            "search_placeholder": "搜索玩家 / UUID / IP...",
+            "server_offline": "服务器未运行",
+            "server_offline_tip": "部分操作不可用；封禁将通过直接修改文件完成（重启后生效）",
+            "count": "共 {{total}} 名玩家，在线 {{online}}，假人 {{bots}}",
+            "count_players": "共 {{total}} 名玩家，在线 {{online}}",
+            "empty": "暂无玩家",
+            "bots_empty": "暂无识别出的假人",
+            "load_failed": "加载玩家数据失败",
+            "load_more": "加载更多",
+            "tabs": {
+                "all": "全部",
+                "players": "玩家",
+                "bots": "假人",
+                "whitelist": "白名单",
+                "ops": "管理员",
+                "bans": "封禁"
+            },
+            "filters": {
+                "all": "全部",
+                "online": "在线",
+                "offline": "离线",
+                "bot": "假人",
+                "op": "OP"
+            },
+            "col": {
+                "player": "玩家",
+                "status": "状态",
+                "ip": "IP",
+                "online_duration": "在线时长",
+                "last_seen": "最后在线",
+                "location": "维度 / 坐标",
+                "uuid": "UUID",
+                "actions": "操作",
+                "level": "等级"
+            },
+            "status": {
+                "online": "在线",
+                "offline": "离线",
+                "bot": "假人",
+                "whitelisted": "白名单",
+                "banned": "已封禁"
+            },
+            "session": "本次",
+            "total_playtime": "累计",
+            "duration": {
+                "days": "{{d}}天{{h}}时",
+                "hours": "{{h}}时{{m}}分",
+                "minutes": "{{m}}分",
+                "seconds": "{{s}}秒"
+            },
+            "dimension": {
+                "overworld": "主世界",
+                "nether": "下界",
+                "end": "末地"
+            },
+            "actions": {
+                "set_op": "设为 OP",
+                "unset_op": "取消 OP",
+                "kick": "踢出",
+                "ban": "封禁",
+                "unban": "解封",
+                "whitelist_add": "加入白名单",
+                "whitelist_remove": "移出白名单",
+                "reload": "重载名单",
+                "remove": "移除"
+            },
+            "whitelist": {
+                "title": "白名单",
+                "enabled": "白名单已开启",
+                "disabled": "白名单已关闭",
+                "enable": "开启白名单",
+                "disable": "关闭白名单",
+                "members": "白名单成员",
+                "add_placeholder": "输入玩家名后添加",
+                "member_count": "共 {{count}} 名成员",
+                "empty": "白名单为空"
+            },
+            "ops": {
+                "add_placeholder": "输入玩家名后添加",
+                "op_count": "共 {{count}} 名 OP",
+                "empty": "暂无 OP"
+            },
+            "bans": {
+                "add_title": "添加封禁",
+                "players_title": "封禁的玩家",
+                "ips_title": "封禁的 IP",
+                "empty": "暂无封禁记录",
+                "target_placeholder": "玩家名或 IP",
+                "type_player": "封禁玩家",
+                "type_ip": "封禁 IP",
+                "reason_placeholder": "封禁理由（可选）",
+                "ban": "封禁",
+                "not_set": "—",
+                "unban_confirm_title": "解封确认",
+                "unban_player_desc": "确定要解封玩家 {{name}} 吗？",
+                "unban_ip_desc": "确定要解封 IP {{ip}} 吗？",
+                "unban_warning": "解封将通过直接修改 banned-players.json / banned-ips.json 文件完成，需要重启服务器后才能生效。",
+                "unban_confirm": "确认解封"
+            },
+            "kick_modal": {
+                "title": "踢出玩家",
+                "desc": "确定要将 {{name}} 踢出服务器吗？",
+                "reason_placeholder": "理由（可选）",
+                "confirm": "踢出"
+            },
+            "ban_modal": {
+                "title_player": "封禁玩家",
+                "title_ip": "封禁 IP",
+                "target_label": "目标",
+                "confirm": "确认封禁"
+            },
+            "msg": {
+                "action_failed": "操作失败",
+                "success": "操作成功"
+            }
         },
         "status": {
             "title": "服务器状态",

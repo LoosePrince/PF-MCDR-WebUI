@@ -7,6 +7,7 @@
         "local_plugins": "Local Plugins",
         "online_plugins": "Online Plugins",
         "terminal": "Terminal Logs",
+        "players": "Player Management",
         "web_settings": "Web Settings",
         "about": "About",
         "logout": "Logout",
@@ -262,6 +263,125 @@
             "detail_title": "Entry details",
             "load_more": "Load more",
             "panel_actor": "Panel proxy"
+        },
+        "players": {
+            "title": "Player Management",
+            "subtitle": "Players, bots, whitelist, operators and bans",
+            "search_placeholder": "Search player / UUID / IP...",
+            "server_offline": "Server is not running",
+            "server_offline_tip": "Some actions are unavailable; bans are applied by editing files directly (take effect after restart)",
+            "count": "{{total}} players, {{online}} online, {{bots}} bots",
+            "count_players": "{{total}} players, {{online}} online",
+            "empty": "No players yet",
+            "bots_empty": "No bots detected",
+            "load_failed": "Failed to load player data",
+            "load_more": "Load more",
+            "tabs": {
+                "all": "All",
+                "players": "Players",
+                "bots": "Bots",
+                "whitelist": "Whitelist",
+                "ops": "Operators",
+                "bans": "Bans"
+            },
+            "filters": {
+                "all": "All",
+                "online": "Online",
+                "offline": "Offline",
+                "bot": "Bots",
+                "op": "OP"
+            },
+            "col": {
+                "player": "Player",
+                "status": "Status",
+                "ip": "IP",
+                "online_duration": "Online Duration",
+                "last_seen": "Last Seen",
+                "location": "Dimension / Coords",
+                "uuid": "UUID",
+                "actions": "Actions",
+                "level": "Level"
+            },
+            "status": {
+                "online": "Online",
+                "offline": "Offline",
+                "bot": "Bot",
+                "whitelisted": "Whitelist",
+                "banned": "Banned"
+            },
+            "session": "Session",
+            "total_playtime": "Total",
+            "duration": {
+                "days": "{{d}}d {{h}}h",
+                "hours": "{{h}}h {{m}}m",
+                "minutes": "{{m}}m",
+                "seconds": "{{s}}s"
+            },
+            "dimension": {
+                "overworld": "Overworld",
+                "nether": "Nether",
+                "end": "End"
+            },
+            "actions": {
+                "set_op": "Set OP",
+                "unset_op": "Remove OP",
+                "kick": "Kick",
+                "ban": "Ban",
+                "unban": "Unban",
+                "whitelist_add": "Add to whitelist",
+                "whitelist_remove": "Remove from whitelist",
+                "reload": "Reload list",
+                "remove": "Remove"
+            },
+            "whitelist": {
+                "title": "Whitelist",
+                "enabled": "Whitelist is on",
+                "disabled": "Whitelist is off",
+                "enable": "Enable whitelist",
+                "disable": "Disable whitelist",
+                "members": "Whitelist members",
+                "add_placeholder": "Enter a player name to add",
+                "member_count": "{{count}} members",
+                "empty": "Whitelist is empty"
+            },
+            "ops": {
+                "add_placeholder": "Enter a player name to add",
+                "op_count": "{{count}} operators",
+                "empty": "No operators"
+            },
+            "bans": {
+                "add_title": "Add Ban",
+                "players_title": "Banned Players",
+                "ips_title": "Banned IPs",
+                "empty": "No ban entries",
+                "target_placeholder": "Player name or IP",
+                "type_player": "Ban player",
+                "type_ip": "Ban IP",
+                "reason_placeholder": "Reason (optional)",
+                "ban": "Ban",
+                "not_set": "—",
+                "unban_confirm_title": "Confirm Unban",
+                "unban_player_desc": "Unban player {{name}}?",
+                "unban_ip_desc": "Unban IP {{ip}}?",
+                "unban_warning": "Unban is applied by editing banned-players.json / banned-ips.json directly and only takes effect after the server restarts.",
+                "unban_confirm": "Confirm Unban"
+            },
+            "kick_modal": {
+                "title": "Kick Player",
+                "desc": "Kick {{name}} from the server?",
+                "reason_placeholder": "Reason (optional)",
+                "confirm": "Kick"
+            },
+            "ban_modal": {
+                "title_player": "Ban Player",
+                "title_ip": "Ban IP",
+                "target_label": "Target",
+                "confirm": "Confirm Ban"
+            },
+            "msg": {
+                "action_failed": "Action failed",
+                "success": "Operation successful"
+            }
         },
         "status": {
             "title": "Server Status",

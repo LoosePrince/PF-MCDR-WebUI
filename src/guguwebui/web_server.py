@@ -36,6 +36,7 @@ from guguwebui.routers.pip_router import router as pip_router
 from guguwebui.routers.plugin_management_router import \
     router as plugin_management_router
 from guguwebui.routers.plugin_proxy_router import router as plugin_proxy_router
+from guguwebui.routers.player_router import router as player_router
 from guguwebui.routers.server_router import router as server_router
 from guguwebui.services.monitor_service import MonitorService
 from guguwebui.services.ai_service import AIService
@@ -44,6 +45,7 @@ from guguwebui.services.chat_service import ChatService
 from guguwebui.services.config_service import ConfigService
 from guguwebui.services.file_service import FileService
 from guguwebui.services.pip_service import PipService
+from guguwebui.services.player_service import PlayerService
 from guguwebui.services.plugin_service import PluginService
 from guguwebui.services.qq_qr_login_service import QQQRCodeLoginService
 from guguwebui.services.server_service import ServerService
@@ -213,6 +215,7 @@ def init_app(server_instance):
     app.state.pip_service = PipService(server_instance)
     app.state.file_service = FileService(server_instance)
     app.state.chat_service = ChatService(server_instance, app.state.config_service)
+    app.state.player_service = PlayerService(server_instance, app.state.config_service)
 
     # 初始化服务器状态监控（先停止旧实例，避免重复启动）
     try:
@@ -267,20 +270,32 @@ def init_app(server_instance):
 
 
 # 事件处理函数
-def on_player_joined(_server, _player: str, _info=None):
+def on_player_joined(server, player: str, info=None):
     """处理玩家加入事件"""
     try:
         RCON_ONLINE_CACHE["dirty"] = True
     except Exception:
         pass
+    try:
+        player_service = getattr(app.state, "player_service", None)
+        if player_service is not None:
+            player_service.on_player_joined(server, player, info)
+    except Exception as e:
+        server.logger.debug(f"记录玩家上线数据失败: {e}")
 
 
-def on_player_left(_server, _player: str):
+def on_player_left(server, player: str):
     """处理玩家离开事件"""
     try:
         RCON_ONLINE_CACHE["dirty"] = True
     except Exception:
         pass
+    try:
+        player_service = getattr(app.state, "player_service", None)
+        if player_service is not None:
+            player_service.on_player_left(server, player)
+    except Exception as e:
+        server.logger.debug(f"记录玩家下线数据失败: {e}")
 
 
 def on_server_output(server, info):
@@ -487,6 +502,7 @@ app.include_router(plugin_proxy_router, prefix="/api") # 插件代理
 app.include_router(pim_router, prefix="/api") # PIM
 app.include_router(pip_router, prefix="/api") # PIP
 app.include_router(chat_router, prefix="/api") # 聊天
+app.include_router(player_router, prefix="/api") # 玩家管理
 app.include_router(audit_router, prefix="/api") # 操作审计
 
 
@@ -554,6 +570,12 @@ async def terminal_page(request: Request, admin: dict = Depends(get_current_admi
 @app.get("/operation-logs", response_class=HTMLResponse)
 async def operation_logs_page(request: Request, admin: dict = Depends(get_current_admin)):
     """操作记录（只读）"""
+    return serve_spa_index(request)
+
+
+@app.get("/players", response_class=HTMLResponse)
+async def players_page(request: Request, admin: dict = Depends(get_current_admin)):
+    """玩家管理页面"""
     return serve_spa_index(request)
 
 # 404 page - 返回 SPA index.html，由前端处理 404

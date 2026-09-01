@@ -45,6 +45,7 @@ import {
   Terminal,
   Trophy,
   User,
+  Users,
   Workflow,
   Wrench,
   X,
@@ -168,7 +169,7 @@ const statusColors: Record<ServerStatusType, string> = {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { t, i18n } = useTranslation()
-  const { username, nickname, logout } = useAuth()
+  const { username, nickname, logout, isAdmin } = useAuth()
   const { mode, setMode, label: themeLabel } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -283,14 +284,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/online-plugins', key: 'nav.online_plugins', icon: Puzzle },
     { path: '/terminal', key: 'nav.terminal', icon: Terminal },
     { path: '/chat', key: 'page.chat.header_title', icon: MessageSquare },
+    { path: '/players', key: 'nav.players', icon: Users },
     { path: '/settings', key: 'nav.web_settings', icon: Sliders },
     { path: '/about', key: 'nav.about', icon: Info },
   ]
 
-  /** 侧栏不展示设置/关于（已移至顶栏） */
-  const sidebarNavItems = navItems.filter(
+  // 玩家管理仅对管理员展示
+  const visibleNavItems = isAdmin ? navItems : navItems.filter((item) => item.path !== '/players')
+  const sidebarNavItems = visibleNavItems.filter(
     (item) => item.path !== '/settings' && item.path !== '/about'
   )
+
+
 
   const activeNavItem = navItems.find(item => item.path === location.pathname) || navItems[0]
 

@@ -108,3 +108,24 @@ class DeepseekQuery(BaseModel):
     model: Optional[str] = None
     api_url: Optional[str] = None
     api_key: Optional[str] = None
+
+
+# 玩家管理相关模型
+class PlayerActionRequest(BaseModel):
+    """封禁 / 解封目标：type 为 "player" 或 "ip"""
+    target: str
+    type: str = "player"
+    reason: Optional[str] = None
+
+
+class PlayerNameRequest(BaseModel):
+    name: str
+
+
+class WhitelistSetRequest(BaseModel):
+    enabled: bool
+
+
+class KickRequest(BaseModel):
+    name: str
+    reason: Optional[str] = None

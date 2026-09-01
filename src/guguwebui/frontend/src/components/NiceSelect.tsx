@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import React, { useState } from 'react';
 
 export interface NiceSelectOption {
@@ -61,7 +61,12 @@ export const NiceSelect: React.FC<NiceSelectProps> = ({
                   : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
             >
-              {opt.label}
+              <span className="flex items-center justify-between gap-2 min-w-0">
+                <span className="truncate">{opt.label}</span>
+                {opt.value === value && (
+                  <Check size={14} className="shrink-0 text-blue-600 dark:text-blue-400" />
+                )}
+              </span>
             </button>
           ))}
         </div>
