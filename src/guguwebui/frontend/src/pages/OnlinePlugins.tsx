@@ -18,6 +18,7 @@ import {
   Github,
   Info,
   Loader2,
+  Network,
   Package,
   Puzzle,
   RefreshCw,
@@ -35,6 +36,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import { NiceSelect } from '../components/NiceSelect';
+import { PluginRelationModal } from '../components/PluginRelationModal';
 import { VersionSelectModal } from '../components/VersionSelectModal';
 import { PluginCardSkeleton } from '../components/Skeleton';
 import api, { isCancel } from '../utils/api';
@@ -206,6 +208,7 @@ const OnlinePlugins: React.FC = () => {
   const [taskProgress, setTaskProgress] = useState<TaskStatus | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [operatingPluginId, setOperatingPluginId] = useState<string>('');
+  const [showRelationModal, setShowRelationModal] = useState(false);
   const taskPollingRef = useRef(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -886,6 +889,14 @@ const OnlinePlugins: React.FC = () => {
             />
           </div>
           <button
+            onClick={() => setShowRelationModal(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-900/10 text-purple-600 border border-purple-200 dark:border-purple-800/50 rounded-xl hover:bg-purple-100 transition-colors shadow-sm font-semibold text-sm"
+            title={t('plugins.relation_graph')}
+          >
+            <Network size={16} />
+            {t('plugins.relation_graph')}
+          </button>
+          <button
             onClick={() => fetchPlugins()}
             disabled={loading}
             className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors shadow-sm"
@@ -1301,6 +1312,19 @@ const OnlinePlugins: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* 插件关系图 */}
+      <PluginRelationModal
+        isOpen={showRelationModal}
+        onClose={() => setShowRelationModal(false)}
+        plugins={plugins}
+        nodeTone={(id) => {
+          const p = plugins.find((x) => x.id === id);
+          if (!p) return 'amber';
+          const status = getPluginStatus(p.id, p.version);
+          return status === 'installed' ? 'emerald' : status === 'updatable' ? 'amber' : 'blue';
+        }}
+      />
 
       {/* Notification Toast */}
       <AnimatePresence>

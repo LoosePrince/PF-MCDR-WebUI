@@ -80,6 +80,16 @@
         "uninstall": "Uninstall",
         "update": "Update",
         "versions": "Versions",
+        "relation_graph": "Relation Graph",
+        "relation_modal": {
+            "title": "Plugin Relation Graph",
+            "hint": "Drag to pan · Scroll to zoom · Drag nodes to rearrange · Click a node to focus",
+            "count": "{{nodes}} nodes · {{edges}} relations",
+            "missing": "not found",
+            "empty": "No plugin data",
+            "fullscreen": "Fullscreen",
+            "exit_fullscreen": "Exit Fullscreen"
+        },
         "msg": {
             "load_plugins_failed": "Failed to load plugins list",
             "cannot_toggle_webui": "Cannot toggle WebUI plugin state",

@@ -7,7 +7,9 @@
 - 1 分钟均值：保留最近 7 天（SQLite 持久化到 guguwebui_static/monitor.db，
   插件重载 / MCDR 重启后历史数据仍保留）
 
-TPS / MSPT 通过 MCDR RCON 执行 ``/tps``、``/mspt`` 获取，每 5 秒查询一次并回落复用最近值。
+TPS / MSPT 通过 MCDR RCON 优先执行原版 ``/tick query``（1.20.5+，一次查询同时给出平均
+每 tick 耗时与目标 tick rate，TPS 由 ``min(target, 1000/MSPT)`` 推导）；不可用时回退
+``/tps``、``/forge tps``、``/mspt`` 获取，每 5 秒查询一次并回落复用最近值。
 兼容多服务端：/mspt 是原版命令（1.16+），正则同时兼容 Paper 的 ``avg`` 与原版的 ``average``
 输出；TPS 依次尝试 Paper/Spigot 的 ``/tps``、Forge/NeoForge 的 ``/forge tps``，均不可用时
 （原版/Fabric 无 TPS 命令）由 MSPT 推算 ``min(20, 1000/MSPT)`` 作为近似值。RCON 未启用或
@@ -234,17 +236,16 @@ class MonitorService:
         except Exception:
             pass
 
-        # TPS/MSPT（RCON，5 秒节流，回落复用最近值；先查 MSPT 供无 TPS 命令时推算）
+        # TPS/MSPT（RCON，5 秒节流，回落复用最近值；优先 /tick query，其次 /mspt + /tps）
         tps = mspt = None
         if running:
             if now - self._last_tps_query >= TPS_QUERY_INTERVAL:
                 self._last_tps_query = now
-                mspt_q = self._query_mspt()
-                if mspt_q is not None:
-                    self._last_mspt = mspt_q
-                tps_q = self._query_tps(self._last_mspt)
+                tps_q, mspt_q = self._query_tps_mspt()
                 if tps_q is not None:
                     self._last_tps = tps_q
+                if mspt_q is not None:
+                    self._last_mspt = mspt_q
             tps = self._last_tps
             mspt = self._last_mspt
         else:
@@ -365,6 +366,39 @@ class MonitorService:
             return float(m.group(1)) if m else None
         except Exception:
             return None
+
+    def _query_tick_query(self) -> Optional[Tuple[float, float]]:
+        """执行原版 ``/tick query``（1.20.5+，Vanilla/Fabric 等均可用），
+        返回 ``(平均每 tick 毫秒, 目标 tick rate)``，解析失败返回 None。"""
+        try:
+            resp = self.server.rcon_query("/tick query")
+            if not resp:
+                return None
+            avg_m = re.search(r"Average\s+time\s+per\s+tick:\s*([\d.]+)ms", resp)
+            if not avg_m:
+                return None
+            target_m = re.search(
+                r"Target\s+tick\s+rate:\s*([\d.]+)\s+per\s+second", resp
+            )
+            target = float(target_m.group(1)) if target_m else 20.0
+            return float(avg_m.group(1)), target
+        except Exception:
+            return None
+
+    def _query_tps_mspt(self) -> Tuple[Optional[float], Optional[float]]:
+        """查询 TPS / MSPT，优先使用原版 ``/tick query``（一次查询同时给出平均
+        每 tick 耗时与目标 tick rate，TPS 由 ``min(target, 1000/MSPT)`` 推导）；
+        不可用时回退 ``/mspt`` + ``/tps`` / ``/forge tps``，最后用 MSPT 推算 TPS。"""
+        tick = self._query_tick_query()
+        if tick is not None:
+            avg_ms, target = tick
+            mspt = round(avg_ms, 2)
+            tps = round(min(target, 1000.0 / avg_ms), 2) if avg_ms > 0 else target
+            return tps, mspt
+
+        mspt = self._query_mspt()
+        tps = self._query_tps(mspt)
+        return tps, mspt
 
     # ------------------------------------------------------------------ #
     # 磁盘

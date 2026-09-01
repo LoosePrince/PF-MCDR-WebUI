@@ -24,6 +24,10 @@ export default defineConfig({
           if (pageMatch) {
             return pageMatch[1];
           }
+          // React Flow 拓扑图库（需先于 react 规则，@xyflow/react 路径含 "react" 子串）
+          if (id.includes('@xyflow') || id.includes('reactflow')) {
+            return 'reactflow-vendor';
+          }
           // React 核心库
           if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
             return 'react-vendor';

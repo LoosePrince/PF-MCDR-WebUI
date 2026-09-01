@@ -81,6 +81,16 @@
         "uninstall": "卸载",
         "update": "更新",
         "versions": "版本",
+        "relation_graph": "关系图",
+        "relation_modal": {
+            "title": "插件关系图",
+            "hint": "拖拽平移 · 滚轮缩放 · 拖拽节点调整布局 · 点击节点聚焦查看关联",
+            "count": "{{nodes}} 个节点 · {{edges}} 条关系",
+            "missing": "未安装",
+            "empty": "暂无插件数据",
+            "fullscreen": "全屏",
+            "exit_fullscreen": "退出全屏"
+        },
         "msg": {
             "load_plugins_failed": "加载插件列表失败",
             "cannot_toggle_webui": "不能切换 WebUI 插件的状态",

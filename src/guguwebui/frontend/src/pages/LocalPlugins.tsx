@@ -11,6 +11,7 @@ import {
   Github,
   Info,
   Loader2,
+  Network,
   Package,
   Play,
   Puzzle,
@@ -29,6 +30,7 @@ import { createPortal } from 'react-dom';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
+import { PluginRelationModal } from '../components/PluginRelationModal';
 import { VersionSelectModal } from '../components/VersionSelectModal';
 import { ConfigFileRowSkeleton, PluginCardSkeleton } from '../components/Skeleton';
 import api, { isCancel } from '../utils/api';
@@ -48,6 +50,7 @@ interface PluginMetadata {
   status: 'loaded' | 'disabled' | 'unloaded';
   path: string;
   config_file: boolean;
+  dependencies?: Record<string, string>;
   repository?: {
     name: string;
     url: string;
@@ -184,6 +187,7 @@ const LocalPlugins: React.FC = () => {
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [availableVersions, setAvailableVersions] = useState<VersionItem[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
+  const [showRelationModal, setShowRelationModal] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const urlSyncRef = useRef<string>('');
@@ -777,6 +781,13 @@ const LocalPlugins: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowRelationModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-violet-50 dark:bg-violet-900/10 text-violet-600 border border-violet-200 dark:border-violet-800/50 rounded-xl hover:bg-violet-100 transition-colors shadow-sm font-semibold text-sm"
+          >
+            <Network size={18} />
+            {t('plugins.relation_graph')}
+          </button>
+          <button
             onClick={() => fetchPlugins()}
             className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/10 text-blue-600 border border-blue-200 dark:border-blue-800/50 rounded-xl hover:bg-blue-100 transition-colors shadow-sm font-semibold text-sm"
           >
@@ -1114,6 +1125,18 @@ const LocalPlugins: React.FC = () => {
         onSelectVersion={(version) => {
           setShowVersionModal(false);
           confirmUpdate({ ...selectedPlugin!, version_latest: version });
+        }}
+      />
+
+      {/* 插件关系图 */}
+      <PluginRelationModal
+        isOpen={showRelationModal}
+        onClose={() => setShowRelationModal(false)}
+        plugins={plugins}
+        nodeTone={(id) => {
+          const p = plugins.find((x) => x.id === id);
+          if (!p) return 'amber';
+          return p.status === 'loaded' ? 'emerald' : p.status === 'disabled' ? 'rose' : 'slate';
         }}
       />
 

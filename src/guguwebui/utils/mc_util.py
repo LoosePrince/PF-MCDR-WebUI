@@ -245,6 +245,14 @@ def get_plugins_info(server_interface):
             except:
                 author = "未知"
 
+            try:
+                dependencies = {
+                    str(k): str(v)
+                    for k, v in (plugin_metadata.dependencies or {}).items()
+                }
+            except Exception:
+                dependencies = {}
+
             respond.append({
                 "id": str(plugin_metadata.id),
                 "name": str(plugin_metadata.name) if hasattr(plugin_metadata, 'name') else plugin_name,
@@ -259,7 +267,8 @@ def get_plugins_info(server_interface):
                 "path": plugin_name if plugin_name in unloaded_plugins + disabled_plugins else "",
                 "config_file": bool(find_plugin_config_paths(str(plugin_metadata.id))) if hasattr(plugin_metadata,
                                                                                                   'id') else False,
-                "repository": None
+                "repository": None,
+                "dependencies": dependencies
             })
         except Exception:
             respond.append({
@@ -267,7 +276,8 @@ def get_plugins_info(server_interface):
                 "author": "未知", "github": "", "version": "未知", "version_latest": "未知",
                 "status": "loaded" if plugin_name in loaded_metadata else "disabled" if plugin_name in disabled_plugins else "unloaded",
                 "path": plugin_name if plugin_name in unloaded_plugins + disabled_plugins else "",
-                "config_file": False
+                "config_file": False,
+                "dependencies": {}
             })
     return respond
 

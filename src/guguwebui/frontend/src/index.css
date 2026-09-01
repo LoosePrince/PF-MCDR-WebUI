@@ -134,6 +134,66 @@
   background-color: rgba(51, 65, 85, 0.18); /* slate-700/18 */
 }
 
+/* React Flow (plugin relation graph) */
+.react-flow {
+  --xy-background-color: #f8fafc; /* slate-50 */
+  --xy-dot-color: #cbd5e1; /* slate-300 */
+  --xy-minimap-bg: #ffffff;
+  --xy-minimap-mask: rgba(2, 6, 23, 0.55);
+}
+
+.dark .react-flow {
+  --xy-background-color: #020617; /* slate-950 */
+  --xy-dot-color: #334155; /* slate-700 */
+  --xy-minimap-bg: #0f172a;
+  --xy-minimap-mask: rgba(226, 232, 240, 0.4);
+}
+
+.react-flow__node-relation {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.react-flow__node-relation:focus {
+  outline: none;
+}
+
+.react-flow__node.selected {
+  box-shadow: none;
+}
+
+.react-flow__controls {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+
+.react-flow__controls-button {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+}
+
+.react-flow__controls-button:hover {
+  background: #f1f5f9;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.dark .react-flow__controls-button {
+  background: #0f172a;
+  border-bottom-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark .react-flow__controls-button:hover {
+  background: #1e293b;
+}
+
 /* RText hover tooltip */
 .rtext-hoverable {
   position: relative;
