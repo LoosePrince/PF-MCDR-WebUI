@@ -16,3 +16,4 @@ aiohttp
 uvicorn[standard]
 mcstatus
 psutil
+tomli; python_version < "3.11"

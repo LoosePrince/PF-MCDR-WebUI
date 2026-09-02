@@ -44,7 +44,9 @@
   {
     "status": "success",
     "username": "用户名或账号",
-    "nickname": null
+    "nickname": null,
+    "is_admin": true,
+    "is_super_admin": true
   }
   ```
 
@@ -71,6 +73,73 @@
   ```
 
 - 使用位置: 所有需要认证的页面
+
+## Minecraft 模组管理 API
+
+所有 `/api/mods*` 接口均要求管理员权限，并支持主服通过 `X-Target-Server` 代理到目标子服。接口只管理目标实例工作目录中 `mods/` 顶层的 `.jar` 与 `.jar.disabled` 文件，不会执行模组代码，也不会自动重启 Minecraft 服务器。
+
+文件操作统一返回以下状态字段：
+
+```json
+{
+  "server_running": true,
+  "needs_restart": true,
+  "effective_after": "restart",
+  "warnings": []
+}
+```
+
+`effective_after` 为 `restart` 或 `next_start`。只有运行中的服务器可能已加载受影响状态时，`needs_restart` 才为 `true`。
+
+### 获取模组列表与图标
+
+- `GET /api/mods`：扫描并返回模组列表、元数据、依赖、冲突、文件信息、配置数量和兼容性警告。
+- `GET /api/mods/icon?filename=<文件名>`：读取 JAR 元数据声明的受限大小图标。
+- 元数据支持 `fabric.mod.json`、`quilt.mod.json`、`META-INF/mods.toml`、`META-INF/neoforge.mods.toml` 和 Manifest 降级信息。
+- 无法识别元数据的有效 JAR 仍可管理；损坏 JAR 会标记解析错误。
+
+### 上传模组
+
+- 端点：`POST /api/mods/upload`
+- Content-Type：`multipart/form-data`
+- 字段：`file`（单个 `.jar`）、`enabled`（默认 `true`）、`acknowledge_warnings`（默认 `false`）。
+- 文件按流分块写入同目录临时文件；超过实例限制返回 `413`，重名或同名启用/禁用文件已存在返回 `409`，ZIP/JAR 损坏返回 `400`。
+- 若兼容性检查发现可确认警告，首次请求返回 `409`，错误体 `data.warnings` 包含最新警告；管理员确认后用同一文件重新提交并设置 `acknowledge_warnings=true`。
+
+### 启用、禁用与删除
+
+- `POST /api/mods/toggle`
+
+  ```json
+  {"filename": "example.jar", "enabled": false, "acknowledge_warnings": false}
+  ```
+
+- 禁用会将末尾 `.jar` 原子改名为 `.jar.disabled`，启用执行反向操作；目标已存在时拒绝覆盖。
+- `POST /api/mods/trash`，body 为 `{"filename":"example.jar"}`：将文件移到 `<working_directory>/.guguwebui/mod-trash/<uuid>/`。
+- `GET /api/mods/trash`：列出回收站项目及删除时的元数据快照。
+- `POST /api/mods/trash/{id}/restore`：保持删除前状态恢复，遇到同名文件时返回 `409`。
+- `DELETE /api/mods/trash/{id}?confirm=true`：永久清理。仅超级管理员或经授权的子服 Panel Token 可调用，且必须传入 `confirm=true`。
+
+### 模组配置
+
+- `GET /api/mods/configs?mod_id=<模组ID>&associated_only=true`：列出配置文件；`associated_only=false` 返回全部允许的配置。
+- `GET /api/mods/config?path=<相对工作目录路径>`：读取 UTF-8 配置文本及可用的结构化数据。
+- `PUT /api/mods/config`：原子保存配置。
+
+  ```json
+  {"path": "config/example.json", "content": "{\n  \"enabled\": true\n}\n", "config_data": null}
+  ```
+
+- JSON、YAML、Properties 可用 `config_data` 结构化保存；JSON5、TOML、CFG、CONF 仅接受 `content` 原文。
+- 允许根目录为 `config/`、`defaultconfigs/`、`<level-name>/serverconfig/` 及工作目录直接子目录中的 `serverconfig/`。所有路径会重新解析并拒绝目录穿越或符号链接越界。
+
+### 模组设置
+
+- `GET /api/mods/settings`：返回当前实例 `upload_max_mib` 与 `upload_max_bytes`。管理员可读取。
+- `PUT /api/mods/settings`：body 为 `{"upload_max_mib":10}`，范围 `1–4096` MiB。仅超级管理员或经授权的子服 Panel Token 可修改。
+- 配置保存在每个实例自己的 `config.json` 中，键名为 `mod_upload_max_bytes`，默认 `10 MiB`。
+
+上传、启停、删除、恢复、永久清理、配置保存及上传限制修改都会进入操作审计。
 
 ### 登录
 - 端点: `/api/login`（提交登录请求）

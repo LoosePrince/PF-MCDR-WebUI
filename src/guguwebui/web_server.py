@@ -32,6 +32,7 @@ from guguwebui.routers.chat_router import router as chat_router
 from guguwebui.routers.config_router import router as config_router
 from guguwebui.routers.pim_router import router as pim_router
 from guguwebui.routers.monitor_router import router as monitor_router
+from guguwebui.routers.mod_router import router as mod_router
 from guguwebui.routers.pip_router import router as pip_router
 from guguwebui.routers.plugin_management_router import \
     router as plugin_management_router
@@ -39,6 +40,7 @@ from guguwebui.routers.plugin_proxy_router import router as plugin_proxy_router
 from guguwebui.routers.player_router import router as player_router
 from guguwebui.routers.server_router import router as server_router
 from guguwebui.services.monitor_service import MonitorService
+from guguwebui.services.mod_service import ModService
 from guguwebui.services.ai_service import AIService
 from guguwebui.services.auth_service import AuthService
 from guguwebui.services.chat_service import ChatService
@@ -216,6 +218,7 @@ def init_app(server_instance):
     app.state.file_service = FileService(server_instance)
     app.state.chat_service = ChatService(server_instance, app.state.config_service)
     app.state.player_service = PlayerService(server_instance, app.state.config_service)
+    app.state.mod_service = ModService(server_instance, app.state.config_service)
 
     # 初始化服务器状态监控（先停止旧实例，避免重复启动）
     try:
@@ -503,6 +506,7 @@ app.include_router(pim_router, prefix="/api") # PIM
 app.include_router(pip_router, prefix="/api") # PIP
 app.include_router(chat_router, prefix="/api") # 聊天
 app.include_router(player_router, prefix="/api") # 玩家管理
+app.include_router(mod_router, prefix="/api") # Minecraft 模组管理
 app.include_router(audit_router, prefix="/api") # 操作审计
 
 
@@ -578,6 +582,12 @@ async def players_page(request: Request, admin: dict = Depends(get_current_admin
     """玩家管理页面"""
     return serve_spa_index(request)
 
+
+@app.get("/mods", response_class=HTMLResponse)
+async def mods_page(request: Request, admin: dict = Depends(get_current_admin)):
+    """Minecraft 模组管理页面"""
+    return serve_spa_index(request)
+
 # 404 page - 返回 SPA index.html，由前端处理 404
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc: StarletteHTTPException):
@@ -638,6 +648,13 @@ def _is_admin_user(request: Request, user: dict) -> bool:
     return True
 
 
+def _is_super_admin_user(request: Request, user: dict) -> bool:
+    if user.get("auth_via") == "panel_token":
+        return True
+    config = request.app.state.config_service.get_config()
+    return str(user.get("username")) == str(config.get("super_admin_account"))
+
+
 @app.get("/api/checkLogin")
 async def check_login_status(request: Request, user: dict = Depends(get_current_user)):
     username = user.get("username")
@@ -656,6 +673,7 @@ async def check_login_status(request: Request, user: dict = Depends(get_current_
         "username": username,
         "nickname": nickname,
         "is_admin": _is_admin_user(request, user),
+        "is_super_admin": _is_super_admin_user(request, user),
     })
 
 @app.post("/api/deepseek")

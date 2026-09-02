@@ -83,6 +83,8 @@ def is_admin_api_path(path: str) -> bool:
     # 兜底：pip 相关均视为管理员
     if path.startswith("/api/pip/"):
         return True
+    if path.startswith("/api/mods"):
+        return True
     return False
 
 
@@ -121,8 +123,6 @@ async def proxy_request_to_slave(request: Request, slave: dict, sub_path: str) -
     target_url = f"{base_url}/api/{sub_path.lstrip('/')}"
 
     query = _filter_query_items(list(request.query_params.multi_items()))
-    body = await request.body()
-
     headers = _filter_outbound_request_headers(request)
     headers["X-Panel-Token"] = str(slave.get("token", "")).strip()
     headers["X-Forwarded-For"] = request.client.host if request.client else ""
@@ -134,13 +134,17 @@ async def proxy_request_to_slave(request: Request, slave: dict, sub_path: str) -
     )
 
     try:
+        # 将请求体作为异步迭代器转发，尤其避免上传 JAR 时主服先完整读入内存。
+        request_data = request.stream()
+        timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
         async with session.request(
             method=request.method,
             url=target_url,
             params=query,
-            data=body if body else None,
+            data=request_data,
             headers=headers,
             ssl=verify_tls,
+            timeout=timeout,
         ) as resp:
             resp_body = await resp.read()
             out_headers = _filter_inbound_response_headers(resp.headers)

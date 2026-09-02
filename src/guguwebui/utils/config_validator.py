@@ -183,7 +183,8 @@ class ConfigValidator:
 
         # 验证整数配置
         int_configs = [
-            'chat_verification_expire_minutes', 'chat_session_expire_hours'
+            'chat_verification_expire_minutes', 'chat_session_expire_hours',
+            'mod_upload_max_bytes'
         ]
         for key in int_configs:
             value = config.get(key)
@@ -193,6 +194,13 @@ class ConfigValidator:
             elif value <= 0:
                 self.warnings.append(f"{key} 值超出范围，期望 > 0，实际: {value}")
                 validated_config[key] = DEFALUT_CONFIG[key]
+
+        upload_limit = validated_config.get('mod_upload_max_bytes')
+        if isinstance(upload_limit, int) and not (1024 * 1024 <= upload_limit <= 4096 * 1024 * 1024):
+            self.warnings.append(
+                f"mod_upload_max_bytes 值超出范围，期望 1-4096 MiB，实际: {upload_limit}"
+            )
+            validated_config['mod_upload_max_bytes'] = DEFALUT_CONFIG['mod_upload_max_bytes']
 
         # 验证AI模型配置
         ai_model = config.get('ai_model')

@@ -74,6 +74,26 @@ class ToggleConfig(BaseModel):
     status: bool
 
 
+class ModToggleRequest(BaseModel):
+    filename: str
+    enabled: bool
+    acknowledge_warnings: bool = False
+
+
+class ModFileRequest(BaseModel):
+    filename: str
+
+
+class ModConfigSaveRequest(BaseModel):
+    path: str
+    content: Optional[str] = None
+    config_data: Optional[Any] = None
+
+
+class ModSettingsRequest(BaseModel):
+    upload_max_mib: int
+
+
 class SaveContent(BaseModel):
     action: str
     content: str

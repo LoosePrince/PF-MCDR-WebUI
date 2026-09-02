@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
   Bell,
+  Boxes,
   ChartNoAxesCombined,
   Cloud,
   Code,
@@ -285,12 +286,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/terminal', key: 'nav.terminal', icon: Terminal },
     { path: '/chat', key: 'page.chat.header_title', icon: MessageSquare },
     { path: '/players', key: 'nav.players', icon: Users },
+    { path: '/mods', key: 'nav.mods', icon: Boxes },
     { path: '/settings', key: 'nav.web_settings', icon: Sliders },
     { path: '/about', key: 'nav.about', icon: Info },
   ]
 
   // 玩家管理仅对管理员展示
-  const visibleNavItems = isAdmin ? navItems : navItems.filter((item) => item.path !== '/players')
+  const visibleNavItems = isAdmin
+    ? navItems
+    : navItems.filter((item) => item.path !== '/players' && item.path !== '/mods')
   const sidebarNavItems = visibleNavItems.filter(
     (item) => item.path !== '/settings' && item.path !== '/about'
   )

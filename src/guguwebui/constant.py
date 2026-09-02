@@ -74,6 +74,7 @@ DEFALUT_CONFIG = {
     "public_chat_to_game_enabled": False,  # 公开聊天页发送消息到游戏
     "chat_verification_expire_minutes": 10,  # 聊天页验证码过期时间（分钟）
     "chat_session_expire_hours": 24,  # 聊天页会话过期时间（小时）
+    "mod_upload_max_bytes": 10 * 1024 * 1024,  # 单个模组上传上限，默认 10 MiB
     "icp_records": [],  # ICP备案信息，最多两个，每个包含 icp 和 url 字段
     # 示例配置（请在 config.json 中添加）：
     # "icp_records": [

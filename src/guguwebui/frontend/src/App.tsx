@@ -21,6 +21,7 @@ const PluginPage = lazy(() => import('./pages/PluginPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const OperationLogs = lazy(() => import('./pages/OperationLogs'))
 const Players = lazy(() => import('./pages/Players'))
+const Mods = lazy(() => import('./pages/Mods'))
 
 // 独立页面路径（不需要认证）
 const PUBLIC_PATHS = ['/login', '/player-chat']
@@ -73,6 +74,7 @@ function AppContent() {
                     <Route path="/about" element={<About />} />
                     <Route path="/operation-logs" element={<OperationLogs />} />
                     <Route path="/players" element={<Players />} />
+                    <Route path="/mods" element={<Mods />} />
                     <Route path="/plugin-page/:pluginId" element={<PluginPage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

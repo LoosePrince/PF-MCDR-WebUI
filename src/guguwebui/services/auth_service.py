@@ -17,6 +17,10 @@ def _is_admin_from_config(server_config: dict, username: str) -> bool:
     return True
 
 
+def _is_super_admin_from_config(server_config: dict, username: str) -> bool:
+    return str(username) == str(server_config.get("super_admin_account"))
+
+
 class AuthService:
     def __init__(self, server, config_service=None):
         self.server = server
@@ -90,6 +94,7 @@ class AuthService:
                     "message": "登录成功",
                     "nickname": nickname,
                     "is_admin": _is_admin_from_config(server_config, account),
+                    "is_super_admin": _is_super_admin_from_config(server_config, account),
                 })
                 response.set_cookie(
                     "token",
@@ -165,6 +170,7 @@ class AuthService:
                     "username": username,
                     "nickname": nickname,
                     "is_admin": _is_admin_from_config(server_config, username),
+                    "is_super_admin": _is_super_admin_from_config(server_config, username),
                 }
                 response = JSONResponse(response_data)
                 response.set_cookie(
@@ -264,6 +270,7 @@ class AuthService:
             "message": "登录成功",
             "nickname": nickname,
             "is_admin": _is_admin_from_config(server_config, account),
+            "is_super_admin": _is_super_admin_from_config(server_config, account),
         }
         if state:
             response_data["state"] = state

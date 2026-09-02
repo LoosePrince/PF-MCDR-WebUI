@@ -22,14 +22,15 @@ import {
   Shield,
   Square,
   Tag,
-  Trash2,
-  X
+  Trash2
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
+import { CodeMirrorEditor } from '../components/CodeMirrorEditor';
+import { ConfigForm, type ConfigTranslationTree, type GenericConfigObject } from '../components/ConfigForm';
+import { Modal } from '../components/Modal';
 import { PluginRelationModal } from '../components/PluginRelationModal';
 import { VersionSelectModal } from '../components/VersionSelectModal';
 import { ConfigFileRowSkeleton, PluginCardSkeleton } from '../components/Skeleton';
@@ -65,8 +66,8 @@ interface TaskStatus {
   plugin_id?: string;
 }
 
-type GenericObject = Record<string, unknown>;
-type TranslationTree = Record<string, unknown>;
+type GenericObject = GenericConfigObject;
+type TranslationTree = ConfigTranslationTree;
 type VersionItem = {
   version: string;
   installed?: boolean;
@@ -100,50 +101,6 @@ function mergePluginSearchParams(prev: URLSearchParams, patch: PluginUrlPatch): 
   }
   return next;
 }
-
-// 懒加载 CodeMirror 编辑器组件
-const CodeMirrorEditor: React.FC<{ value: string; onChange: (value: string) => void; theme: 'light' | 'dark' }> = ({ value, onChange, theme }) => {
-  const [CodeMirror, setCodeMirror] = useState<unknown>(null);
-  const [jsonLang, setJsonLang] = useState<(() => unknown) | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    Promise.all([
-      import('@uiw/react-codemirror'),
-      import('@codemirror/lang-json')
-    ]).then(([codemirrorModule, jsonModule]) => {
-      setCodeMirror(() => codemirrorModule.default);
-      setJsonLang(() => jsonModule.json);
-      setLoading(false);
-    });
-  }, []);
-
-  if (loading || !CodeMirror || !jsonLang) {
-    return (
-      <div className="flex items-center justify-center h-[400px]">
-        <Loader2 className="animate-spin text-blue-500 w-8 h-8" />
-      </div>
-    );
-  }
-
-  const CodeMirrorComp = CodeMirror as React.ComponentType<{
-    value: string;
-    height?: string;
-    extensions?: unknown[];
-    theme?: string;
-    onChange?: (value: string) => void;
-  }>;
-
-  return (
-    <CodeMirrorComp
-      value={value}
-      height="400px"
-      extensions={[jsonLang()]}
-      theme={theme}
-      onChange={onChange}
-    />
-  );
-};
 
 const LocalPlugins: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -1338,150 +1295,6 @@ const PluginCard: React.FC<{
         )}
       </div>
     </motion.div>
-  );
-};
-
-const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; fullWidth?: boolean }> = ({ isOpen, onClose, title, children, fullWidth = false }) => {
-  if (!isOpen) return null;
-
-  const modalContent = (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ margin: 0 }}>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 bg-black/60"
-      />
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        onClick={(e) => e.stopPropagation()}
-        className={`relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full ${fullWidth ? 'max-w-5xl' : 'max-w-lg'} p-8 z-10`}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
-            <X size={24} />
-          </button>
-        </div>
-        {children}
-      </motion.div>
-    </div>
-  );
-
-  return createPortal(modalContent, document.body);
-};
-
-const ConfigForm: React.FC<{
-  data: GenericObject;
-  onChange: (data: GenericObject) => void;
-  translations?: TranslationTree;
-  parentPath?: string;
-  lang: string;
-}> = ({ data, onChange, translations, parentPath = '', lang }) => {
-  if (!data || typeof data !== 'object' || data.type === 'html') return null;
-
-  // Helper to get translated name and description
-  const getTranslation = (key: string) => {
-    if (!translations) return { name: key, desc: '' };
-
-    const currentLang = lang; // e.g. "zh-CN"
-    const currentLangAlt = lang.replace('-', '_').toLowerCase(); // e.g. "zh_cn"
-
-    const transMap = ((translations as { translations?: Record<string, unknown> }).translations) || {};
-    // Try multiple lang key variations
-    const langPick = (transMap[currentLang] as Record<string, unknown> | undefined) ||
-      (transMap[currentLangAlt] as Record<string, unknown> | undefined) ||
-      (transMap['zh-CN'] as Record<string, unknown> | undefined) ||
-      (transMap['zh_cn'] as Record<string, unknown> | undefined) ||
-      (transMap['en-US'] as Record<string, unknown> | undefined) ||
-      (transMap['en_us'] as Record<string, unknown> | undefined) ||
-      (Object.values(transMap)[0] as Record<string, unknown> | undefined) || {};
-
-    // Split key path
-    const parts = (parentPath ? `${parentPath}.${key}` : key).split('.').filter(Boolean);
-    let cursor: Record<string, unknown> = langPick;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const node = cursor[part] as Record<string, unknown> | undefined;
-      if (node) {
-        if (i === parts.length - 1) {
-          return {
-            name: typeof node.name === 'string' ? node.name : key,
-            desc: typeof node.desc === 'string' ? node.desc : ''
-          };
-        }
-        cursor = (node.children as Record<string, unknown> | undefined) || {};
-      } else {
-        break;
-      }
-    }
-
-    return { name: key, desc: '' };
-  };
-
-  const handleChange = (key: string, value: unknown) => {
-    onChange({ ...data, [key]: value });
-  };
-
-  return (
-    <div className="space-y-4">
-      {Object.entries(data).map(([key, value]: [string, unknown]) => {
-        const { name, desc } = getTranslation(key);
-
-        if (typeof value === 'boolean') {
-          return (
-            <div key={key} className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{name}</span>
-                <button
-                  onClick={() => handleChange(key, !value)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${value ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-              </div>
-              {desc && <p className="text-xs text-slate-500">{desc}</p>}
-            </div>
-          );
-        }
-        if (typeof value === 'string' || typeof value === 'number') {
-          return (
-            <div key={key} className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase ml-1">{name}</label>
-              {desc && <p className="text-[10px] text-slate-400 ml-1 mb-1">{desc}</p>}
-              <input
-                type={typeof value === 'number' ? 'number' : 'text'}
-                value={value}
-                onChange={(e) => handleChange(key, typeof value === 'number' ? Number(e.target.value) : e.target.value)}
-                className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-blue-500/50 outline-none transition-all text-sm"
-              />
-            </div>
-          );
-        }
-        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-          return (
-            <div key={key} className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase ml-1">{name}</label>
-              {desc && <p className="text-[10px] text-slate-400 ml-1">{desc}</p>}
-              <div className="pl-4 border-l-2 border-slate-100 dark:border-slate-800 ml-1">
-                <ConfigForm
-                  data={value as GenericObject}
-                  onChange={(v) => handleChange(key, v)}
-                  translations={translations}
-                  parentPath={parentPath ? `${parentPath}.${key}` : key}
-                  lang={lang}
-                />
-              </div>
-            </div>
-          );
-        }
-        return null;
-      })}
-    </div>
   );
 };
 

@@ -23,6 +23,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NiceSelect } from '../components/NiceSelect'
 import { SettingsCardSkeleton, Skeleton } from '../components/Skeleton'
+import { useAuth } from '../hooks/useAuth'
 import api, { getTargetServerId, isCancel } from '../utils/api'
 
 interface Repository {
@@ -79,6 +80,7 @@ interface WebConfig {
 
 const Settings: React.FC = () => {
   const { t } = useTranslation()
+  const { isSuperAdmin } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [config, setConfig] = useState<WebConfig | null>(null)
@@ -124,6 +126,9 @@ const Settings: React.FC = () => {
   const connectStartedAtRef = React.useRef<number | null>(null)
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [modUploadMaxMiB, setModUploadMaxMiB] = useState<number | null>(null)
+  const [modSettingsLoading, setModSettingsLoading] = useState(false)
+  const [modSettingsSaving, setModSettingsSaving] = useState(false)
 
   const getErrorMeta = (err: unknown): { name?: string; code?: string; message?: string } => {
     if (!err || typeof err !== 'object') return {}
@@ -251,6 +256,22 @@ const Settings: React.FC = () => {
     }
   }, [])
 
+  const fetchModSettings = useCallback(async (signal?: AbortSignal) => {
+    if (!isSuperAdmin) return
+    setModSettingsLoading(true)
+    try {
+      const { data } = await api.get('/mods/settings', { signal })
+      const value = Number(data?.upload_max_mib)
+      if (Number.isInteger(value) && value >= 1 && value <= 4096) setModUploadMaxMiB(value)
+    } catch (error: unknown) {
+      const meta = getErrorMeta(error)
+      if (isCancel(error) || meta.name === 'AbortError' || meta.code === 'ERR_CANCELED') return
+      console.error('Failed to fetch mod settings:', error)
+    } finally {
+      setModSettingsLoading(false)
+    }
+  }, [isSuperAdmin])
+
   useEffect(() => {
     // 创建 AbortController 用于取消请求
     const abortController = new AbortController()
@@ -260,12 +281,13 @@ const Settings: React.FC = () => {
     fetchPimStatus(signal)
     fetchPanelMergeConfig(signal)
     fetchPairingPending(signal)
+    fetchModSettings(signal)
 
     return () => {
       // 取消所有进行中的请求
       abortController.abort()
     }
-  }, [fetchConfig, fetchPimStatus, fetchPanelMergeConfig, fetchPairingPending])
+  }, [fetchConfig, fetchPimStatus, fetchPanelMergeConfig, fetchPairingPending, fetchModSettings])
 
   // 主服：连接请求状态自动轮询（5分钟超时）
   useEffect(() => {
@@ -480,6 +502,28 @@ const Settings: React.FC = () => {
       const meta = getErrorMeta(error)
       showNotification(t('page.settings.msg.pim_install_error_prefix') + (meta.message || ''), 'error')
       setPimStatus('not_installed')
+    }
+  }
+
+  const saveModSettings = async () => {
+    if (modUploadMaxMiB === null || !Number.isInteger(modUploadMaxMiB) || modUploadMaxMiB < 1 || modUploadMaxMiB > 4096) {
+      showNotification(t('page.settings.mod_upload.invalid'), 'error')
+      return
+    }
+    setModSettingsSaving(true)
+    try {
+      const { data } = await api.put('/mods/settings', { upload_max_mib: modUploadMaxMiB })
+      if (data?.status === 'success') {
+        setModUploadMaxMiB(Number(data.upload_max_mib))
+        showNotification(t('page.settings.mod_upload.saved'), 'success')
+      } else {
+        showNotification(data?.message || t('page.settings.mod_upload.save_failed'), 'error')
+      }
+    } catch (error: unknown) {
+      const meta = getErrorMeta(error)
+      showNotification(meta.message || t('page.settings.mod_upload.save_failed'), 'error')
+    } finally {
+      setModSettingsSaving(false)
     }
   }
 
@@ -1345,6 +1389,50 @@ const Settings: React.FC = () => {
               </button>
             </div>
           </motion.div>
+
+          {isSuperAdmin && (
+            <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 text-emerald-500">
+                <Shield className="w-6 h-6" />
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  {t('page.settings.mod_upload.title')}
+                </h2>
+              </div>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {t('page.settings.mod_upload.tip')}
+              </p>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  {t('page.settings.mod_upload.limit')}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={4096}
+                    step={1}
+                    value={modUploadMaxMiB ?? ''}
+                    disabled={modSettingsLoading}
+                    onChange={(event) => setModUploadMaxMiB(event.target.value === '' ? null : Number(event.target.value))}
+                    className="w-28 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/60 transition-all outline-none"
+                  />
+                  <span className="text-sm text-slate-500">MiB</span>
+                </div>
+                <p className="text-xs text-slate-500">{t('page.settings.mod_upload.range')}</p>
+              </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => void saveModSettings()}
+                  disabled={modSettingsLoading || modSettingsSaving || modUploadMaxMiB === null}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold rounded-2xl transition-all shadow-lg shadow-emerald-500/20"
+                >
+                  {modSettingsSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {t('page.settings.mod_upload.save')}
+                </button>
+              </div>
+            </motion.div>
+          )}
 
           {/* Security Settings */}
           <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">

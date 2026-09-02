@@ -6,6 +6,7 @@ interface AuthContextType {
   username: string | null
   nickname: string | null
   isAdmin: boolean | null
+  isSuperAdmin: boolean | null
   loading: boolean
   login: (account: string, password: string, remember?: boolean) => Promise<{ success: boolean; message?: string }>
   loginWithTempCode: (tempCode: string) => Promise<{ success: boolean; message?: string }>
@@ -20,6 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [username, setUsername] = useState<string | null>(null)
   const [nickname, setNickname] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -34,17 +36,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUsername(response.data.username)
         setNickname(response.data.nickname || null)
         setIsAdmin(Boolean(response.data.is_admin))
+        setIsSuperAdmin(Boolean(response.data.is_super_admin))
       } else {
         setIsAuthenticated(false)
         setUsername(null)
         setNickname(null)
         setIsAdmin(null)
+        setIsSuperAdmin(null)
       }
     } catch (error) {
       setIsAuthenticated(false)
       setUsername(null)
       setNickname(null)
       setIsAdmin(null)
+      setIsSuperAdmin(null)
     } finally {
       setLoading(false)
     }
@@ -68,6 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUsername(account)
         setNickname(response.data.nickname || null)
         setIsAdmin(Boolean(response.data.is_admin))
+        setIsSuperAdmin(Boolean(response.data.is_super_admin))
         return { success: true }
       } else {
         return { success: false, message: response.data.message }
@@ -97,6 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUsername(response.data.username || 'tempuser')
         setNickname(response.data.nickname || null)
         setIsAdmin(Boolean(response.data.is_admin))
+        setIsSuperAdmin(Boolean(response.data.is_super_admin))
         return { success: true }
       } else {
         return { success: false, message: response.data.message }
@@ -122,6 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUsername(null)
       setNickname(null)
       setIsAdmin(null)
+      setIsSuperAdmin(null)
       // 清除所有可能的 cookie (前端尝试)
       const cookieNames = ['token', 'session'];
       const domains = [window.location.hostname, ''];
@@ -146,6 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         username,
         nickname,
         isAdmin,
+        isSuperAdmin,
         loading,
         login,
         loginWithTempCode,
