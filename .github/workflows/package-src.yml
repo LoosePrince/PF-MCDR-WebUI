@@ -14,20 +14,25 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10.14.0
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: src/guguwebui/frontend/package-lock.json
+        node-version: '22'
+        cache: 'pnpm'
+        cache-dependency-path: src/guguwebui/frontend/pnpm-lock.yaml
 
     - name: Install frontend dependencies
       working-directory: src/guguwebui/frontend
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 
     - name: Build frontend
       working-directory: src/guguwebui/frontend
-      run: npm run build
+      run: pnpm run build
 
     - name: Verify frontend build
       run: |

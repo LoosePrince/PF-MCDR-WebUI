@@ -5,13 +5,13 @@
 ## 开发环境要求
 
 - Node.js >= 18.0.0
-- npm >= 9.0.0
+- pnpm >= 10.0.0 (version pinned in `package.json` via `packageManager`)
 
 ## 安装依赖
 
 ```bash
 cd src/guguwebui/frontend
-npm install
+pnpm install
 ```
 
 ## 开发
@@ -19,7 +19,7 @@ npm install
 启动开发服务器（会自动代理 API 请求到后端）：
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 开发服务器将在 `http://localhost:5173` 启动。
@@ -29,7 +29,7 @@ npm run dev
 构建生产版本：
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 构建产物将输出到 `src/guguwebui/static/` 目录，这些文件会被打包进 MCDR 插件。
@@ -60,7 +60,7 @@ frontend/
 ## 注意事项
 
 1. **前端源文件不会被打包进插件**：只有构建后的 `static/` 目录会被打包
-2. **构建是必需的**：在发布前必须运行 `npm run build` 生成静态文件
+2. **构建是必需的**：在发布前必须运行 `pnpm run build` 生成静态文件
 3. **GitHub Actions 会自动构建**：推送代码到仓库时，工作流会自动构建前端并打包
 
 ## 技术栈
