@@ -1089,7 +1089,7 @@
   {
     "status": "success|error",
     "message": "操作结果信息",
-    "feedback": "命令执行反馈（RCON模式下）" 
+    "feedback": "命令执行反馈（RCON模式下为 RCON 直接反馈；RCON 不可用时为直接执行捕获的真实输出，无需 RCON）" 
   }
   ```
 
@@ -1110,7 +1110,7 @@
       if (result.status === 'success') {
         console.log(`命令已发送: ${result.message}`);
         
-        // 如果有RCON反馈
+        // 如果有命令反馈（RCON 反馈或直接执行捕获的输出）
         if (result.feedback) {
           console.log(`命令反馈: ${result.feedback}`);
         }
@@ -1127,14 +1127,17 @@
   }
   
   // 使用示例
-  // sendCommand('list');            // MCDR命令
-  // sendCommand('/say Hello');      // 带/前缀的MC命令，会尝试通过RCON发送
+  // sendCommand('!!MCDR status');  // MCDR命令：直接执行并捕获回复（无需RCON）
+  // sendCommand('/say Hello');      // 服务器命令：RCON可用时优先RCON，否则直接执行并捕获输出
   ```
 
 - 使用位置: 终端页面
 - 备注: 
-  - 当命令以"/"开头时，如果RCON已启用并连接，会优先使用RCON发送命令并返回直接反馈
-  - 如果RCON未启用或执行失败，会回退到使用普通方式发送命令
+  - 命令分类：以 `!` 开头的为 MCDR 命令；其余（含 `/` 前缀与普通文本，如 `list`、`say hi`）按 Minecraft 服务器命令处理
+  - 服务器命令：若 RCON 已启用并连接，优先通过 RCON 发送并返回直接反馈（RCON 优先级高于直接执行）
+  - RCON 未启用、未连接或执行失败时，回退为「直接执行 + 输出捕获」：命令经 MCDR 写入服务器控制台，并通过 MCDR 日志事件捕获真实输出，**不需要 RCON**
+  - MCDR 命令（`!` 开头）：在 MCDR 进程内以捕获源（权限等级 4）直接执行，命令回复收集后随 `feedback` 返回，同样**不需要 RCON**
+  - `feedback` 可能为空字符串：命令已执行但未捕获到输出（命令无回显 / 服务器未运行），此时以 `message` 提示
   - 禁止执行以下命令以保护WebUI功能：`!!MCDR plugin reload guguwebui`、`!!MCDR plugin unload guguwebui`
   - 若命令被策略禁止：HTTP **403**，body 中 `message` 为「该命令已被禁止执行」
 

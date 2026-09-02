@@ -1,5 +1,6 @@
 import datetime
 import json
+import threading
 import traceback
 from pathlib import Path
 from typing import List, Optional
@@ -14,6 +15,9 @@ class ServerService:
         self.server = server
         self.log_watcher = log_watcher
         self.config_service = config_service
+        # 直接执行命令并获取执行结果（无需 RCON）的捕获器，首次使用时才注册监听
+        self._command_capture = None
+        self._capture_lock = threading.Lock()
 
     async def get_server_status(self):
         cache_key = "server_status"
@@ -305,7 +309,16 @@ class ServerService:
         return suggestions[:100]
 
     async def send_command(self, command: str):
-        command = command.strip()
+        """
+        发送命令到 MCDR 终端并尽可能返回命令执行反馈。
+
+        执行通道（优先级从高到低）：
+        1. Minecraft 服务器命令（"/" 开头或普通文本）：RCON 已连接时优先走 RCON 并返回
+           直接反馈；RCON 未启用或失败时回退到「直接执行 + 输出捕获」（无需 RCON）；
+        2. MCDR 命令（"!" 开头）：经由 MCDR 进程内以捕获源直接执行并收集回复，
+           不依赖 RCON。
+        """
+        command = (command or "").strip()
         if not command:
             return {"status": "error", "message": "Command cannot be empty"}
 
@@ -317,30 +330,101 @@ class ServerService:
         if command in forbidden_commands:
             return {"status": "error", "message": "该命令已被禁止执行"}
 
+        # 防止通过换行符注入多条命令（会写入服务器标准输入 / RCON）
+        if "\n" in command or "\r" in command:
+            return {"status": "error", "message": "命令包含非法换行符"}
+        if len(command) > 2000:
+            return {"status": "error", "message": "命令过长（最多 2000 字符）"}
+
         self.server.logger.info(f"发送命令: {command}")
 
-        if command.startswith("/"):
-            mc_command = command[1:]
-            if (
-                hasattr(self.server, "is_rcon_running")
-                and self.server.is_rcon_running()
-            ):
-                try:
-                    feedback = self.server.rcon_query(mc_command)
-                    self.server.logger.info(f"RCON反馈: {feedback}")
-                    return {
-                        "status": "success",
-                        "message": f"Command sent via RCON: {command}",
-                        "feedback": feedback,
-                    }
-                except Exception as e:
-                    self.server.logger.error(f"RCON执行命令出错: {str(e)}")
-                    self.server.execute_command(command)
-                    return {
-                        "status": "success",
-                        "message": f"Command sent (RCON failed): {command}",
-                        "error": str(e),
-                    }
+        # 以 ! 开头的命令属于 MCDR 命令，RCON 无法执行，直接走进程内捕获通道
+        if command.startswith("!"):
+            return await self._execute_mcdr_command(command)
 
-        self.server.execute_command(command)
-        return {"status": "success", "message": f"Command sent: {command}"}
+        # 其余命令（含 "/" 前缀与普通文本）按 Minecraft 服务器命令处理，RCON 优先级更高
+        mc_command = command[1:] if command.startswith("/") else command
+        return await self._execute_server_command(command, mc_command)
+
+    def _get_command_capture(self):
+        """懒加载命令输出捕获器（首次使用时注册 GENERAL_INFO 监听）。"""
+        if self._command_capture is None:
+            with self._capture_lock:
+                if self._command_capture is None:
+                    from guguwebui.utils.command_capture import CommandCapture
+
+                    self._command_capture = CommandCapture(self.server)
+        return self._command_capture
+
+    async def _execute_server_command(self, command: str, mc_command: str):
+        """执行 Minecraft 服务器命令：RCON 优先，回退到直接执行 + 输出捕获。"""
+        # RCON 优先级更高：可用时优先通过 RCON 执行并返回直接反馈
+        rcon_available = (
+            hasattr(self.server, "is_rcon_running")
+            and self.server.is_rcon_running()
+        )
+        if rcon_available:
+            try:
+                feedback = self.server.rcon_query(mc_command)
+                self.server.logger.info(f"RCON反馈: {feedback}")
+                return {
+                    "status": "success",
+                    "message": f"Command sent via RCON: {command}",
+                    "feedback": feedback or "",
+                }
+            except Exception as e:
+                self.server.logger.error(f"RCON执行命令出错: {str(e)}")
+
+        # 服务器未运行时无法通过标准输入执行，RCON 也不可用，直接返回
+        if not self.server.is_server_running():
+            return {
+                "status": "success",
+                "message": f"Command sent: {command}",
+                "feedback": "",
+                "note": "服务器未运行，命令未实际执行（RCON 不可用）",
+            }
+
+        # 回退：通过服务器控制台直接执行命令并捕获输出（无需 RCON）
+        result = await self._get_command_capture().execute_server_command(mc_command)
+        return self._build_capture_response(command, result)
+
+    async def _execute_mcdr_command(self, command: str):
+        """直接执行 MCDR 命令（! 开头）并通过捕获源收集回复（无需 RCON）。"""
+        first_word = command.split(" ", 1)[0]
+        root_nodes = MCDRAdapter.get_root_nodes(self.server)
+        if root_nodes and first_word not in root_nodes:
+            return {
+                "status": "success",
+                "message": f"Command sent: {command}（MCDR 未注册命令 {first_word}，未执行）",
+                "feedback": "",
+            }
+
+        result = await self._get_command_capture().execute_mcdr_command(command)
+        return self._build_capture_response(command, result)
+
+    @staticmethod
+    def _build_capture_response(command: str, result: dict):
+        """把直接执行捕获的结果统一为 send_command 响应格式。"""
+        if not result.get("success"):
+            return {
+                "status": "error",
+                "message": f"Command execution failed: {command}",
+                "feedback": "",
+                "error": result.get("error"),
+            }
+        if result.get("captured"):
+            return {
+                "status": "success",
+                "message": f"Command executed: {command}",
+                "feedback": result.get("output", ""),
+                "capture": "direct",
+                "timed_out": bool(result.get("timed_out")),
+            }
+        # 命令已执行，但没有捕获到任何输出
+        return {
+            "status": "success",
+            "message": f"Command executed: {command}（已执行，未捕获到输出）",
+            "feedback": "",
+            "capture": "direct",
+            "timed_out": bool(result.get("timed_out")),
+        }
