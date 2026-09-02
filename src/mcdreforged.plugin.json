@@ -1,6 +1,6 @@
 {
     "id": "guguwebui",
-    "version": "1.8.8",
+    "version": "1.9.0",
     "name": "GUGU WebUI",
     "description": {
         "en_us": "WebUI for managing all plugins, MCDR configurations, online installation, terminals, and more.",
