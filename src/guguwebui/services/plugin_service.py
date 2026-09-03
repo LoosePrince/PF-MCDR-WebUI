@@ -1,12 +1,14 @@
 import datetime
+import json
 import os
 import shutil
 import tempfile
 import zipfile
 from pathlib import Path
 
-from guguwebui.constant import (MCDR_OFFICIAL_CATALOGUE_URL,
-                                PF_PLUGIN_CATALOGUE_URL)
+from guguwebui.constant import (STATIC_PATH,
+                                collect_repository_entries,
+                                collect_repository_urls)
 from guguwebui.utils.file_util import __copyFile, extract_metadata
 from guguwebui.utils.mc_util import get_plugins_info, load_plugin_info
 from guguwebui.utils.mcdr_adapter import MCDRAdapter
@@ -148,18 +150,9 @@ class PluginService:
 
     async def get_online_plugins(self, repo_url: str = None):
         """获取在线插件列表"""
-        # 获取配置中定义的仓库URL
+        # 获取配置中定义的仓库URL（R1：统一复用官方 + PF + 自定义仓库列表）
         config = self.config_service.get_config() if self.config_service else {}
-        official_repo_url = config.get(
-            "mcdr_plugins_url",
-            MCDR_OFFICIAL_CATALOGUE_URL,
-        )
-        configured_repos = [official_repo_url]
-
-        if "repositories" in config and isinstance(config["repositories"], list):
-            for repo in config["repositories"]:
-                if isinstance(repo, dict) and "url" in repo:
-                    configured_repos.append(repo["url"])
+        configured_repos = collect_repository_urls(config)
 
         try:
 
@@ -384,20 +377,86 @@ class PluginService:
         return await self.plugin_installer.uninstall(plugin_id)
 
     def toggle_plugin(self, plugin_id: str, status: bool):
-        """切换插件状态（加载/卸载）"""
-        action = "load" if status else "unload"
-        self.server.execute_command(f"!!MCDR plugin {action} {plugin_id}")
-        return {
-            "status": "success",
-            "message": f"Plugin {plugin_id} {action} command sent",
-        }
+        """
+        切换插件状态（B1/B2/B8）：直接调用 MCDR API 并返回真实结果。
+        - 启用：disabled 插件用 enable_plugin(文件路径)，unloaded 插件用 load_plugin(文件路径)
+        - 禁用：disable_plugin(插件id)，持久化（文件改为 .disabled，重启/刷新后不会自动加载）
+        """
+        server = self.server
+        try:
+            is_loaded = server.get_plugin_instance(plugin_id) is not None
+        except Exception:
+            is_loaded = False
+
+        if status:
+            # 目标状态：已加载
+            if is_loaded:
+                return {
+                    "status": "success",
+                    "message": f"插件 {plugin_id} 已处于加载状态",
+                }
+            _, unloaded_metadata, _, _ = load_plugin_info(server)
+            info = unloaded_metadata.get(plugin_id)
+            if not info or not info.get("path"):
+                return {
+                    "status": "error",
+                    "message": f"未找到插件 {plugin_id} 的本地文件，无法启用",
+                }
+            plugin_path = info["path"]
+            try:
+                disabled_paths = set(server.get_disabled_plugin_list())
+                if plugin_path in disabled_paths:
+                    ok = server.enable_plugin(plugin_path)
+                    done_text = f"插件 {plugin_id} 已启用（取消禁用）"
+                else:
+                    ok = server.load_plugin(plugin_path)
+                    done_text = f"插件 {plugin_id} 已加载"
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "message": f"启用插件 {plugin_id} 失败: {e}",
+                }
+            if ok:
+                return {"status": "success", "message": done_text}
+            return {
+                "status": "error",
+                "message": f"插件 {plugin_id} 启用失败，请查看 MCDR 控制台日志",
+            }
+        else:
+            # 目标状态：禁用（持久化，而非仅从内存卸载）
+            if not is_loaded:
+                return {
+                    "status": "error",
+                    "message": f"插件 {plugin_id} 当前未加载，无需禁用",
+                }
+            try:
+                ok = server.disable_plugin(plugin_id)
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "message": f"禁用插件 {plugin_id} 失败: {e}",
+                }
+            if ok:
+                return {"status": "success", "message": f"插件 {plugin_id} 已禁用"}
+            return {
+                "status": "error",
+                "message": f"插件 {plugin_id} 禁用失败，请查看 MCDR 控制台日志",
+            }
 
     def reload_plugin(self, plugin_id: str):
-        """重载插件"""
-        self.server.execute_command(f"!!MCDR plugin reload {plugin_id}")
+        """重载插件（B8：直接调用 MCDR API 并返回真实结果）"""
+        try:
+            ok = self.server.reload_plugin(plugin_id)
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"重载插件 {plugin_id} 失败: {e}",
+            }
+        if ok:
+            return {"status": "success", "message": f"插件 {plugin_id} 已重载"}
         return {
-            "status": "success",
-            "message": f"Plugin {plugin_id} reload command sent",
+            "status": "error",
+            "message": f"插件 {plugin_id} 重载失败（插件可能未加载）",
         }
 
     def get_plugin_repository(self, plugin_id: str):
@@ -418,45 +477,25 @@ class PluginService:
                     return self.server
 
             source = FakeSource(self.server)
-            # 获取所有仓库：(url, name?) 官方仓库无配置名，自定义仓库取 config 中的 name
+            # 获取所有仓库条目 (url, name?)（R1：统一复用官方 + PF + 自定义仓库列表）
             config = self.config_service.get_config() if self.config_service else {}
-            official_url = config.get(
-                "mcdr_plugins_url",
-                MCDR_OFFICIAL_CATALOGUE_URL,
-            )
-            # 关键修复：PF 插件目录（第三方 loose catalogue）也必须参与仓库归属判断，
-            # 否则会出现：在线插件列表能看到，但 plugin_repository/version 无法匹配。
-            repos: list[tuple[str, str | None]] = [(official_url, None)]
-            if PF_PLUGIN_CATALOGUE_URL and PF_PLUGIN_CATALOGUE_URL != official_url:
-                repos.append((PF_PLUGIN_CATALOGUE_URL, None))
-            if "repositories" in config:
-                for r in config["repositories"]:
-                    if "url" in r:
-                        name = r.get("name") or None
-                        if isinstance(name, str):
-                            name = name.strip() or None
-                        repos.append((r["url"], name))
-
-            for repo_url, repo_name in repos:
+            for entry in collect_repository_entries(config):
+                repo_url = entry["url"]
                 meta = self.pim_helper.get_cata_meta(
                     source, ignore_ttl=False, repo_url=repo_url
                 )
                 if meta and plugin_id in meta.get_plugins():
-                    is_official = (
-                        repo_url == official_url
-                        or "mcdreforged.com" in repo_url
-                    )
                     return {
                         "status": "success",
                         "repository": {
                             "url": repo_url,
-                            "is_official": is_official,
+                            "is_official": entry["is_official"],
                             "name_key": (
                                 "official"
-                                if is_official
-                                else ("loose_repo" if repo_url == PF_PLUGIN_CATALOGUE_URL else "custom")
+                                if entry["is_official"]
+                                else ("loose_repo" if entry["is_loose"] else "custom")
                             ),
-                            "name": repo_name,
+                            "name": entry["name"],
                         },
                     }
 

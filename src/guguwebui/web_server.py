@@ -256,10 +256,17 @@ def init_app(server_instance):
                 "内置PIM模块初始化部分失败，某些功能可能不可用"
             )
 
-        # 在启动时检查插件仓库缓存
+        # 在后台线程预热插件仓库缓存（P3：避免阻塞 MCDR 插件加载/服务启动流程）
         from .utils.file_util import check_repository_cache
 
-        check_repository_cache(server_instance)
+        try:
+            import threading
+
+            threading.Thread(
+                target=check_repository_cache, args=(server_instance,), daemon=True
+            ).start()
+        except Exception as e:
+            server_instance.logger.error(f"启动仓库缓存预热线程失败: {e}")
     except Exception as e:
         server_instance.logger.error(f"内置PIM模块初始化失败: {e}")
 
@@ -317,37 +324,6 @@ def on_mcdr_info(server, info):
         log_watcher.on_mcdr_info(server, info)
     else:
         server.logger.warning("LogWatcher 尚未初始化，无法记录日志")
-
-
-# 全局异常处理器
-@app.exception_handler(BusinessException)
-async def business_exception_handler(request: Request, exc: BusinessException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"status": "error", "message": exc.message, "data": exc.data},
-    )
-
-
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    # 如果是 401 或 403 且不是 API 请求，重定向到登录
-    if exc.status_code in [401, 403] and "/api/" not in request.url.path:
-        return RedirectResponse(
-            url=get_redirect_url(request, "/login"), status_code=302
-        )
-
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"status": "error", "message": str(exc.detail)},
-    )
-
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    app.state.server_interface.logger.error(f"全局异常: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500, content={"status": "error", "message": "服务器内部错误"}
-    )
 
 
 # ============================================================#
@@ -609,6 +585,20 @@ async def connection_reset_handler(request: Request, exc: ConnectionResetError):
     return JSONResponse(
         status_code=500,
         content={"status": "error", "message": "连接被重置，请刷新页面重试"},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    # 如果是 401 或 403 且不是 API 请求，重定向到登录
+    if exc.status_code in [401, 403] and "/api/" not in request.url.path:
+        return RedirectResponse(
+            url=get_redirect_url(request, "/login"), status_code=302
+        )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"status": "error", "message": str(exc.detail)},
     )
 
 

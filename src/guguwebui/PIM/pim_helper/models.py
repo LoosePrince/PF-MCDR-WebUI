@@ -5,26 +5,11 @@ from typing import Dict, List, Optional
 from mcdreforged.plugin.meta.version import VersionRequirement
 
 
-# 自定义实现，替代MCDR内部模块
-class PluginRequirementSource:
-    existing = "existing"
-    existing_pinned = "existing_pinned"
-
-
-# 扩展VersionRequirement类，添加check方法
+# 扩展VersionRequirement类，添加check方法（registry 解析依赖时使用）
 class ExtendedVersionRequirement(VersionRequirement):
     def check(self, version: str) -> bool:
         """调用accept方法，兼容我们的代码"""
         return self.accept(version)
-
-
-@dataclass
-class PluginRequirement:
-    id: str
-    requirement: VersionRequirement
-
-    def satisfied_by(self, plugin_id: str, version: str) -> bool:
-        return self.id == plugin_id and self.requirement.accept(version)
 
 
 @dataclass

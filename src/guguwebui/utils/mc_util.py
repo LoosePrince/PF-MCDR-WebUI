@@ -106,7 +106,7 @@ def find_plugin_config_paths(plugin_id: str) -> list:
 
 def load_plugin_info(server_interface):
     """加载所有插件的信息"""
-    from .file_util import extract_metadata
+    from .file_util import compare_versions, extract_metadata
     loaded_metadata = server_interface.get_all_metadata()
     disabled_plugins = server_interface.get_disabled_plugin_list()
     unloaded_plugins = server_interface.get_unloaded_plugin_list()
@@ -117,10 +117,14 @@ def load_plugin_info(server_interface):
         # 不带 .py/.mcdr 后缀；这里不能仅靠扩展名过滤，否则文件夹插件会丢失。
         metadata = extract_metadata(plugin_path)
         if not metadata: continue
-        if metadata['id'] in unloaded_metadata and metadata['version'] <= unloaded_metadata[metadata["id"]][
-            'version']: continue
+        plugin_id = metadata.get('id')
+        if not plugin_id: continue
+        previous = unloaded_metadata.get(plugin_id)
+        # B7: 语义化版本比较（1.10.0 > 1.9.0），而非字典序字符串比较
+        if previous and compare_versions(str(metadata.get('version', '')), str(previous.get('version', ''))) <= 0:
+            continue
         metadata['path'] = plugin_path
-        unloaded_metadata[metadata["id"]] = metadata
+        unloaded_metadata[plugin_id] = metadata
 
     return loaded_metadata, unloaded_metadata, unloaded_plugins, disabled_plugins
 
@@ -133,11 +137,7 @@ def get_plugins_info(server_interface):
     def fetch_plugin_versions():
         try:
             from guguwebui.PIM import PIMHelper
-            from guguwebui.constant import (
-                DEFALUT_CONFIG,
-                MCDR_OFFICIAL_CATALOGUE_URL,
-                PF_PLUGIN_CATALOGUE_URL,
-            )
+            from guguwebui.constant import DEFALUT_CONFIG, collect_repository_urls
             class DummySource:
                 def reply(self, message): pass
 
@@ -157,22 +157,8 @@ def get_plugins_info(server_interface):
             except Exception:
                 config = {}
 
-            official_url = config.get(
-                "mcdr_plugins_url", MCDR_OFFICIAL_CATALOGUE_URL
-            )
-            repos_cfg = config.get("repositories", [])
-
-            repos: list[str] = [official_url]
-            # 关键修复：PF 插件目录也要参与版本计算，
-            # 否则第三方插件会出现 “未找到可用版本”。
-            if PF_PLUGIN_CATALOGUE_URL and PF_PLUGIN_CATALOGUE_URL not in repos:
-                repos.append(PF_PLUGIN_CATALOGUE_URL)
-            if isinstance(repos_cfg, list):
-                for r in repos_cfg:
-                    if isinstance(r, dict) and isinstance(r.get("url"), str):
-                        url = r.get("url").strip()
-                        if url and url not in repos:
-                            repos.append(url)
+            # R1: 复用统一的仓库列表组装（官方 + PF + 自定义仓库）
+            repos = collect_repository_urls(config)
 
             plugin_versions = {}
             for repo_url in repos:
@@ -202,12 +188,28 @@ def get_plugins_info(server_interface):
     from mcdreforged.plugin.meta.metadata import Metadata
     merged_metadata = copy.deepcopy(unloaded_metadata)
     merged_metadata.update(loaded_metadata)
+    disabled_path_set = set(disabled_plugins)
 
     for plugin_name, plugin_metadata in merged_metadata.items():
         if plugin_name in ignore_plugin: continue
         try:
             if not isinstance(plugin_metadata, Metadata):
                 plugin_metadata = Metadata(plugin_metadata)
+
+            # B3: 从 load_plugin_info 已解析的 unloaded_metadata 中取出真实文件路径，
+            # 并据此区分 loaded / disabled / unloaded（disabled/unloaded 列表元素是文件路径而非插件 id）
+            plugin_id = str(plugin_metadata.id)
+            plugin_path = ""
+            _unloaded_info = unloaded_metadata.get(plugin_id)
+            if isinstance(_unloaded_info, dict):
+                plugin_path = _unloaded_info.get("path") or ""
+            if plugin_id in loaded_metadata:
+                plugin_status = "loaded"
+            elif plugin_path and plugin_path in disabled_path_set:
+                plugin_status = "disabled"
+            else:
+                plugin_status = "unloaded"
+
             latest_version = plugin_versions.get(plugin_name, None)
             if latest_version and ("-v" in latest_version or "-" in latest_version):
                 version_parts = latest_version.split("-v")
@@ -262,20 +264,23 @@ def get_plugins_info(server_interface):
                 "version": str(plugin_metadata.version) if hasattr(plugin_metadata, 'version') else "未知",
                 "version_latest": str(latest_version) if latest_version else str(plugin_metadata.version) if hasattr(
                     plugin_metadata, 'version') else "未知",
-                "status": "loaded" if str(plugin_metadata.id) in loaded_metadata else "disabled" if str(
-                    plugin_metadata.id) in disabled_plugins else "unloaded",
-                "path": plugin_name if plugin_name in unloaded_plugins + disabled_plugins else "",
+                "status": plugin_status,
+                "path": plugin_path,
                 "config_file": bool(find_plugin_config_paths(str(plugin_metadata.id))) if hasattr(plugin_metadata,
                                                                                                   'id') else False,
                 "repository": None,
                 "dependencies": dependencies
             })
         except Exception:
+            _fallback_path = ""
+            _fallback_info = unloaded_metadata.get(plugin_name)
+            if isinstance(_fallback_info, dict):
+                _fallback_path = _fallback_info.get("path") or ""
             respond.append({
                 "id": plugin_name, "name": plugin_name, "description": "该插件数据异常",
                 "author": "未知", "github": "", "version": "未知", "version_latest": "未知",
-                "status": "loaded" if plugin_name in loaded_metadata else "disabled" if plugin_name in disabled_plugins else "unloaded",
-                "path": plugin_name if plugin_name in unloaded_plugins + disabled_plugins else "",
+                "status": "loaded" if plugin_name in loaded_metadata else "disabled" if _fallback_path and _fallback_path in disabled_path_set else "unloaded",
+                "path": _fallback_path,
                 "config_file": False,
                 "dependencies": {}
             })

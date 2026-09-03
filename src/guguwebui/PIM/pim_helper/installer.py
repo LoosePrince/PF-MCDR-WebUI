@@ -1,6 +1,7 @@
 import ctypes
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -10,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
+from guguwebui.utils.file_util import extract_metadata
 from guguwebui.utils.github_proxy import build_github_fallback_urls
 
 from .downloader import ReleaseDownloader
@@ -17,10 +19,13 @@ from .models import PluginData, ReleaseData
 from .resolver import PluginDependencyResolver
 from .tasks import TaskManager
 
+# GitHub 兜底探测缓存（P5）：提升为进程级共享，避免 PIMHelper 反复重建导致缓存丢失
+_github_release_asset_url_cache: Dict[str, str] = {}
+_github_repo_releases_cache: Dict[str, List[ReleaseData]] = {}
+
 
 class PluginInstaller:
     """插件安装器核心逻辑"""
-    PENDING_DELETE_FILES = {}  # {plugin_id: [file_paths]}
 
     def __init__(self, server, pim_helper):
         self.server = server
@@ -29,10 +34,8 @@ class PluginInstaller:
         self.resolver = PluginDependencyResolver(server, pim_helper)
         self.task_manager = TaskManager(server)
         self.downloader = ReleaseDownloader(server, pim_helper)
-        # Cache resolved GitHub release asset URLs to avoid repeated API calls.
-        self._github_release_asset_url_cache: Dict[str, str] = {}
-        # Cache expanded GitHub releases to provide full version selection UX.
-        self._github_repo_releases_cache: Dict[str, List[ReleaseData]] = {}
+        # B10: 待删除清单改为实例级状态，避免多个 PIMHelper/installer 实例互相串扰
+        self.PENDING_DELETE_FILES: Dict[str, List[str]] = {}
 
     def _github_get_with_fallback(
         self,
@@ -119,8 +122,8 @@ class PluginInstaller:
 
         for tag in tag_candidates:
             cache_key = f"{cache_prefix}:{tag}"
-            if cache_key in self._github_release_asset_url_cache:
-                cached = self._github_release_asset_url_cache[cache_key]
+            if cache_key in _github_release_asset_url_cache:
+                cached = _github_release_asset_url_cache[cache_key]
                 return cached or None
 
             url = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
@@ -171,11 +174,11 @@ class PluginInstaller:
             download_url = chosen.get("browser_download_url") if isinstance(chosen, dict) else None
 
             if isinstance(download_url, str) and download_url.strip():
-                self._github_release_asset_url_cache[cache_key] = download_url
+                _github_release_asset_url_cache[cache_key] = download_url
                 return download_url
 
             # cache negative result for this tag to reduce repeated probing
-            self._github_release_asset_url_cache[cache_key] = ""
+            _github_release_asset_url_cache[cache_key] = ""
 
         return None
 
@@ -217,8 +220,8 @@ class PluginInstaller:
             return []
 
         repo_key = f"{owner}/{repo}"
-        if repo_key in self._github_repo_releases_cache:
-            return self._github_repo_releases_cache[repo_key]
+        if repo_key in _github_repo_releases_cache:
+            return _github_repo_releases_cache[repo_key]
 
         headers = {
             "User-Agent": "MCDR-PIM-Installer/1.0",
@@ -231,16 +234,16 @@ class PluginInstaller:
             resp = self._github_get_with_fallback(url, headers, timeout)
             if not resp or resp.status_code != 200:
                 self.logger.warning(f"GitHub releases API request failed, URL: {url}")
-                self._github_repo_releases_cache[repo_key] = []
+                _github_repo_releases_cache[repo_key] = []
                 return []
             data = resp.json()
         except Exception as e:
             self.logger.warning(f"GitHub releases API request failed: {e}, URL: {url}")
-            self._github_repo_releases_cache[repo_key] = []
+            _github_repo_releases_cache[repo_key] = []
             return []
 
         if not isinstance(data, list):
-            self._github_repo_releases_cache[repo_key] = []
+            _github_repo_releases_cache[repo_key] = []
             return []
 
         pid_lower = plugin_id.lower()
@@ -303,7 +306,7 @@ class PluginInstaller:
 
         # GitHub API 通常按时间倒序返回，无需额外排序；但为稳妥可按 created_at 字符串排序
         releases.sort(key=lambda r: r.created_at or "", reverse=True)
-        self._github_repo_releases_cache[repo_key] = releases
+        _github_repo_releases_cache[repo_key] = releases
         return releases
 
     @staticmethod
@@ -422,9 +425,18 @@ class PluginInstaller:
             self.logger.error(f"安装失败: {e}")
             self.task_manager.update_task(task_id, status='failed', message=f"错误: {str(e)}", end_time=time.time())
 
-    def _install_logic(self, task_id: str, plugin_id: str, version: str, repo_url: str, is_dependency: bool = False):
-        """核心安装逻辑，支持递归调用"""
+    def _install_logic(self, task_id: str, plugin_id: str, version: str, repo_url: str, is_dependency: bool = False,
+                       _visited: Optional[set] = None):
+        """核心安装逻辑，支持递归调用（B9：visited 去重 + 环检测，避免 A->B->A 死循环）"""
         prefix = "[依赖] " if is_dependency else ""
+        if _visited is None:
+            _visited = {plugin_id.lower()}
+        elif plugin_id.lower() in _visited:
+            self.task_manager.update_task(task_id,
+                                          message=f"插件 {plugin_id} 已在本任务中处理过，跳过以避免重复下载/循环依赖")
+            return
+        else:
+            _visited.add(plugin_id.lower())
         self.task_manager.update_task(task_id, message=f"{prefix}正在处理插件: {plugin_id}")
 
         meta = self.pim_helper.get_cata_meta(None, repo_url=repo_url)
@@ -444,44 +456,57 @@ class PluginInstaller:
 
         self.task_manager.update_task(task_id, message=f"{prefix}确定安装版本: {target_release.version}")
 
-        # 检查已安装版本
-        installed_meta = self.server.get_plugin_metadata(plugin_id)
+        # 计算目标文件路径（下载与旧文件清理共用）
+        plugin_dir = self.pim_helper.get_plugin_dir()
+        file_name = target_release.file_name or f"{plugin_id}.mcdr"
+        target_path = os.path.join(plugin_dir, file_name)
 
-        # 记录受影响的依赖插件，以便后续重新启用
+        # 检查本地已有副本（B6：不只看已加载插件，磁盘上 unloaded/disabled 的旧文件也要纳入更新判断）
+        installed_meta = self.server.get_plugin_metadata(plugin_id)
+        local_copies = self._find_local_plugin_files(plugin_id)
+
+        loaded_instance = self.server.get_plugin_instance(plugin_id)
+        loaded_path = str(getattr(loaded_instance, 'file_path', '')) if loaded_instance else ''
+
+        # 受影响的依赖插件（B4：记录卸载前的文件路径，更新后据此恢复加载）
         affected_plugins = []
 
         if installed_meta:
             current_ver = str(installed_meta.version)
-            if current_ver == target_release.version:
+            stale_copies = [c for c in local_copies if not loaded_path or c["path"] != loaded_path]
+            if current_ver == target_release.version and not stale_copies:
                 self.task_manager.update_task(task_id, message=f"{prefix}插件 {plugin_id} 已是最新版本 ({current_ver})")
                 return
             self.task_manager.update_task(task_id,
                                           message=f"{prefix}检测到旧版本: {current_ver} -> 目标版本: {target_release.version}")
 
-            # 查找依赖于此插件的其他插件
+            # 查找依赖于此插件的其他插件（仍在加载状态时记录其文件路径）
             for pid in self.server.get_plugin_list():
                 p_meta = self.server.get_plugin_metadata(pid)
                 if p_meta and plugin_id in p_meta.dependencies:
-                    affected_plugins.append(pid)
+                    p_inst = self.server.get_plugin_instance(pid)
+                    affected_plugins.append({
+                        "id": pid,
+                        "path": str(getattr(p_inst, 'file_path', '')) if p_inst else '',
+                    })
 
             if affected_plugins:
                 self.task_manager.update_task(task_id,
-                                              message=f"{prefix}发现受影响的依赖插件: {', '.join(affected_plugins)}，正在停止...")
-                for pid in affected_plugins:
-                    if self.server.unload_plugin(pid):
-                        self.task_manager.update_task(task_id, message=f"{prefix}已停止依赖插件: {pid}")
+                                              message=f"{prefix}发现受影响的依赖插件: {', '.join(a['id'] for a in affected_plugins)}，正在停止...")
+                for dep_info in affected_plugins:
+                    if self.server.unload_plugin(dep_info["id"]):
+                        self.task_manager.update_task(task_id, message=f"{prefix}已停止依赖插件: {dep_info['id']}")
 
-        # 卸载旧版本
-        if installed_meta:
+            # 卸载旧版本并标记删除（含磁盘同 id 残留副本；排除即将写入的目标文件，避免误删新文件）
             self.task_manager.update_task(task_id, message=f"{prefix}正在卸载旧版本 {plugin_id}...")
             if self.server.unload_plugin(plugin_id):
                 self.task_manager.update_task(task_id, message=f"{prefix}旧版本插件已卸载")
-            self.mark_for_deletion(plugin_id)
-
-        # 下载
-        plugin_dir = self.pim_helper.get_plugin_dir()
-        file_name = target_release.file_name or f"{plugin_id}.mcdr"
-        target_path = os.path.join(plugin_dir, file_name)
+            self.mark_for_deletion(plugin_id, exclude_path=target_path)
+        elif local_copies:
+            # B6: 插件未加载但磁盘上仍有同 id 文件（unloaded/disabled），更新时一并清理，避免同 id 双文件残留
+            self.task_manager.update_task(task_id,
+                                          message=f"{prefix}检测到磁盘上存在 {plugin_id} 的旧文件，将清理后安装新版本")
+            self.mark_for_deletion(plugin_id, exclude_path=target_path)
 
         download_url = target_release.browser_download_url
         if not download_url:
@@ -512,7 +537,7 @@ class PluginInstaller:
             for issue in dep_results['environment_issues']:
                 self.task_manager.update_task(task_id, message=f"⚠ 环境警告: {issue}")
 
-        # 递归安装缺失插件
+        # 递归安装缺失插件（B9：共享 visited 集合，去重并防循环依赖）
         missing = dep_results['missing_plugins']
         if missing:
             # 再次过滤，确保不会尝试安装核心环境
@@ -520,7 +545,7 @@ class PluginInstaller:
             if missing:
                 self.task_manager.update_task(task_id, message=f"{prefix}发现缺失前置插件: {', '.join(missing)}")
                 for dep_id in missing:
-                    self._install_logic(task_id, dep_id, None, None, is_dependency=True)
+                    self._install_logic(task_id, dep_id, None, None, is_dependency=True, _visited=_visited)
 
         # 更新的插件提示
         outdated = dep_results['outdated_plugins']
@@ -536,19 +561,19 @@ class PluginInstaller:
             self._cleanup_pending_files(plugin_id)
             self.task_manager.update_task(task_id, message=f"✓ {prefix}插件 {plugin_id} 加载成功")
 
-            # 重新加载受影响的依赖插件
+            # 重新加载受影响的依赖插件（B4：load_plugin 需要文件路径，用卸载前记录的路径恢复）
             if affected_plugins:
                 self.task_manager.update_task(task_id, message=f"{prefix}正在重新启用受影响的依赖插件...")
-                for pid in affected_plugins:
-                    # 获取插件路径以重新加载
-                    p_meta = self.server.get_plugin_metadata(pid)
-                    if p_meta:
-                        # 尝试通过 ID 加载，如果失败则尝试通过路径
-                        if self.server.load_plugin(pid):
-                            self.task_manager.update_task(task_id, message=f"{prefix}已重新启用依赖插件: {pid}")
-                        else:
-                            self.task_manager.update_task(task_id,
-                                                          message=f"⚠ {prefix}未能自动重新启用依赖插件: {pid}，请手动加载")
+                for dep_info in affected_plugins:
+                    dep_path = dep_info.get("path") or ""
+                    ok = False
+                    if dep_path and os.path.exists(dep_path):
+                        ok = self.server.load_plugin(dep_path)
+                    if ok:
+                        self.task_manager.update_task(task_id, message=f"{prefix}已重新启用依赖插件: {dep_info['id']}")
+                    else:
+                        self.task_manager.update_task(task_id,
+                                                      message=f"⚠ {prefix}未能自动重新启用依赖插件: {dep_info['id']}，请手动加载")
         else:
             if not is_dependency:
                 raise Exception(f"主插件 {plugin_id} 加载失败，请检查控制台日志")
@@ -557,34 +582,73 @@ class PluginInstaller:
                                               message=f"⚠ {prefix}插件 {plugin_id} 加载失败，可能会影响主插件运行")
 
     def _install_python_requirements(self, task_id: str, plugin_path: str, prefix: str = ""):
-        """安装插件包内的 Python 依赖"""
+        """安装插件包内的 Python 依赖（P4：全部已满足时跳过重复 pip install）"""
         if not zipfile.is_zipfile(plugin_path):
             return
 
         try:
             with zipfile.ZipFile(plugin_path, 'r') as z:
                 req_file = next((f for f in z.namelist() if f.endswith('requirements.txt')), None)
-                if req_file:
-                    self.task_manager.update_task(task_id,
-                                                  message=f"{prefix}发现 requirements.txt，准备安装 Python 依赖...")
-                    import tempfile
-                    with tempfile.NamedTemporaryFile(mode='wb', suffix='req.txt', delete=False) as tmp:
-                        tmp.write(z.read(req_file))
-                        tmp_path = tmp.name
+                if not req_file:
+                    return
+                req_content = z.read(req_file).decode('utf-8', errors='replace')
 
+            requirements = [line.split('#', 1)[0].strip() for line in req_content.splitlines()]
+            requirements = [r for r in requirements if r]
+            if not requirements:
+                return
+
+            # P4: 逐个静态判断 requirements 是否已满足；全部满足则直接跳过
+            unsatisfied_count = None
+            try:
+                import importlib.metadata
+                from packaging.requirements import Requirement
+
+                def _is_satisfied(req_text: str) -> bool:
+                    # 本地路径 / 可编辑 / 直接 URL / 环境标记等无法静态判断的条目一律视为未满足
+                    if req_text.startswith(('-', '.', 'http://', 'https://', 'git+', 'file:', '@')):
+                        return False
                     try:
-                        process = subprocess.run(
-                            [sys.executable, "-m", "pip", "install", "-r", tmp_path],
-                            capture_output=True, text=True, check=False
-                        )
-                        if process.returncode == 0:
-                            self.task_manager.update_task(task_id, message=f"{prefix}Python 依赖安装成功")
-                        else:
-                            self.task_manager.update_task(task_id,
-                                                          message=f"⚠ {prefix}Python 依赖安装可能存在问题: {process.stderr[:200]}...")
-                    finally:
-                        if os.path.exists(tmp_path):
-                            os.remove(tmp_path)
+                        req = Requirement(req_text)
+                    except Exception:
+                        return False
+                    if not req.name:
+                        return False
+                    try:
+                        installed_version = importlib.metadata.version(req.name)
+                    except Exception:
+                        return False
+                    return req.specifier.contains(installed_version, prereleases=True)
+
+                unsatisfied_count = sum(1 for r in requirements if not _is_satisfied(r))
+            except Exception as e:
+                self.task_manager.update_task(task_id, message=f"⚠ {prefix}校验 requirements 是否已满足失败: {e}")
+
+            if unsatisfied_count == 0:
+                self.task_manager.update_task(task_id, message=f"{prefix}Python 依赖均已满足，跳过重复安装")
+                return
+
+            detail = f"（{unsatisfied_count} 项未满足）" if unsatisfied_count is not None else ""
+            self.task_manager.update_task(task_id,
+                                          message=f"{prefix}发现 requirements.txt{detail}，准备安装 Python 依赖...")
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='wb', suffix='req.txt', delete=False) as tmp:
+                tmp.write(req_content.encode('utf-8'))
+                tmp_path = tmp.name
+
+            try:
+                process = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "-r", tmp_path],
+                    capture_output=True, text=True, check=False
+                )
+                if process.returncode == 0:
+                    self.task_manager.update_task(task_id, message=f"{prefix}Python 依赖安装成功")
+                else:
+                    self.task_manager.update_task(task_id,
+                                                  message=f"⚠ {prefix}Python 依赖安装可能存在问题: {process.stderr[:200]}...")
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
         except Exception as e:
             self.task_manager.update_task(task_id, message=f"⚠ {prefix}读取 requirements.txt 失败: {e}")
 
@@ -597,12 +661,26 @@ class PluginInstaller:
             self.logger.error(f"卸载失败: {e}", exc_info=True)
             self.task_manager.update_task(task_id, status='failed', message=f"卸载失败: {str(e)}", end_time=time.time())
 
-    def _uninstall_logic(self, task_id: str, plugin_id: str, is_dependency: bool = False):
-        """核心卸载逻辑，支持递归卸载依赖于此插件的其他插件"""
+    def _uninstall_logic(self, task_id: str, plugin_id: str, is_dependency: bool = False,
+                         _processed: Optional[set] = None):
+        """核心卸载逻辑，支持递归卸载依赖于此插件的其他插件（B11：含磁盘上 unloaded/disabled 的依赖插件）"""
+        plugin_id = str(plugin_id)
+        if _processed is None:
+            _processed = set()
+        key = plugin_id.lower()
+        if key in _processed:
+            self.task_manager.update_task(task_id, message=f"[联动卸载] 跳过已处理的插件: {plugin_id}")
+            return
+        _processed.add(key)
+
         prefix = "[联动卸载] " if is_dependency else ""
 
         # 1. 查找依赖于此插件的其他插件（联动卸载）
         # 必须在卸载当前插件之前完成，并且要先删除文件，防止 MCDR 自动重载
+        dependents: List[str] = []
+        seen_dependents = set()
+
+        # 1a. 已加载的插件
         all_plugins = self.server.get_plugin_list()
         for pid in all_plugins:
             p_meta = self.server.get_plugin_metadata(pid)
@@ -610,15 +688,25 @@ class PluginInstaller:
                 deps = getattr(p_meta, 'dependencies', {})
                 is_dep = False
                 if isinstance(deps, dict):
-                    is_dep = any(str(d).lower() == plugin_id.lower() for d in deps.keys())
+                    is_dep = any(str(d).lower() == key for d in deps.keys())
                 elif isinstance(deps, list):
-                    is_dep = any(str(d).lower() == plugin_id.lower() for d in deps)
+                    is_dep = any(str(d).lower() == key for d in deps)
 
-                if is_dep:
-                    self.task_manager.update_task(task_id,
-                                                  message=f"{prefix}发现依赖于 {plugin_id} 的插件: {pid}，正在卸载...")
-                    # 递归处理依赖插件
-                    self._uninstall_logic(task_id, pid, is_dependency=True)
+                if is_dep and pid.lower() not in seen_dependents:
+                    seen_dependents.add(pid.lower())
+                    dependents.append(pid)
+
+        # 1b. 磁盘上未加载/禁用的副本（B11：避免卸载后残留依赖文件，下次刷新即报依赖缺失）
+        for pid in self._find_local_dependents(plugin_id):
+            if pid.lower() not in seen_dependents:
+                seen_dependents.add(pid.lower())
+                dependents.append(pid)
+
+        for pid in dependents:
+            self.task_manager.update_task(task_id,
+                                          message=f"{prefix}发现依赖于 {plugin_id} 的插件: {pid}，正在卸载...")
+            # 递归处理依赖插件
+            self._uninstall_logic(task_id, pid, is_dependency=True, _processed=_processed)
 
         # 2. 处理当前插件
         self.task_manager.update_task(task_id, message=f"{prefix}正在处理卸载: {plugin_id}")
@@ -647,18 +735,91 @@ class PluginInstaller:
                 return r
         return None
 
-    def mark_for_deletion(self, plugin_id: str) -> Tuple[bool, List[str]]:
-        """标记插件文件待删除"""
+    # ------------------------------------------------------------------
+    # 本地插件文件扫描（B6/B11 共用）
+    # ------------------------------------------------------------------
+
+    def _scan_local_plugins(self) -> List[Dict[str, Any]]:
+        """扫描插件目录，返回本地插件文件/文件夹的元数据（含 unloaded / disabled / 文件夹插件）"""
+        results: List[Dict[str, Any]] = []
+        plugin_dir = self.pim_helper.get_plugin_dir()
+        if not plugin_dir or not os.path.isdir(plugin_dir):
+            return results
+
+        disabled_suffix = ".disabled"
+        for entry in os.scandir(plugin_dir):
+            name = entry.name
+            is_disabled = name.endswith(disabled_suffix)
+            base_name = name[:-len(disabled_suffix)] if is_disabled else name
+
+            candidate = False
+            if entry.is_dir():
+                # 文件夹插件 / 被禁用的文件夹插件
+                candidate = True
+            elif entry.is_file() and base_name.endswith((".mcdr", ".pyz", ".py")):
+                # 含禁用的单文件 .py（xxx.py.disabled）：extract_metadata 已能安全读取其元数据
+                candidate = True
+            if not candidate:
+                continue
+
+            path = entry.path
+            try:
+                meta = extract_metadata(path)
+            except Exception as e:
+                self.logger.debug(f"读取本地插件元数据失败: {path}, error: {e}")
+                meta = None
+            if not isinstance(meta, dict):
+                continue
+            plugin_id = meta.get("id")
+            if not plugin_id:
+                continue
+            results.append({
+                "id": str(plugin_id),
+                "version": str(meta.get("version") or ""),
+                "path": path,
+                "disabled": is_disabled,
+                "dependencies": meta.get("dependencies") or {},
+            })
+        return results
+
+    def _find_local_plugin_files(self, plugin_id: str) -> List[Dict[str, Any]]:
+        """按插件 id 查找磁盘上的本地副本（含 unloaded/disabled）"""
+        target = plugin_id.lower()
+        return [rec for rec in self._scan_local_plugins() if str(rec["id"]).lower() == target]
+
+    def _find_local_dependents(self, plugin_id: str) -> List[str]:
+        """查找磁盘上（含未加载/禁用）声明依赖目标插件的本地插件 id（B11）"""
+        target = plugin_id.lower()
+        result: List[str] = []
+        seen = set()
+        for rec in self._scan_local_plugins():
+            deps = rec.get("dependencies")
+            if not isinstance(deps, dict):
+                continue
+            if any(str(dep_id).lower() == target for dep_id in deps.keys()):
+                dep_plugin_id = str(rec["id"])
+                if dep_plugin_id.lower() not in seen:
+                    seen.add(dep_plugin_id.lower())
+                    result.append(dep_plugin_id)
+        return result
+
+    def mark_for_deletion(self, plugin_id: str, exclude_path: str = None) -> Tuple[bool, List[str]]:
+        """标记插件文件待删除（含已加载实例文件 + 磁盘上同 id 的 unloaded/disabled 副本，B6）"""
         pending = []
         plugin = self.server.get_plugin_instance(plugin_id)
         if plugin:
             path = getattr(plugin, 'file_path', None)
-            if path: pending.append(str(path))
+            if path:
+                pending.append(str(path))
 
-        local_plugins = self.pim_helper.get_local_plugins()
-        for path in local_plugins.get('unloaded', []):
-            if self.pim_helper.detect_unloaded_plugin_id(path) == plugin_id:
+        for rec in self._find_local_plugin_files(plugin_id):
+            path = rec["path"]
+            if path not in pending:
                 pending.append(path)
+
+        if exclude_path:
+            exclude_norm = os.path.normpath(os.path.abspath(str(exclude_path)))
+            pending = [p for p in pending if os.path.normpath(os.path.abspath(p)) != exclude_norm]
 
         if pending:
             self.PENDING_DELETE_FILES[plugin_id] = list(set(pending))
@@ -666,15 +827,21 @@ class PluginInstaller:
         return False, []
 
     def _cleanup_pending_files(self, plugin_id: str):
-        """执行实际的文件删除"""
-        if plugin_id in self.PENDING_DELETE_FILES:
-            for path in self.PENDING_DELETE_FILES[plugin_id]:
-                if os.path.exists(path):
-                    try:
-                        os.remove(path)
-                    except:
-                        self.force_delete_file(path)
-            del self.PENDING_DELETE_FILES[plugin_id]
+        """执行实际的文件删除（目录用 rmtree，删除失败时强制删除）"""
+        if plugin_id not in self.PENDING_DELETE_FILES:
+            return
+        for path in self.PENDING_DELETE_FILES[plugin_id]:
+            if not os.path.exists(path):
+                continue
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path, ignore_errors=True)
+                    if not os.path.exists(path):
+                        continue
+                os.remove(path)
+            except Exception:
+                self.force_delete_file(path)
+        del self.PENDING_DELETE_FILES[plugin_id]
 
     @staticmethod
     def force_delete_file(file_path: str) -> bool:

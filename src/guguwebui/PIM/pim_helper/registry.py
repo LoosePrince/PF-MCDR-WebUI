@@ -3,7 +3,9 @@ import json
 import logging
 import lzma
 import os
+import threading
 import time
+import uuid
 from typing import Dict, List, Optional
 
 import requests
@@ -12,6 +14,12 @@ from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL
 from guguwebui.utils.github_proxy import build_github_fallback_urls
 
 from .models import ExtendedVersionRequirement, PluginData, ReleaseData
+
+# 进程内目录元数据缓存（P1）：url -> {loaded_at, registry}，与磁盘缓存 TTL(2h) 对齐；
+# 同一进程内所有 RegistryManager 共享，避免每次请求都重新反序列化整份仓库 JSON
+_registry_mem_cache: Dict[str, Dict] = {}
+_registry_cache_locks: Dict[str, threading.Lock] = {}
+_registry_lock_guard = threading.Lock()
 
 
 class EmptyMetaRegistry:
@@ -182,24 +190,6 @@ class MetaRegistry:
     def get_plugins(self) -> Dict[str, PluginData]:
         return self.plugins
 
-    def filter_plugins(self, keyword: str = None) -> List[str]:
-        result = []
-        if not keyword:
-            return list(self.plugins.keys())
-
-        keyword = keyword.lower()
-        for plugin_id, plugin_data in self.plugins.items():
-            if keyword in plugin_id.lower():
-                result.append(plugin_id)
-            elif plugin_data.name and keyword in plugin_data.name.lower():
-                result.append(plugin_id)
-            elif plugin_data.description:
-                for desc in plugin_data.description.values():
-                    if desc and keyword in desc.lower():
-                        result.append(plugin_id)
-                        break
-        return result
-
 
 class RegistryManager:
     """元数据注册表管理器"""
@@ -233,59 +223,92 @@ class RegistryManager:
                     self.logger.error(f"下载元数据失败: {e}, URL: {candidate_url}")
         return None
 
+    def _get_url_lock(self, url: str) -> threading.Lock:
+        """同一 URL 的互斥锁（P1/P2：防止并发重复下载与重复解析）"""
+        with _registry_lock_guard:
+            if url not in _registry_cache_locks:
+                _registry_cache_locks[url] = threading.Lock()
+            return _registry_cache_locks[url]
+
     def get_meta(self, url: str, ignore_ttl: bool = False) -> MetaRegistry:
-        """获取元数据"""
+        """获取元数据（磁盘 TTL 2h + 进程内缓存 + 单仓库并发锁 + 原子写，P1/P2）"""
         if url == MCDR_OFFICIAL_CATALOGUE_URL:
             cache_file = os.path.join(self.cache_dir, "everything_slim.json")
         else:
             cache_name = hashlib.md5(url.encode()).hexdigest()
             cache_file = os.path.join(self.cache_dir, f"repo_{cache_name}.json")
 
-        cache_xz_file = cache_file + ".xz"
+        with self._get_url_lock(url):
+            return self._get_meta_locked(url, cache_file, ignore_ttl)
 
-        # 1. 检查失败冷却
+    def _get_meta_locked(self, url: str, cache_file: str, ignore_ttl: bool = False) -> MetaRegistry:
+        """get_meta 加锁后的实现，复用进程内缓存避免重复反序列化"""
         current_time = time.time()
+        mem_entry = _registry_mem_cache.get(url)
+
+        # 1. 进程内缓存命中（与磁盘 TTL 一致，2 小时）
+        if not ignore_ttl and mem_entry and current_time - mem_entry["loaded_at"] < 7200:
+            return mem_entry["registry"]
+
+        # 2. 检查失败冷却（15 分钟，连续失败 2 次后进入）
         if url in self._download_failure_cache:
             fail_info = self._download_failure_cache[url]
             if current_time - fail_info['failed_at'] < self._failure_cooldown and fail_info['attempt_count'] >= 2:
+                if mem_entry:
+                    return mem_entry["registry"]
                 if os.path.exists(cache_file):
-                    return self._load_from_file(cache_file, url)
+                    registry = self._load_from_file(cache_file, url)
+                    _registry_mem_cache[url] = {"loaded_at": current_time, "registry": registry}
+                    return registry
                 return EmptyMetaRegistry()
 
-        # 2. 检查缓存过期 (2小时)
+        # 3. 磁盘缓存 TTL (2小时)
         if not ignore_ttl and os.path.exists(cache_file):
             if current_time - os.path.getmtime(cache_file) < 7200:
-                return self._load_from_file(cache_file, url)
+                registry = self._load_from_file(cache_file, url)
+                _registry_mem_cache[url] = {"loaded_at": current_time, "registry": registry}
+                return registry
 
-        # 3. 下载新数据
+        # 4. 下载新数据（临时文件 + os.replace 原子写，避免写出一半的损坏缓存）
         try:
-            # 增加重试机制和更长的超时时间
             headers = {'User-Agent': 'MCDR-PIM-Registry/1.0'}
             response = self._get_with_fallback(url, timeout=10, headers=headers)
             if response and response.status_code == 200:
-                if url.endswith('.xz'):
-                    with open(cache_xz_file, 'wb') as f:
-                        f.write(response.content)
-                    with lzma.open(cache_xz_file, 'rb') as f_in:
-                        with open(cache_file, 'wb') as f_out:
-                            f_out.write(f_in.read())
-                    os.remove(cache_xz_file)
-                else:
-                    with open(cache_file, 'wb') as f:
-                        f.write(response.content)
-
+                self._write_cache_atomic(cache_file, response.content, url.endswith('.xz'))
                 if url in self._download_failure_cache:
                     del self._download_failure_cache[url]
-                return self._load_from_file(cache_file, url)
-            else:
-                self._record_failure(url)
+                registry = self._load_from_file(cache_file, url)
+                _registry_mem_cache[url] = {"loaded_at": time.time(), "registry": registry}
+                return registry
+            self._record_failure(url)
         except Exception as e:
             self.logger.error(f"下载元数据失败: {e}, URL: {url}")
             self._record_failure(url)
 
+        # 5. 下载失败回退到磁盘缓存（尽力而为）
         if os.path.exists(cache_file):
-            return self._load_from_file(cache_file, url)
+            registry = self._load_from_file(cache_file, url)
+            if not mem_entry:
+                _registry_mem_cache[url] = {"loaded_at": current_time, "registry": registry}
+            return registry
         return EmptyMetaRegistry()
+
+    @staticmethod
+    def _write_cache_atomic(cache_file: str, content: bytes, is_xz: bool) -> None:
+        """原子写缓存：先写临时文件再 os.replace；.xz 内容在内存解压后落盘 json"""
+        tmp_path = f"{cache_file}.tmp{uuid.uuid4().hex[:8]}"
+        try:
+            data = lzma.decompress(content) if is_xz else content
+            with open(tmp_path, 'wb') as f:
+                f.write(data)
+            os.replace(tmp_path, cache_file)
+        except Exception:
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            raise
 
     def _load_from_file(self, path: str, url: str) -> MetaRegistry:
         try:

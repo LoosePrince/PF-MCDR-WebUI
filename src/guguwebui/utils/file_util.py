@@ -1,7 +1,30 @@
 import json
 import os
+import re
 import zipfile
 from pathlib import Path
+
+
+def compare_versions(a, b):
+    """
+    语义化版本比较（B7）：a > b 返回 1，a == b 返回 0，a < b 返回 -1。
+    空字符串/非数字视为最低版本；避免 “1.10.0 < 1.9.0” 这类字典序误判。
+    """
+    def to_key(version):
+        if version is None:
+            version = ""
+        version = str(version).strip()
+        if not version:
+            return (0,)
+        numbers = tuple(int(x) for x in re.split(r"[^0-9]+", version) if x)
+        return (1, numbers)
+
+    ka, kb = to_key(a), to_key(b)
+    if ka > kb:
+        return 1
+    if ka < kb:
+        return -1
+    return 0
 
 
 def check_repository_cache(server):
@@ -124,22 +147,44 @@ def amount_static_files(server, static_path=None):
 
 
 def extract_metadata(plugin_path):
-    if os.path.isdir(plugin_path):
-        return extract_folder_plugin_metadata(plugin_path)
-    elif zipfile.is_zipfile(plugin_path):
-        return extract_zip_plugin_metadata(plugin_path)
-    elif os.path.isfile(plugin_path):
-        return extract_single_file_plugin_metadata(plugin_path)
-    else:
+    try:
+        if os.path.isdir(plugin_path):
+            return extract_folder_plugin_metadata(plugin_path)
+        elif zipfile.is_zipfile(plugin_path):
+            return extract_zip_plugin_metadata(plugin_path)
+        elif os.path.isfile(plugin_path):
+            return extract_single_file_plugin_metadata(plugin_path)
+    except Exception:
+        # 单个插件元数据解析失败不应拖垮整个插件列表接口
         return None
+    return None
 
 
 def extract_single_file_plugin_metadata(plugin_file_path):
     import importlib.util
-    module_name = os.path.basename(plugin_file_path).replace('.py', '')
-    spec = importlib.util.spec_from_file_location(module_name, plugin_file_path)
-    plugin_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(plugin_module)
+    import importlib.machinery
+    if not plugin_file_path or not os.path.isfile(plugin_file_path):
+        return None
+    basename = os.path.basename(plugin_file_path)
+    # 单文件 .py 插件及其禁用形态 xxx.py.disabled（MCDR 禁用后保留原名并追加后缀）都要解析元数据；
+    # 其他无法识别的文件（README、配置文件等）不当作 Python 模块执行
+    if basename.endswith('.py.disabled'):
+        module_name = basename[:-len('.py.disabled')]
+    elif basename.endswith('.py'):
+        module_name = basename[:-len('.py')]
+    else:
+        return None
+    # 显式指定 SourceFileLoader：.py.disabled 后缀无法被 spec_from_file_location 自动识别，
+    # 不指定 loader 时 spec 会返回 None 导致后续崩溃
+    loader = importlib.machinery.SourceFileLoader(module_name, plugin_file_path)
+    spec = importlib.util.spec_from_file_location(module_name, plugin_file_path, loader=loader)
+    if spec is None or spec.loader is None:
+        return None
+    try:
+        plugin_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(plugin_module)
+    except Exception:
+        return None
     metadata = getattr(plugin_module, 'PLUGIN_METADATA', None)
     return metadata if metadata else None
 

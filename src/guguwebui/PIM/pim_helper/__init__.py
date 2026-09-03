@@ -10,7 +10,7 @@ from mcdreforged.api.types import PluginServerInterface
 from guguwebui.constant import MCDR_OFFICIAL_CATALOGUE_URL
 
 from .installer import PluginInstaller
-from .models import PluginData, PluginRequirement, ReleaseData
+from .models import PluginData, ReleaseData
 from .registry import EmptyMetaRegistry, MetaRegistry, PluginCatalogueAccess, RegistryManager
 from .tasks import TaskManager
 

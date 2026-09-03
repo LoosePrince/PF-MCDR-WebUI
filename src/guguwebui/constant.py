@@ -35,6 +35,43 @@ PROJECT_GITHUB_URL = "https://github.com/PFingan-Code/PF-MCDR-WebUI"
 MCDR_SITE_URL = "https://mcdreforged.com"
 MCDR_PLUGINS_PAGE_URL = "https://mcdreforged.com/zh-CN/plugins"
 
+# 收敛“官方 + PF + 自定义仓库”的组装逻辑（R1），供 PIM / 在线插件接口复用
+def collect_repository_entries(config=None):
+    """返回仓库条目列表，每项: {url, name, is_official, is_loose}（去重，保序）"""
+    config = config or {}
+    entries = []
+    seen = set()
+
+    def _append(url, name=None, is_official=False, is_loose=False):
+        url = (url or "").strip()
+        if not url or url in seen:
+            return
+        seen.add(url)
+        entries.append({
+            "url": url,
+            "name": name,
+            "is_official": is_official,
+            "is_loose": is_loose,
+        })
+
+    official_url = str(config.get("mcdr_plugins_url") or MCDR_OFFICIAL_CATALOGUE_URL)
+    _append(official_url, None, is_official=True)
+    if PF_PLUGIN_CATALOGUE_URL:
+        _append(PF_PLUGIN_CATALOGUE_URL, None, is_loose=True)
+    for repo in (config.get("repositories") or []):
+        if isinstance(repo, dict) and isinstance(repo.get("url"), str):
+            name = repo.get("name")
+            if not isinstance(name, str) or not name.strip():
+                name = None
+            _append(repo["url"], name)
+    return entries
+
+
+def collect_repository_urls(config=None):
+    """仅返回仓库 URL 列表（顺序：官方、PF、自定义）"""
+    return [e["url"] for e in collect_repository_entries(config)]
+
+
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # token: {token : {expire_time, user_name}}

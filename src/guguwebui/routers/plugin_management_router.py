@@ -1,3 +1,4 @@
+import asyncio
 import mimetypes
 from pathlib import Path
 
@@ -73,8 +74,11 @@ async def api_toggle_plugin(
     admin: dict = Depends(get_current_admin),
 ):
     """切换插件状态（加载/卸载）"""
-    result = request.app.state.plugin_service.toggle_plugin(
-        request_body.plugin_id, request_body.status
+    # MCDR 插件操作（enable/disable/load/unload）会阻塞等待执行结果，需放到线程池，避免卡住事件循环
+    result = await asyncio.to_thread(
+        request.app.state.plugin_service.toggle_plugin,
+        request_body.plugin_id,
+        request_body.status,
     )
     if isinstance(result, dict) and result.get("status") == "success":
         verb = "启用" if request_body.status else "禁用"
@@ -94,7 +98,11 @@ async def api_reload_plugin(
     admin: dict = Depends(get_current_admin),
 ):
     """重载插件"""
-    result = request.app.state.plugin_service.reload_plugin(plugin_info.plugin_id)
+    # MCDR 插件操作（reload）会阻塞等待执行结果，需放到线程池，避免卡住事件循环
+    result = await asyncio.to_thread(
+        request.app.state.plugin_service.reload_plugin,
+        plugin_info.plugin_id,
+    )
     if isinstance(result, dict) and result.get("status") == "success":
         record_operation(
             admin,
