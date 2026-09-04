@@ -19,7 +19,7 @@ from fastapi import FastAPI
 from starlette.requests import Request
 
 from guguwebui.panel_merge.proxy import _route_requires_admin, \
-    _route_requires_admin_for_request
+    _route_requires_admin_for_request, iter_api_routes
 from guguwebui.panel_merge.routes import router as panel_merge_router
 from guguwebui.routers.audit_router import router as audit_router
 from guguwebui.routers.chat_router import router as chat_router
@@ -133,22 +133,20 @@ def test_previously_missing_admin_routes_are_detected():
 def test_full_route_table_matches_admin_metadata():
     """遍历真实路由表：lookup 结果必须与路由声明的 get_current_admin 完全一致。"""
     app = _build_app()
-    from fastapi.routing import APIRoute
 
     checked = 0
-    for route in app.routes:
-        if not isinstance(route, APIRoute) or not route.path.startswith("/api/"):
-            continue
+    for route, prefix in iter_api_routes(app):
         # 每个路由的所有方法逐一验证（排除含方法语义冲突的 HEAD/OPTIONS 扫描）
         methods = [m for m in route.methods if m in {"GET", "POST", "PUT", "PATCH", "DELETE"}]
         if not methods:
             continue
-        path = _concrete_path(route.path)
+        full_path = (prefix or "") + (route.path or "")
+        path = _concrete_path(full_path)
         expected = _route_requires_admin(route)
         for method in methods:
             got = _route_requires_admin_for_request(_make_request(app, method, path))
             assert got is expected, (
-                f"route mismatch {method} {route.path} (concrete {path}): "
+                f"route mismatch {method} {full_path} (concrete {path}): "
                 f"lookup={got}, route metadata={expected}"
             )
             checked += 1

@@ -60,6 +60,33 @@ def is_proxy_candidate_path(path: str) -> bool:
     return True
 
 
+def iter_api_routes(app) -> List[Tuple[Any, str]]:
+    """遍历 app 上经 include_router 挂载的全部 APIRoute，返回 [(route, prefix)]。
+
+    完整路径 = prefix + route.path。兼容两种 include_router 布局：
+    - 旧版 fastapi/starlette：include 时即把 APIRoute 平铺进 app.routes，
+      route.path 已含 /api 前缀，prefix 为空串；
+    - 新版（_IncludedRouter 惰性包含）：app.routes 里是包装对象，真正的
+      APIRoute 位于 original_router.routes，路径前缀记录在 include_context.prefix；
+      请求匹配时需先把 prefix 从 scope["path"] 中剥掉，再用底层 route 匹配。
+    路由级 prefix（如 APIRouter(prefix="/mods")）已烘焙进 route.path，无需处理。
+    """
+    from fastapi.routing import APIRoute
+
+    def _walk(holder, prefix: str):
+        for entry in getattr(holder, "routes", None) or []:
+            if isinstance(entry, APIRoute):
+                yield entry, prefix
+                continue
+            original = getattr(entry, "original_router", None)
+            context = getattr(entry, "include_context", None)
+            if original is not None and context is not None:
+                sub_prefix = (prefix or "") + (getattr(context, "prefix", "") or "")
+                yield from _walk(original, sub_prefix)
+
+    return list(_walk(app, ""))
+
+
 def _route_requires_admin(route: Any) -> bool:
     """判断单个 FastAPI 路由是否声明了 get_current_admin 依赖（由路由元数据驱动）。
 
@@ -94,7 +121,6 @@ def _route_requires_admin_for_request(request: Request) -> bool | None:
     - None：本地路由表无匹配（理论上仅出现在插件自注册等动态场景），调用方自行兜底。
     """
     try:
-        routes = request.app.routes
         from starlette.routing import Match
     except Exception:
         return None
@@ -105,9 +131,18 @@ def _route_requires_admin_for_request(request: Request) -> bool | None:
         "headers": [],
         "query_string": b"",
     }
-    for route in routes:
+    path = request.url.path
+    for route, prefix in iter_api_routes(request.app):
+        # 惰性包含布局下 route.path 不含 include 前缀，需先剥掉前缀再匹配
+        rel_path = path
+        if prefix:
+            if not path.startswith(prefix):
+                continue
+            rel_path = path[len(prefix):]
+        sub_scope = dict(scope)
+        sub_scope["path"] = rel_path
         try:
-            match = route.matches(scope)
+            match = route.matches(sub_scope)
         except Exception:
             continue
         if match and match[0] == Match.FULL:

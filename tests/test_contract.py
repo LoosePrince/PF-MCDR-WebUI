@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from guguwebui.panel_merge.routes import router as panel_merge_router
@@ -60,10 +59,10 @@ def _build_app() -> FastAPI:
 
 
 def _model_for(app: FastAPI, method: str, path: str):
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
-        if route.path != path:
+    from guguwebui.panel_merge.proxy import iter_api_routes
+
+    for route, prefix in iter_api_routes(app):
+        if (prefix or "") + (route.path or "") != path:
             continue
         if method.upper() not in route.methods:
             continue

@@ -11,13 +11,13 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
 
 from guguwebui.panel_merge.proxy import (
     LOCAL_ONLY_LEGACY_PATHS,
     LOCAL_ONLY_PATHS,
     LOCAL_ONLY_PREFIXES,
     is_proxy_candidate_path,
+    iter_api_routes,
 )
 from guguwebui.panel_merge.routes import router as panel_merge_router
 from guguwebui.routers.audit_router import router as audit_router
@@ -64,17 +64,20 @@ def _is_listed_local(path: str) -> bool:
     )
 
 
+def _full_path(route, prefix: str) -> str:
+    return (prefix or "") + (route.path or "")
+
+
 def test_proxy_list_matches_route_table():
     """全量路由表扫描：is_proxy_candidate_path 与清单判定完全一致。"""
     app = _build_app()
     checked = 0
-    for route in app.routes:
-        if not isinstance(route, APIRoute) or not route.path.startswith("/api/"):
-            continue
-        expected = not _is_listed_local(route.path)
-        got = is_proxy_candidate_path(route.path)
+    for route, prefix in iter_api_routes(app):
+        path = _full_path(route, prefix)
+        expected = not _is_listed_local(path)
+        got = is_proxy_candidate_path(path)
         assert got is expected, (
-            f"route {route.path} got proxy_candidate={got}, list says {expected}"
+            f"route {path} got proxy_candidate={got}, list says {expected}"
         )
         checked += 1
     assert checked > 60, f"expected a broad route sweep, only checked {checked}"
@@ -112,7 +115,7 @@ def test_proxyable_paths_still_proxied():
 def test_local_only_paths_refer_to_real_routes():
     """清单中的路径必须在真实路由表中存在（防打字/已下线残留），遗留路径除外。"""
     app = _build_app()
-    registered = {r.path for r in app.routes if hasattr(r, "path")}
+    registered = {_full_path(route, prefix) for route, prefix in iter_api_routes(app)}
     # web_server 本地端点（login/logout/auth/me）不在 routers 应用内，跳过它们
     web_server_local = {"/api/login", "/api/login/qq_qr/start", "/api/login/qq_qr/status", "/api/logout", "/api/auth/me"}
     for path in LOCAL_ONLY_PATHS:
