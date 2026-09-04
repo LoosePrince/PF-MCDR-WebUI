@@ -3,22 +3,8 @@ import { ClipboardList, RotateCw, X } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TableRowSkeleton } from '../components/Skeleton'
-import api, { isCancel } from '../utils/api'
-
-interface AuditAccount {
-  username?: string | null
-  nickname?: string | null
-  auth_via?: string | null
-}
-
-interface AuditRecord {
-  id?: string
-  ts?: number
-  operation_type?: string
-  summary?: string
-  detail?: unknown
-  account?: AuditAccount | null
-}
+import api, { isCancel, unwrapData } from '../utils/api'
+import type { AuditAccount, AuditRecord } from '../types/api'
 
 function formatAccount(a: AuditAccount | null | undefined, t: (k: string) => string): string {
   if (!a) return '—'
@@ -50,13 +36,14 @@ const OperationLogs: React.FC = () => {
       else setLoading(true)
       setError(null)
       try {
-        const { data } = await api.get('/audit_logs', {
+        const resp = await api.get('/audit_logs', {
           params: { offset: startOffset, limit },
           signal,
         })
-        if (data.status === 'success' && Array.isArray(data.records)) {
+        const data = unwrapData<{ items?: AuditRecord[]; total?: number }>(resp, {})
+        if (data.items !== undefined) {
+          const rows = data.items ?? []
           setTotal(typeof data.total === 'number' ? data.total : 0)
-          const rows = data.records as AuditRecord[]
           if (append) {
             setRecords((prev) => [...prev, ...rows])
           } else {

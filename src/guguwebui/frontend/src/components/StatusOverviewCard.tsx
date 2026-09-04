@@ -1,7 +1,7 @@
 import { Activity, ChevronRight } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import api, { isCancel } from '../utils/api'
+import api, { isCancel, unwrapData } from '../utils/api'
 import { formatBytes, formatMspt, formatPercent, formatSpeed, formatTps } from '../utils/format'
 import type { Overview } from './ServerStatusDetail'
 import { MiniStatSkeleton } from './Skeleton'
@@ -33,9 +33,10 @@ const StatusOverviewCard: React.FC<StatusOverviewCardProps> = ({ onOpenDetail })
     const ac = new AbortController()
     const fetchOverview = async () => {
       try {
-        const { data } = await api.get('/monitor/overview', { signal: ac.signal })
+        const resp = await api.get('/monitor/overview', { signal: ac.signal })
+        const data = unwrapData<Overview | null>(resp, null)
         if (data && typeof data.online === 'boolean') {
-          setOverview(data as Overview)
+          setOverview(data)
         }
       } catch (e: unknown) {
         const err = e as { name?: string; code?: string }

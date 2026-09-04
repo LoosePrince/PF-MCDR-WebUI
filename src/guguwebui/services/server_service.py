@@ -45,12 +45,8 @@ class ServerService:
         )
 
         result = {
-            "status": server_status,
-            "version": (
-                f"Version: {server_message.get('server_version', '')}"
-                if server_message.get("server_version")
-                else ""
-            ),
+            "online": server_status == "online",
+            "version": server_message.get("server_version", "") or "",
             "players": player_string,
         }
         api_cache.set(cache_key, result, ttl=5.0)
@@ -72,18 +68,47 @@ class ServerService:
             }
         return {"status": "error", "message": "Invalid action"}
 
-    def get_logs(self, max_lines: int = 100):
+    def get_logs(self, cursor: int = 0, max_lines: int = 100):
+        """获取日志（REST 统一入口，替代 /server_logs + /new_logs）。
+
+        cursor == 0：返回最新的 max_lines 行（尾部快照，首次进入终端用）；
+        cursor > 0：返回 counter 大于 cursor 的新日志（增量轮询用）。
+        返回统一结构 {logs, total_lines, next_cursor, new_logs_count}。
+        """
         if not self.log_watcher:
-            return None
+            return {
+                "logs": [],
+                "total_lines": 0,
+                "next_cursor": cursor,
+                "new_logs_count": 0,
+            }
 
         # 限制最大返回行数
         if max_lines > 500:
             max_lines = 500
 
-        result = self.log_watcher.get_merged_logs(max_lines)
+        if cursor and cursor > 0:
+            result = self.log_watcher.get_logs_since_counter(cursor, max_lines)
+            return {
+                "logs": self._format_log_entries(result["logs"]),
+                "total_lines": result["total_lines"],
+                "next_cursor": result["last_counter"],
+                "new_logs_count": result["new_logs_count"],
+            }
 
+        result = self.log_watcher.get_merged_logs(max_lines)
+        formatted_logs = self._format_log_entries(result["logs"])
+        return {
+            "logs": formatted_logs,
+            "total_lines": result["total_lines"],
+            "next_cursor": formatted_logs[-1]["counter"] if formatted_logs else 0,
+            "new_logs_count": len(formatted_logs),
+        }
+
+    @staticmethod
+    def _format_log_entries(entries):
         formatted_logs = []
-        for log in result["logs"]:
+        for log in entries:
             formatted_logs.append(
                 {
                     "line_number": log["line_number"],
@@ -92,22 +117,7 @@ class ServerService:
                     "counter": log.get("counter", 0),
                 }
             )
-
-        return {
-            "logs": formatted_logs,
-            "total_lines": result["total_lines"],
-            "current_start": result["start_line"],
-            "current_end": result["end_line"],
-        }
-
-    def get_new_logs(self, last_counter: int = 0, max_lines: int = 100):
-        if not self.log_watcher:
-            return None
-
-        if max_lines > 200:
-            max_lines = 200
-
-        return self.log_watcher.get_logs_since_counter(last_counter, max_lines)
+        return formatted_logs
 
     async def get_rcon_status(self):
         cache_key = "rcon_status"
@@ -147,7 +157,6 @@ class ServerService:
                 rcon_info["error"] = str(e)
 
         result = {
-            "status": "success",
             "rcon_enabled": rcon_enabled,
             "rcon_connected": rcon_connected,
             "rcon_info": rcon_info,

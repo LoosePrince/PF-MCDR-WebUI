@@ -2,7 +2,7 @@ import { AlertCircle, Loader2, Puzzle } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import api from '../utils/api';
+import api, { unwrapData } from '../utils/api';
 
 function getErrorMessage(err: unknown): string | null {
   if (!err || typeof err !== 'object') return null
@@ -65,9 +65,9 @@ const PluginPage: React.FC = () => {
       setError(null);
       try {
         // 先获取注册的页面信息
-        const pagesResp = await api.get('/plugins/web_pages');
-        const pages = pagesResp.data.pages || [];
-        const pageInfo = (pages as Array<{ id?: unknown; path?: unknown; name?: unknown }>).find((p) => p.id === pluginId);
+        const pagesResp = await api.get('/plugins/web-pages');
+        const pages = unwrapData<{ pages?: Array<{ id?: unknown; path?: unknown; name?: unknown }> }>(pagesResp, {}).pages || [];
+        const pageInfo = pages.find((p) => p.id === pluginId);
 
         if (!pageInfo) {
           setError(t('plugins.msg.page_not_found'));
@@ -78,9 +78,12 @@ const PluginPage: React.FC = () => {
         setDisplayName(String((pageInfo as { name?: unknown }).name || pluginId));
 
         // 加载 HTML 内容
-        const resp = await api.get(`/load_config?path=${encodeURIComponent(String(pageInfo.path || ''))}&type=auto`);
-        if (resp.data && resp.data.type === 'html') {
-          setHtmlContent(resp.data.content);
+        const resp = await api.get('/config-files', {
+          params: { path: String(pageInfo.path || ''), type: 'auto' }
+        });
+        const doc = unwrapData<{ type?: string; content?: string }>(resp, {});
+        if (doc && doc.type === 'html') {
+          setHtmlContent(doc.content || '');
         } else {
           setError(t('plugins.msg.load_page_failed'));
         }

@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { NiceSelect } from '../components/NiceSelect'
 import { SettingsCardSkeleton, Skeleton } from '../components/Skeleton'
 import { useAuth } from '../hooks/useAuth'
-import api, { getTargetServerId, isCancel } from '../utils/api'
+import api, { getTargetServerId, isCancel, unwrapData } from '../utils/api'
 
 interface Repository {
   name: string
@@ -119,7 +119,7 @@ const Settings: React.FC = () => {
       return 'quick'
     }
   })
-  const [pairingEnabledUntil, setPairingEnabledUntil] = useState<string | null>(null)
+  const [pairingEnabledUntil, setPairingEnabledUntil] = useState<number | null>(null)
   const [pairingPending, setPairingPending] = useState<Array<{ request_id: string; ip: string; master_name?: string; created_at?: string }>>([])
   const [connectId, setConnectId] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
@@ -147,8 +147,8 @@ const Settings: React.FC = () => {
 
   const fetchConfig = useCallback(async (signal?: AbortSignal) => {
     try {
-      const { data } = await api.get('/get_web_config', { signal })
-      setConfig(data)
+      const resp = await api.get('/web-config', { signal })
+      setConfig(unwrapData<WebConfig | null>(resp, null))
     } catch (error: unknown) {
       // 忽略取消的请求错误
       const meta = getErrorMeta(error)
@@ -165,15 +165,20 @@ const Settings: React.FC = () => {
   const fetchPanelMergeConfig = useCallback(async (signal?: AbortSignal) => {
     setPanelMergeLoading(true)
     try {
-      const { data } = await api.get('/panel_merge_config', {
+      const resp = await api.get('/panel_merge_config', {
         signal,
         headers: { 'X-Target-Server': 'local' }
       })
-      if (data?.status === 'success') {
+      const d = unwrapData<{
+        panel_role?: 'master' | 'slave'
+        panel_slaves?: PanelSlave[]
+        panel_master?: PanelMasterConfig
+      } | null>(resp, null)
+      if (d) {
         setPanelMergeConfig({
-          panel_role: (data.panel_role || 'master') as 'master' | 'slave',
-          panel_slaves: Array.isArray(data.panel_slaves) ? data.panel_slaves : [],
-          panel_master: data.panel_master || { allowed_tokens: [], allowed_master_ips: [] }
+          panel_role: (d.panel_role || 'master') as 'master' | 'slave',
+          panel_slaves: Array.isArray(d.panel_slaves) ? d.panel_slaves : [],
+          panel_master: d.panel_master || { allowed_tokens: [], allowed_master_ips: [] }
         })
         setPanelMergeDirty(false)
       }
@@ -192,10 +197,10 @@ const Settings: React.FC = () => {
     ) => {
       setPanelMergeLoading(true)
       try {
-        const resp = await api.post('/panel_merge_config', next, {
+        const resp = await api.put('/panel_merge_config', next, {
           headers: { 'X-Target-Server': 'local' }
         })
-        const d = resp.data
+        const d = resp.data as { status?: string; message?: string } | undefined
         if (d?.status === 'success') {
           setPanelMergeConfig(next)
           setPanelMergeDirty(false)
@@ -223,12 +228,13 @@ const Settings: React.FC = () => {
 
   const fetchPairingPending = useCallback(async (signal?: AbortSignal) => {
     try {
-      const { data } = await api.get('/pairing/pending', {
+      const resp = await api.get('/pairing/pending', {
         signal,
         headers: { 'X-Target-Server': 'local' }
       })
-      if (data?.status === 'success') {
-        setPairingPending(Array.isArray(data.pending) ? data.pending : [])
+      const d = unwrapData<{ pending?: Array<{ request_id: string; ip: string; master_name?: string }> } | null>(resp, null)
+      if (d && Array.isArray(d.pending)) {
+        setPairingPending(d.pending)
       }
     } catch (error: unknown) {
       const meta = getErrorMeta(error)
@@ -238,12 +244,13 @@ const Settings: React.FC = () => {
 
   const fetchPimStatus = useCallback(async (signal?: AbortSignal) => {
     try {
-      const { data } = await api.get('/check_pim_status', { signal })
-      if (data.status === 'success') {
-        setPimStatus(data.pim_status)
+      const resp = await api.get('/pim/status', { signal })
+      const data = unwrapData<{ pim_status?: string; message?: string } | null>(resp, null)
+      if (data && data.pim_status) {
+        setPimStatus(data.pim_status as 'installed' | 'not_installed' | 'installing' | 'loading')
       } else {
         setPimStatus('not_installed')
-        console.error('Failed to fetch PIM status:', data.message)
+        console.error('Failed to fetch PIM status:', data?.message)
       }
     } catch (error: unknown) {
       // 忽略取消的请求错误
@@ -260,8 +267,9 @@ const Settings: React.FC = () => {
     if (!isSuperAdmin) return
     setModSettingsLoading(true)
     try {
-      const { data } = await api.get('/mods/settings', { signal })
-      const value = Number(data?.upload_max_mib)
+      const resp = await api.get('/mods/settings', { signal })
+      const d = unwrapData<{ upload_max_mib?: number } | null>(resp, null)
+      const value = Number(d?.upload_max_mib)
       if (Number.isInteger(value) && value >= 1 && value <= 4096) setModUploadMaxMiB(value)
     } catch (error: unknown) {
       const meta = getErrorMeta(error)
@@ -310,7 +318,8 @@ const Settings: React.FC = () => {
           params: { connect_id: connectId },
           headers: { 'X-Target-Server': 'local' }
         })
-        if (resp.data?.status === 'accepted') {
+        const st = unwrapData<{ phase?: string } | null>(resp, null)
+        if (st?.phase === 'accepted') {
           window.clearInterval(timer)
           connectStartedAtRef.current = null
           showNotification(t('page.settings.multi_server.connected'), 'success')
@@ -325,7 +334,7 @@ const Settings: React.FC = () => {
           }
           return
         }
-        if (resp.data?.status === 'denied') {
+        if (st?.phase === 'denied') {
           window.clearInterval(timer)
           connectStartedAtRef.current = null
           showNotification(t('page.settings.multi_server.denied'), 'error')
@@ -365,8 +374,8 @@ const Settings: React.FC = () => {
 
   // 子服：pairingEnabledUntil 到期后自动清理显示
   useEffect(() => {
-    if (!pairingEnabledUntil) return
-    const expiresAtMs = Date.parse(pairingEnabledUntil)
+    if (pairingEnabledUntil == null) return
+    const expiresAtMs = pairingEnabledUntil * 1000
     if (!Number.isFinite(expiresAtMs)) return
 
     const timer = window.setTimeout(() => {
@@ -379,8 +388,7 @@ const Settings: React.FC = () => {
   const handleSave = async (action: string, data: Record<string, unknown>) => {
     setSaving(action)
     try {
-      const payload = { action, ...data }
-      const { data: resp } = await api.post('/save_web_config', payload)
+      const { data: resp } = await api.put('/web-config', data)
       if (resp.status === 'success') {
         showNotification(resp.message || t('common.save_success'), 'success')
         fetchConfig()
@@ -397,11 +405,16 @@ const Settings: React.FC = () => {
   }
 
   const toggleSetting = async (key: 'disable_admin_login_web' | 'enable_temp_login_password') => {
+    if (!config) return
     setSaving(key)
     try {
-      const { data: resp } = await api.post('/save_web_config', { action: key })
+      const next = !config[key]
+      const { data: resp } = await api.put('/web-config', { [key]: next })
       if (resp.status === 'success') {
-        showNotification(resp.message ? t('page.settings.msg.toggle_enabled') : t('page.settings.msg.toggle_disabled'), 'success')
+        showNotification(
+          next ? t('page.settings.msg.toggle_enabled') : t('page.settings.msg.toggle_disabled'),
+          'success'
+        )
         fetchConfig()
       } else {
         showNotification(t('page.settings.msg.toggle_failed_prefix') + resp.message, 'error')
@@ -490,14 +503,10 @@ const Settings: React.FC = () => {
   const installPim = async () => {
     setPimStatus('installing')
     try {
-      const { data } = await api.get('/install_pim_plugin')
-      if (data.status === 'success') {
-        showNotification(t('page.settings.msg.pim_install_success'), 'success')
-        setPimStatus('installed')
-      } else {
-        showNotification(t('page.settings.msg.pim_install_failed_prefix') + (data.message || ''), 'error')
-        setPimStatus('not_installed')
-      }
+      const resp = await api.post('/pim/bootstrap')
+      const body = resp.data as { message?: string } | undefined
+      showNotification(t('page.settings.msg.pim_install_success') + (body?.message ? `: ${body.message}` : ''), 'success')
+      setPimStatus('installed')
     } catch (error: unknown) {
       const meta = getErrorMeta(error)
       showNotification(t('page.settings.msg.pim_install_error_prefix') + (meta.message || ''), 'error')
@@ -512,12 +521,13 @@ const Settings: React.FC = () => {
     }
     setModSettingsSaving(true)
     try {
-      const { data } = await api.put('/mods/settings', { upload_max_mib: modUploadMaxMiB })
-      if (data?.status === 'success') {
-        setModUploadMaxMiB(Number(data.upload_max_mib))
+      const resp = await api.put('/mods/settings', { upload_max_mib: modUploadMaxMiB })
+      const d = unwrapData<{ upload_max_mib?: number } | null>(resp, null)
+      if (d && typeof d.upload_max_mib === 'number') {
+        setModUploadMaxMiB(d.upload_max_mib)
         showNotification(t('page.settings.mod_upload.saved'), 'success')
       } else {
-        showNotification(data?.message || t('page.settings.mod_upload.save_failed'), 'error')
+        showNotification((resp.data as { message?: string } | undefined)?.message || t('page.settings.mod_upload.save_failed'), 'error')
       }
     } catch (error: unknown) {
       const meta = getErrorMeta(error)
@@ -685,11 +695,12 @@ const Settings: React.FC = () => {
                               { slave_name: newSlave.name.trim(), base_url: newSlave.base_url.trim() },
                               { headers: { 'X-Target-Server': 'local' } }
                             )
-                            if (resp.data?.status === 'pending') {
-                              setConnectId(resp.data.connect_id)
+                            const p = unwrapData<{ phase?: string; connect_id?: string } | null>(resp, null)
+                            if (p?.phase === 'pending' && p.connect_id) {
+                              setConnectId(p.connect_id)
                               showNotification(t('page.settings.multi_server.connect_pending'), 'success')
                             } else {
-                              showNotification(resp.data?.message || t('page.settings.msg.save_failed_prefix'), 'error')
+                              showNotification((resp.data as { message?: string } | undefined)?.message || t('page.settings.msg.save_failed_prefix'), 'error')
                             }
                           } catch (error: unknown) {
                             const meta = getErrorMeta(error)
@@ -717,7 +728,8 @@ const Settings: React.FC = () => {
                                 params: { connect_id: connectId },
                                 headers: { 'X-Target-Server': 'local' }
                               })
-                              if (resp.data?.status === 'accepted') {
+                              const st = unwrapData<{ phase?: string } | null>(resp, null)
+                              if (st?.phase === 'accepted') {
                                 showNotification(t('page.settings.multi_server.connected'), 'success')
                                 setConnectId(null)
                                 setNewSlave({ id: '', name: '', base_url: '', token: '', enabled: true, verify_tls: true })
@@ -728,7 +740,7 @@ const Settings: React.FC = () => {
                                 } catch {
                                   // ignore
                                 }
-                              } else if (resp.data?.status === 'denied') {
+                              } else if (st?.phase === 'denied') {
                                 showNotification(t('page.settings.multi_server.denied'), 'error')
                                 setConnectId(null)
                               }
@@ -808,8 +820,9 @@ const Settings: React.FC = () => {
                             return
                           }
                           const resp = await api.post('/pairing/enable', {}, { headers: { 'X-Target-Server': 'local' } })
-                          if (resp.data?.status === 'success') {
-                            setPairingEnabledUntil(resp.data.expires_at)
+                          const p = unwrapData<{ expires_at?: number } | null>(resp, null)
+                          if (p && typeof p.expires_at === 'number') {
+                            setPairingEnabledUntil(p.expires_at)
                             showNotification(t('page.settings.multi_server.accept_enabled'), 'success')
                           }
                         } catch {
@@ -824,7 +837,7 @@ const Settings: React.FC = () => {
                     </button>
                     {pairingEnabledUntil && pairingPending.length === 0 && (
                       <span className="text-xs text-slate-500">
-                        {t('page.settings.multi_server.enabled_until')}{pairingEnabledUntil}
+                        {t('page.settings.multi_server.enabled_until')}{new Date(pairingEnabledUntil * 1000).toLocaleString()}
                       </span>
                     )}
                     <button
@@ -1984,7 +1997,7 @@ const Settings: React.FC = () => {
                 <button
                   onClick={async () => {
                     if (confirm(t('page.settings.public_chat.history.clear') + '?')) {
-                      await api.post('/chat/clear_messages')
+                      await api.delete('/chat/messages')
                       fetchConfig()
                     }
                   }}

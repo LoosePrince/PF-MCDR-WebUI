@@ -18,20 +18,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import VersionFooter from '../components/VersionFooter'
 import { MessageLineSkeleton } from '../components/Skeleton'
-import api from '../utils/api'
+import api, { unwrapData } from '../utils/api'
 import { parseRText } from '../utils/rtextParser'
-
-interface ChatMessage {
-  id: number
-  player_id: string
-  uuid?: string
-  message: string
-  timestamp: number
-  is_plugin: boolean
-  is_rtext: boolean
-  rtext_data?: unknown
-  message_source: string
-}
+import type { ChatMessage, ChatOnlineStatus } from '../types/api'
 
 interface ServerStatus {
   status: string
@@ -39,11 +28,7 @@ interface ServerStatus {
   players: string
 }
 
-interface OnlineStatus {
-  web: string[]
-  game: string[]
-  bot: string[]
-}
+type OnlineStatus = ChatOnlineStatus
 
 interface OfflineMember {
   lastSeen: number
@@ -71,6 +56,8 @@ const PlayerChat: React.FC = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [authError, setAuthError] = useState('')
   const [copyFeedback, setCopyFeedback] = useState('')
+  // 验证码绑定玩家（check_verification 成功后保存，供 set_password 路径使用）
+  const [verifiedPlayerId, setVerifiedPlayerId] = useState('')
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -143,11 +130,12 @@ const PlayerChat: React.FC = () => {
       if (!sessionId) return
 
       try {
-        const resp = await api.post('/chat/check_session', { session_id: sessionId })
-        if (resp.data.status === 'success' && resp.data.valid) {
+        const resp = await api.get(`/chat/session/${encodeURIComponent(sessionId)}`)
+        const d = unwrapData<{ valid?: boolean; player_id?: string; uuid?: string }>(resp)
+        if (d?.valid) {
           setIsLoggedIn(true)
-          setCurrentPlayer(resp.data.player_id)
-          setCurrentPlayerUuid(resp.data.uuid || '')
+          setCurrentPlayer(d.player_id || '')
+          setCurrentPlayerUuid(d.uuid || '')
           fetchInitialMessages()
         } else {
           localStorage.removeItem('chat_session_id')
@@ -169,12 +157,11 @@ const PlayerChat: React.FC = () => {
   const fetchInitialMessages = useCallback(async () => {
     setIsLoadingMessages(true)
     try {
-      const resp = await api.post('/chat/get_messages', { limit: 50, offset: 0 })
-      if (resp.data.status === 'success') {
-        const msgs = resp.data.messages || []
-        setChatMessages(msgs)
-        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
-      }
+      const resp = await api.get('/chat/messages', { params: { limit: 50, offset: 0 } })
+      const d = unwrapData<{ items?: ChatMessage[] }>(resp)
+      const msgs = d?.items || []
+      setChatMessages(msgs)
+      setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
     } catch (e) {
       console.error('Failed to load messages', e)
     } finally {
@@ -190,22 +177,20 @@ const PlayerChat: React.FC = () => {
     const currentMaxId = chatMessagesRef.current.length > 0 ? Math.max(...chatMessagesRef.current.map(m => m.id)) : 0
 
     try {
-      const resp = await api.post('/chat/get_new_messages', {
-        after_id: currentMaxId,
-        player_id: currentPlayer
+      const resp = await api.get('/chat/messages/incremental', {
+        params: { after_id: currentMaxId, player_id: currentPlayer }
       })
-      if (resp.data.status === 'success') {
-        if (resp.data.messages && resp.data.messages.length > 0) {
-          setChatMessages(prev => [...resp.data.messages, ...prev])
-        }
-        if (resp.data.online) {
-          setOnlineStatus({
-            web: resp.data.online.web || [],
-            game: resp.data.online.game || [],
-            bot: resp.data.online.bot || []
-          })
-          updateOfflineMembers(resp.data.online)
-        }
+      const d = unwrapData<{ messages?: ChatMessage[]; online?: OnlineStatus }>(resp)
+      if (d?.messages && d.messages.length > 0) {
+        setChatMessages(prev => [...d.messages!, ...prev])
+      }
+      if (d?.online) {
+        setOnlineStatus({
+          web: d.online.web || [],
+          game: d.online.game || [],
+          bot: d.online.bot || []
+        })
+        updateOfflineMembers(d.online)
       }
     } catch (e) {
       console.error('Failed to load new messages', e)
@@ -219,12 +204,13 @@ const PlayerChat: React.FC = () => {
     statusFetchingRef.current = true
     try {
       const sessionId = localStorage.getItem('chat_session_id') || ''
-      const url = sessionId ? `/get_server_status?session_id=${encodeURIComponent(sessionId)}` : '/get_server_status'
+      const url = sessionId ? `/server/status?session_id=${encodeURIComponent(sessionId)}` : '/server/status'
       const resp = await api.get(url)
+      const st = unwrapData<{ online?: boolean; version?: string; players?: string }>(resp)
       setServerStatus({
-        status: resp.data.status || 'unknown',
-        version: resp.data.version || '',
-        players: resp.data.players || '0/0'
+        status: st?.online ? 'online' : 'unknown',
+        version: st?.version || '',
+        players: st?.players || '0/0'
       })
     } catch (e) {
       // ignore status polling error
@@ -284,12 +270,11 @@ const PlayerChat: React.FC = () => {
     if (isLoadingMessages) return
     setIsLoadingMessages(true)
     try {
-      const resp = await api.post('/chat/get_messages', { limit, before_id: beforeId })
-      if (resp.data.status === 'success') {
-        const msgs = resp.data.messages || []
-        setChatMessages(prev => [...prev, ...msgs])
-        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
-      }
+      const resp = await api.get('/chat/messages', { params: { limit, before_id: beforeId } })
+      const d = unwrapData<{ items?: ChatMessage[] }>(resp)
+      const msgs = d?.items || []
+      setChatMessages(prev => [...prev, ...msgs])
+      setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
     } catch (e) {
       console.error('Failed to load historical messages', e)
     } finally {
@@ -333,12 +318,13 @@ const PlayerChat: React.FC = () => {
     setIsGenerating(true)
     setAuthError('')
     try {
-      const resp = await api.post('/chat/generate_code')
-      if (resp.data.status === 'success') {
-        setVerificationCode(resp.data.code)
+      const resp = await api.post('/chat/verifications')
+      const d = unwrapData<{ code?: string; message?: string }>(resp)
+      if (d?.code) {
+        setVerificationCode(d.code)
         setCurrentStep(2)
       } else {
-        setAuthError(resp.data.message || t('page.chat.msg.generate_failed'))
+        setAuthError(d?.message || t('page.chat.msg.generate_failed'))
       }
     } catch (e) {
       setAuthError(t('page.chat.msg.network_retry'))
@@ -351,11 +337,13 @@ const PlayerChat: React.FC = () => {
     setIsChecking(true)
     setAuthError('')
     try {
-      const resp = await api.post('/chat/check_verification', { code: verificationCode })
-      if (resp.data.status === 'success' && resp.data.verified) {
+      const resp = await api.get(`/chat/verifications/${encodeURIComponent(verificationCode)}`)
+      const d = unwrapData<{ verified?: boolean; player_id?: string; message?: string }>(resp)
+      if (d?.verified && d.player_id) {
+        setVerifiedPlayerId(d.player_id)
         setCurrentStep(3)
       } else {
-        setAuthError(resp.data.message || t('page.chat.msg.verify_failed'))
+        setAuthError(d?.message || t('page.chat.msg.verify_failed'))
       }
     } catch (e) {
       setAuthError(t('page.chat.msg.network_retry'))
@@ -377,15 +365,16 @@ const PlayerChat: React.FC = () => {
     setIsSettingPassword(true)
     setAuthError('')
     try {
-      const resp = await api.post('/chat/set_password', {
+      const resp = await api.put(`/chat/accounts/${encodeURIComponent(verifiedPlayerId)}/password`, {
         code: verificationCode,
         password: newPassword
       })
-      if (resp.data.status === 'success') {
+      const d = unwrapData<{ player_id?: string; uuid?: string; session_id?: string }>(resp)
+      if (resp.data.status === 'success' && d?.session_id) {
         setIsLoggedIn(true)
-        setCurrentPlayer(resp.data.player_id)
-        setCurrentPlayerUuid(resp.data.uuid || '')
-        localStorage.setItem('chat_session_id', resp.data.session_id)
+        setCurrentPlayer(d.player_id || verifiedPlayerId)
+        setCurrentPlayerUuid(d.uuid || '')
+        localStorage.setItem('chat_session_id', d.session_id)
         fetchInitialMessages()
       } else {
         setAuthError(resp.data.message || t('page.chat.msg.set_password_failed'))
@@ -402,15 +391,16 @@ const PlayerChat: React.FC = () => {
     setIsLoggingIn(true)
     setAuthError('')
     try {
-      const resp = await api.post('/chat/login', {
+      const resp = await api.post('/chat/sessions', {
         player_id: loginPlayerId,
         password: loginPassword
       })
-      if (resp.data.status === 'success') {
+      const d = unwrapData<{ session_id?: string; uuid?: string }>(resp)
+      if (resp.data.status === 'success' && d?.session_id) {
         setIsLoggedIn(true)
         setCurrentPlayer(loginPlayerId)
-        setCurrentPlayerUuid(resp.data.uuid || '')
-        localStorage.setItem('chat_session_id', resp.data.session_id)
+        setCurrentPlayerUuid(d.uuid || '')
+        localStorage.setItem('chat_session_id', d.session_id)
         fetchInitialMessages()
       } else {
         setAuthError(resp.data.message || t('page.chat.msg.login_failed'))
@@ -442,7 +432,7 @@ const PlayerChat: React.FC = () => {
     setIsSending(true)
     try {
       const sessionId = localStorage.getItem('chat_session_id')
-      const resp = await api.post('/chat/send_message', {
+      const resp = await api.post('/chat/messages', {
         message: chatMessage.trim(),
         player_id: currentPlayer,
         session_id: sessionId
@@ -477,7 +467,7 @@ const PlayerChat: React.FC = () => {
           // 执行命令：发送到服务器
           try {
             const sessionId = localStorage.getItem('chat_session_id')
-            await api.post('/chat/send_message', {
+            await api.post('/chat/messages', {
               message: command,
               player_id: currentPlayer,
               session_id: sessionId

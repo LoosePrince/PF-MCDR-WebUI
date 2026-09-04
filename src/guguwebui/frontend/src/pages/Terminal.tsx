@@ -23,7 +23,7 @@ import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import { LogLineSkeleton } from '../components/Skeleton'
-import api, { isCancel } from '../utils/api'
+import api, { getApiErrorMessage, isCancel, unwrapData } from '../utils/api'
 
 // --- Interfaces ---
 
@@ -375,9 +375,10 @@ const Terminal: React.FC = () => {
     if (statusFetchingRef.current) return
     statusFetchingRef.current = true
     try {
-      const res = await api.get('/get_server_status', { signal })
-      setServerStatus(res.data.status || 'offline')
-      setServerVersion(res.data.version || '')
+      const res = await api.get('/server/status', { signal })
+      const st = unwrapData<{ online?: boolean; version?: string }>(res)
+      setServerStatus(st?.online ? 'online' : 'offline')
+      setServerVersion(st?.version || '')
     } catch (e: unknown) {
       const err = e as { name?: string; code?: string };
       // 忽略取消的请求错误
@@ -392,9 +393,9 @@ const Terminal: React.FC = () => {
 
   const checkApiKeyStatus = async (signal?: AbortSignal) => {
     try {
-      const res = await api.get('/get_web_config', { signal })
-      const config: AIConfig = res.data
-      setHasApiKey(!!config.ai_api_key_configured)
+      const res = await api.get('/web-config', { signal })
+      const config = unwrapData<AIConfig>(res)
+      setHasApiKey(!!config?.ai_api_key_configured)
     } catch (e: unknown) {
       const err = e as { name?: string; code?: string };
       // 忽略取消的请求错误
@@ -408,13 +409,12 @@ const Terminal: React.FC = () => {
   const loadLogs = async (signal?: AbortSignal) => {
     setIsLoading(true)
     try {
-      const res = await api.get('/server_logs', { params: { max_lines: 500 }, signal })
-      if (res.data.status === 'success') {
-        const newLogs: LogItem[] = res.data.logs || []
-        setLogs(newLogs)
-        if (newLogs.length > 0) {
-          lastLogCounter.current = newLogs[newLogs.length - 1].counter || 0
-        }
+      const res = await api.get('/server/logs', { params: { limit: 500 }, signal })
+      const body = unwrapData<{ logs?: LogItem[]; next_cursor?: number }>(res)
+      const newLogs: LogItem[] = body?.logs || []
+      setLogs(newLogs)
+      if (newLogs.length > 0) {
+        lastLogCounter.current = (body?.next_cursor ?? newLogs[newLogs.length - 1].counter) || 0
       }
     } catch (e: unknown) {
       const err = e as { name?: string; code?: string };
@@ -434,16 +434,17 @@ const Terminal: React.FC = () => {
     newLogsFetchingRef.current = true
 
     try {
-      const res = await api.get('/new_logs', {
+      const res = await api.get('/server/logs', {
         params: {
-          last_counter: lastLogCounter.current,
-          max_lines: 100
+          cursor: lastLogCounter.current,
+          limit: 100
         },
         signal
       })
 
-      if (res.data.status === 'success' && res.data.new_logs_count > 0) {
-        const newItems: LogItem[] = res.data.logs
+      const body = unwrapData<{ logs?: LogItem[]; new_logs_count?: number; next_cursor?: number }>(res)
+      if (body && (body.new_logs_count ?? 0) > 0) {
+        const newItems: LogItem[] = body.logs || []
         if (newItems.length === 0) return
 
         // Filter duplicates using functional update to avoid stale closure
@@ -453,7 +454,7 @@ const Terminal: React.FC = () => {
 
           if (uniqueNew.length > 0) {
             const combined = [...prev, ...uniqueNew]
-            lastLogCounter.current = res.data.last_counter
+            lastLogCounter.current = body?.next_cursor ?? lastLogCounter.current
             return combined.length > MAX_LOGS ? combined.slice(combined.length - MAX_LOGS) : combined
           }
           return prev
@@ -483,8 +484,9 @@ const Terminal: React.FC = () => {
     }
 
     try {
-      const res = await api.post('/send_command', { command: cmd })
-      if (res.data.status === 'success') {
+      const res = await api.post('/server/commands', { command: cmd })
+      const body = res.data as { status?: string; message?: string; data?: { feedback?: string } }
+      if (body.status === 'success') {
         // Update History
         setCommandHistory(prev => {
           const newHist = [cmd, ...prev.filter(c => c !== cmd)].slice(0, 50)
@@ -494,17 +496,17 @@ const Terminal: React.FC = () => {
         setHistoryIndex(-1)
         setCommandInput('')
         // Show feedback if available, otherwise just show success message
-        const feedback = res.data.feedback || res.data.message || ''
+        const feedback = body.data?.feedback || body.message || ''
         if (feedback) {
           showNote(`${t('page.terminal.msg.command_sent_prefix')}${feedback}`, 'success')
         } else {
           showNote(t('page.terminal.msg.command_sent'), 'success')
         }
       } else {
-        showNote(res.data.message || t('page.terminal.msg.send_failed'), 'error')
+        showNote(body.message || t('page.terminal.msg.send_failed'), 'error')
       }
     } catch (e) {
-      showNote(t('page.terminal.msg.send_failed'), 'error')
+      showNote(getApiErrorMessage(e, t('page.terminal.msg.send_failed')), 'error')
     }
   }
 
@@ -517,15 +519,13 @@ const Terminal: React.FC = () => {
 
     // Debounce handled by caller or simple timer here
     try {
-      const res = await api.get('/command_suggestions', { params: { input } })
-      if (res.data.status === 'success') {
-        const list = res.data.suggestions || []
-        setSuggestions(list)
-        setShowSuggestions(list.length > 0)
-        setSelectedSuggestionIndex(0) // Reset selection
-        // Reset refs array when suggestions change
-        suggestionItemRefs.current = []
-      }
+      const res = await api.get('/server/command-suggestions', { params: { input } })
+      const list = unwrapData<{ suggestions?: CommandSuggestion[] }>(res)?.suggestions || []
+      setSuggestions(list)
+      setShowSuggestions(list.length > 0)
+      setSelectedSuggestionIndex(0) // Reset selection
+      // Reset refs array when suggestions change
+      suggestionItemRefs.current = []
     } catch (e) {
       // ignore errors for suggestions
     }
@@ -653,7 +653,9 @@ const Terminal: React.FC = () => {
         }
         const res = await api.post('/deepseek', payload)
         if (res.data.status === 'success') {
-          const answer = res.data.choices?.[0]?.message?.content ?? res.data.answer ?? ''
+          // /deepseek 上游响应已迁入统一外壳 data
+          const d = unwrapData<{ choices?: Array<{ message?: { content?: string } }>; answer?: string }>(res)
+          const answer = d?.choices?.[0]?.message?.content ?? d?.answer ?? ''
           setAiChatHistory(prev => [
             ...prev,
             { role: 'user' as const, content: query },
@@ -1172,7 +1174,7 @@ const Terminal: React.FC = () => {
             <button
               onClick={async () => {
                 try {
-                  const res = await api.post('/save_web_config', { action: 'config', ai_api_key: apiKey.trim() })
+                  const res = await api.put('/web-config', { ai_api_key: apiKey.trim() })
                   if (res.data.status === 'success') {
                     showNote(t('page.terminal.ai_modal.save_success'), 'success')
                     setHasApiKey(true)

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import api from '../utils/api'
+import api, { unwrapData } from '../utils/api'
 
 interface IcpRecord {
   icp: string
@@ -19,21 +19,19 @@ const VersionFooter: React.FC<VersionFooterProps> = ({ className = '' }) => {
 
     const fetchData = async () => {
       try {
-        // 获取版本信息
-        const { data: pluginData } = await api.get('/plugins', {
-          params: { plugin_id: 'guguwebui' },
-        })
+        // 获取版本信息（单项查询 GET /plugins/{plugin_id}，原 ?plugin_id= 过滤参数已移除）
+        const pluginResp = await api.get('/plugins/guguwebui')
         if (cancelled) return
-        const plugins = Array.isArray(pluginData.plugins) ? pluginData.plugins : []
-        const webui = plugins[0]
+        const webui = unwrapData<{ plugin?: { version?: string } }>(pluginResp, {}).plugin
         if (webui && webui.version) {
           setVersion(webui.version)
         }
 
         // 获取 ICP 备案信息
-        const { data: icpData } = await api.get('/config/icp-records')
+        const icpResp = await api.get('/config/icp-records')
         if (cancelled) return
-        if (icpData.status === 'success' && Array.isArray(icpData.icp_records)) {
+        const icpData = unwrapData<{ icp_records?: IcpRecord[] }>(icpResp, {})
+        if (Array.isArray(icpData?.icp_records)) {
           setIcpRecords(icpData.icp_records)
         }
       } catch {

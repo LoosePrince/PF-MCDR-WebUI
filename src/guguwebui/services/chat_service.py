@@ -34,7 +34,9 @@ class ChatService:
         """生成聊天页验证码"""
         config = self.config_service.get_config()
         if not config.get("public_chat_enabled", False):
-            raise BusinessException("公开聊天页未启用", status_code=400)
+            raise BusinessException(
+                "公开聊天页未启用", status_code=403, code="public_chat_disabled"
+            )
 
         cleanup_chat_verifications()
 
@@ -57,10 +59,12 @@ class ChatService:
     def check_verification_status(self, code: str) -> Dict[str, Any]:
         """检查验证码验证状态"""
         if not code:
-            raise BusinessException("验证码不能为空")
+            raise BusinessException("验证码不能为空", code="verification_code_required")
 
         if code not in user_db["chat_verification"]:
-            raise BusinessException("验证码不存在")
+            raise BusinessException(
+                "验证码不存在", status_code=404, code="verification_not_found"
+            )
 
         verification = user_db["chat_verification"][code]
         expire_time = datetime.datetime.fromisoformat(
@@ -70,29 +74,29 @@ class ChatService:
         if datetime.datetime.now(datetime.timezone.utc) > expire_time:
             del user_db["chat_verification"][code]
             user_db.save()
-            raise BusinessException("验证码已过期")
+            raise BusinessException("验证码已过期", code="verification_expired")
 
+        result = {"verified": False, "message": "验证码尚未在游戏内验证"}
         if verification.get("player_id"):
-            return {
-                "status": "success",
-                "verified": True,
-                "player_id": verification["player_id"],
-            }
+            result = {"verified": True, "player_id": verification["player_id"]}
+        return result
 
-        return {"status": "pending", "message": "验证码尚未在游戏内验证"}
-
-    async def set_user_password(self, code: str, password: str) -> Dict[str, Any]:
-        """设置聊天页用户密码"""
+    async def set_user_password(
+        self, code: str, password: str, player_id: str = None
+    ) -> Dict[str, Any]:
+        """设置聊天页用户密码（成功后直接签发会话，前端无需再走登录）"""
         password = password.replace("<", "").replace(">", "")
 
         if not code or not password:
-            raise BusinessException("验证码和密码不能为空")
+            raise BusinessException("验证码和密码不能为空", code="invalid_request")
 
         if len(password) < 6:
-            raise BusinessException("密码长度至少6位")
+            raise BusinessException("密码长度至少6位", code="password_too_short")
 
         if code not in user_db["chat_verification"]:
-            raise BusinessException("验证码不存在")
+            raise BusinessException(
+                "验证码不存在", status_code=404, code="verification_not_found"
+            )
 
         verification = user_db["chat_verification"][code]
         expire_time = datetime.datetime.fromisoformat(
@@ -102,15 +106,19 @@ class ChatService:
         if datetime.datetime.now(datetime.timezone.utc) > expire_time:
             del user_db["chat_verification"][code]
             user_db.save()
-            raise BusinessException("验证码已过期")
+            raise BusinessException("验证码已过期", code="verification_expired")
 
         if verification.get("used") and (verification.get("player_id") is None):
-            raise BusinessException("验证码已被使用")
+            raise BusinessException("验证码已被使用", code="verification_already_used")
 
         if verification.get("player_id") is None:
-            raise BusinessException("验证码尚未在游戏内验证")
+            raise BusinessException("验证码尚未在游戏内验证", code="verification_pending")
 
-        player_id = verification["player_id"]
+        bound_player = str(verification["player_id"])
+        expected_player = (player_id or "").strip()
+        if expected_player and expected_player != bound_player:
+            raise BusinessException("验证码与玩家不匹配", code="verification_mismatch")
+        player_id = bound_player
 
         user_db["chat_users"][player_id] = {
             "password": hash_password(password),
@@ -126,10 +134,25 @@ class ChatService:
 
         self.server.logger.debug(f"聊天页用户 {player_id} 设置密码成功")
 
+        # 签发会话（自动登录）
+        session_id = secrets.token_hex(16)
+        config = self.config_service.get_config()
+        expire_hours = config.get("chat_session_expire_hours", 24)
+        expire_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+            hours=expire_hours
+        )
+        user_db["chat_sessions"][session_id] = {
+            "player_id": player_id,
+            "expire_time": str(expire_time),
+            "ip": "unknown",
+            "last_sent_ms": 0,
+        }
+        user_db.save()
+
         result = {
-            "status": "success",
             "message": "密码设置成功",
             "player_id": player_id,
+            "session_id": session_id,
         }
         try:
             uuid_val = await get_player_uuid(player_id, self.server)
@@ -147,13 +170,13 @@ class ChatService:
         password = password.replace("<", "").replace(">", "")
 
         if not player_id or not password:
-            raise BusinessException("玩家ID和密码不能为空")
+            raise BusinessException("玩家ID和密码不能为空", code="credentials_required")
 
         if player_id not in user_db["chat_users"]:
-            raise BusinessException("用户不存在")
+            raise BusinessException("用户不存在", status_code=404, code="user_not_found")
 
         if not verify_password(password, user_db["chat_users"][player_id]["password"]):
-            raise BusinessException("密码错误")
+            raise BusinessException("密码错误", status_code=401, code="invalid_password")
 
         now_utc = datetime.datetime.now(datetime.timezone.utc)
         active_ips = set()
@@ -181,7 +204,9 @@ class ChatService:
 
         if len(active_ips) >= 2 and client_ip not in active_ips:
             raise BusinessException(
-                "该账号登录IP已达上限，请先在其他设备退出或等待会话过期"
+                "该账号登录IP已达上限，请先在其他设备退出或等待会话过期",
+                status_code=429,
+                code="ip_limit_exceeded",
             )
 
         session_id = secrets.token_hex(16)
@@ -202,7 +227,6 @@ class ChatService:
         self.server.logger.debug(f"聊天页用户 {player_id} 登录成功")
 
         result = {
-            "status": "success",
             "message": "登录成功",
             "session_id": session_id,
             "player_id": player_id,
@@ -218,10 +242,12 @@ class ChatService:
     async def check_session(self, session_id: str) -> Dict[str, Any]:
         """检查聊天页会话状态"""
         if not session_id:
-            raise BusinessException("会话ID不能为空")
+            raise BusinessException("会话ID不能为空", code="session_id_required")
 
         if session_id not in user_db["chat_sessions"]:
-            raise BusinessException("会话不存在")
+            raise BusinessException(
+                "会话不存在", status_code=404, code="session_not_found"
+            )
 
         session = user_db["chat_sessions"][session_id]
         expire_time = datetime.datetime.fromisoformat(
@@ -231,10 +257,12 @@ class ChatService:
         if datetime.datetime.now(datetime.timezone.utc) > expire_time:
             del user_db["chat_sessions"][session_id]
             user_db.save()
-            raise BusinessException("会话已过期")
+            raise BusinessException(
+                "会话已过期", status_code=401, code="session_expired"
+            )
 
         player_id = session["player_id"]
-        result = {"status": "success", "valid": True, "player_id": player_id}
+        result = {"valid": True, "player_id": player_id}
         try:
             uuid_val = await get_player_uuid(player_id, self.server)
             if uuid_val:
@@ -248,7 +276,7 @@ class ChatService:
         if session_id in user_db["chat_sessions"]:
             del user_db["chat_sessions"][session_id]
             user_db.save()
-        return {"status": "success", "message": "退出登录成功"}
+        return {"message": "退出登录成功"}
 
     async def get_messages(
         self,
@@ -285,9 +313,12 @@ class ChatService:
         except Exception:
             pass
 
+        # 分页列表统一 items 键 + total/offset/limit（has_more 保留用于前端续页判断）
         return {
-            "status": "success",
-            "messages": messages,
+            "items": messages,
+            "total": self.chat_logger.get_message_count(),
+            "offset": offset,
+            "limit": limit,
             "has_more": len(messages) == limit,
         }
 
@@ -344,7 +375,6 @@ class ChatService:
         online_bot = get_bot_list(self.server)
 
         return {
-            "status": "success",
             "messages": messages,
             "last_message_id": self.chat_logger.get_last_message_id(),
             "online": {"web": online_web, "game": online_game, "bot": online_bot},
@@ -355,37 +385,32 @@ class ChatService:
         self.chat_logger.clear_messages()
         status_msg = create_chat_logger_status_rtext("clear", True)
         self.server.logger.info(status_msg)
-        return {"status": "success", "message": "聊天消息已清空"}
-
-    def get_status_code_for_result(self, result: Dict[str, Any]) -> int:
-        """获取结果对应的 HTTP 状态码"""
-        if result.get("status") != "error":
-            return 200
-        msg = result.get("message", "")
-        if "过于频繁" in msg:
-            return 429
-        if "过期" in msg or "不匹配" in msg:
-            return 401
-        if "未启用" in msg:
-            return 403
-        return 400
+        return {"message": "聊天消息已清空"}
 
     async def send_message(
         self, message: str, player_id: str, session_id: str, is_admin: bool = False
     ):
         """发送聊天消息到游戏"""
         if not message:
-            raise BusinessException("消息内容不能为空")
+            raise BusinessException("消息内容不能为空", code="message_required")
         if not player_id:
-            raise BusinessException("玩家ID无效")
+            raise BusinessException("玩家ID无效", code="player_id_required")
 
         if not is_admin:
             if not session_id or session_id not in user_db["chat_sessions"]:
-                raise BusinessException("会话无效或已过期，请重新登录")
+                raise BusinessException(
+                    "会话无效或已过期，请重新登录",
+                    status_code=401,
+                    code="invalid_session",
+                )
 
             session = user_db["chat_sessions"][session_id]
             if session["player_id"] != player_id:
-                raise BusinessException("玩家ID与会话不匹配")
+                raise BusinessException(
+                    "玩家ID与会话不匹配",
+                    status_code=401,
+                    code="session_player_mismatch",
+                )
 
             expire_time = datetime.datetime.fromisoformat(
                 session["expire_time"].replace("Z", "+00:00")
@@ -393,17 +418,29 @@ class ChatService:
             if datetime.datetime.now(datetime.timezone.utc) > expire_time:
                 del user_db["chat_sessions"][session_id]
                 user_db.save()
-                raise BusinessException("会话已过期，请重新登录")
+                raise BusinessException(
+                    "会话已过期，请重新登录",
+                    status_code=401,
+                    code="session_expired",
+                )
 
             now_ms = int(time.time() * 1000)
             if now_ms - session.get("last_sent_ms", 0) < 2000:
-                raise BusinessException("发送过于频繁，请稍后再试")
+                raise BusinessException(
+                    "发送过于频繁，请稍后再试",
+                    status_code=429,
+                    code="rate_limited",
+                )
             session["last_sent_ms"] = now_ms
             user_db.save()
 
         config = self.config_service.get_config()
         if not config.get("public_chat_to_game_enabled", False):
-            raise BusinessException("聊天到游戏功能未启用")
+            raise BusinessException(
+                "聊天到游戏功能未启用",
+                status_code=403,
+                code="chat_to_game_disabled",
+            )
 
         player_uuid = await get_player_uuid(player_id, self.server) or "未知"
         rtext_message = create_chat_message_rtext(player_id, message, player_uuid)
@@ -453,7 +490,7 @@ class ChatService:
                 message_type=1,
                 server=self.server,
             )
-            return {"status": "success", "message": "已记录（当前无在线玩家）"}
+            return {"message": "已记录（当前无在线玩家）"}
 
         self.server.broadcast(rtext_message)
         WEB_ONLINE_PLAYERS[player_id] = int(time.time()) + 5
@@ -465,4 +502,4 @@ class ChatService:
             server=self.server,
         )
 
-        return {"status": "success", "message": "消息发送成功"}
+        return {"message": "消息发送成功"}

@@ -9,6 +9,7 @@ import re
 import shutil
 import tempfile
 import threading
+import time
 import uuid
 import zipfile
 from pathlib import Path
@@ -28,6 +29,18 @@ from guguwebui.utils.mc_util import get_minecraft_path
 _METADATA_LIMIT = 2 * 1024 * 1024
 _ICON_LIMIT = 2 * 1024 * 1024
 _CONFIG_SUFFIXES = {".json", ".json5", ".yml", ".yaml", ".properties", ".toml", ".cfg", ".conf"}
+
+
+def _decode_utf8_bom(raw: bytes) -> str:
+    """UTF-8 解码并去除 BOM。
+
+    不依赖 `utf-8-sig` 编解码器（个别运行环境下该 codec 注册缺失会抛
+    LookupError: unknown encoding），效果等价且更稳妥。
+    """
+    text = raw.decode("utf-8")
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    return text
 _BUILTIN_DEPENDENCIES = {
     "minecraft", "java", "fabricloader", "fabric-loader", "quilt_loader",
     "forge", "neoforge", "neoforge_loader", "mcp",
@@ -243,7 +256,7 @@ class ModService:
             with zipfile.ZipFile(path, "r") as zf:
                 raw = self._read_zip_entry(zf, "fabric.mod.json", _METADATA_LIMIT)
                 if raw is not None:
-                    data = json.loads(raw.decode("utf-8-sig"))
+                    data = json.loads(_decode_utf8_bom(raw))
                     icon = data.get("icon")
                     if isinstance(icon, dict):
                         icon = next(
@@ -269,7 +282,7 @@ class ModService:
 
                 raw = self._read_zip_entry(zf, "quilt.mod.json", _METADATA_LIMIT)
                 if raw is not None:
-                    data = json.loads(raw.decode("utf-8-sig"))
+                    data = json.loads(_decode_utf8_bom(raw))
                     ql = data.get("quilt_loader") or {}
                     meta = ql.get("metadata") or {}
                     metadata = {
@@ -292,7 +305,7 @@ class ModService:
                     raw = self._read_zip_entry(zf, entry, _METADATA_LIMIT)
                     if raw is None:
                         continue
-                    data = tomllib.loads(raw.decode("utf-8-sig"))
+                    data = tomllib.loads(_decode_utf8_bom(raw))
                     mods = data.get("mods") or []
                     mod = mods[0] if isinstance(mods, list) and mods else {}
                     mod_id = str(mod.get("modId") or fallback["id"])
@@ -415,7 +428,7 @@ class ModService:
                 "filename": path.name,
                 "enabled": enabled,
                 "size": stat.st_size,
-                "modified_at": datetime.datetime.fromtimestamp(stat.st_mtime).astimezone().isoformat(),
+                "modified_at": int(stat.st_mtime),  # epoch 秒
                 "file_conflict": counterpart.lower() in names,
                 "config_count": config_counts.get(self._normalized_id(metadata["id"]), 0),
                 **{k: v for k, v in metadata.items() if k != "icon_entry"},
@@ -580,7 +593,7 @@ class ModService:
                     "filename": target_name,
                     "enabled": enabled,
                     "size": candidate_stat.st_size,
-                    "modified_at": datetime.datetime.now().astimezone().isoformat(),
+                    "modified_at": int(time.time()),  # epoch 秒
                     "file_conflict": False,
                     "config_count": 0,
                     **{k: v for k, v in metadata.items() if k != "icon_entry"},
@@ -629,7 +642,7 @@ class ModService:
                 "id": trash_id,
                 "filename": source.name,
                 "enabled": source.name.lower().endswith(".jar"),
-                "deleted_at": datetime.datetime.now().astimezone().isoformat(),
+                "deleted_at": int(time.time()),  # epoch 秒
                 "metadata": {k: v for k, v in metadata.items() if k != "icon_entry"},
             }
             was_enabled = manifest["enabled"]
@@ -670,10 +683,29 @@ class ModService:
                     manifest = json.load(fp)
                 filename = self._validate_filename(manifest.get("filename", ""))
                 if (directory / filename).is_file():
+                    # 兼容旧版本写入的 ISO 字符串，统一为 epoch 秒
+                    manifest["deleted_at"] = self._to_epoch_seconds(
+                        manifest.get("deleted_at")
+                    )
                     items.append(manifest)
             except Exception:
                 continue
         return {"status": "success", "items": items}
+
+    @staticmethod
+    def _to_epoch_seconds(value) -> Optional[int]:
+        """ISO8601/数字/None → epoch 秒（供旧磁盘数据迁移）。"""
+        if value is None:
+            return None
+        if isinstance(value, (int, float)) and value > 0:
+            return int(value)
+        if isinstance(value, str):
+            try:
+                dt = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+                return int(dt.timestamp())
+            except ValueError:
+                return None
+        return None
 
     def _trash_item(self, trash_id: str) -> tuple[Path, dict, Path]:
         if not re.fullmatch(r"[0-9a-fA-F-]{36}", trash_id or ""):

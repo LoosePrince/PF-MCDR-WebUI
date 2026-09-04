@@ -30,6 +30,28 @@ jobs:
       working-directory: src/guguwebui/frontend
       run: pnpm install --frozen-lockfile
 
+    - name: Typecheck frontend
+      working-directory: src/guguwebui/frontend
+      run: pnpm typecheck
+
+    - name: Run frontend format unit tests
+      working-directory: src/guguwebui/frontend
+      run: pnpm test:format
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install backend test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt pytest httpx
+
+    - name: Run backend tests (incl. contract / proxy / OpenAPI snapshot)
+      run: |
+        PYTHONPATH=src python -m pytest tests/ -q
+
     - name: Build frontend
       working-directory: src/guguwebui/frontend
       run: pnpm run build

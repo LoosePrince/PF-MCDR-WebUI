@@ -113,4 +113,46 @@ instance.interceptors.response.use(
 )
 
 export const isCancel = axios.isCancel
+
+/**
+ * 从任意 axios 错误/后端错误体中提取可展示信息。
+ * 兼容历史多套错误体：
+ *  - {status:error, message, code?, data?}（统一错误体）
+ *  - {detail: string | [...]}（FastAPI 默认 HTTPException / 422）
+ *  - 无响应体（网络层错误）
+ */
+export const getApiErrorMessage = (
+  error: unknown,
+  fallback = 'Request failed'
+): string => {
+  if (!error) return fallback
+  if (typeof error === 'string') return error
+  const e = error as {
+    message?: string
+    response?: { data?: unknown; status?: number; statusText?: string }
+  }
+  const data = e.response?.data
+  if (data && typeof data === 'object') {
+    const d = data as Record<string, unknown>
+    if (typeof d.message === 'string' && d.message) return d.message
+    if (typeof d.detail === 'string' && d.detail) return d.detail
+  }
+  if (typeof e.message === 'string' && e.message) return e.message
+  if (e.response?.statusText) return `${e.response.statusText} (${e.response.status ?? ''})`.trim()
+  return fallback
+}
+
+/**
+ * 解包统一成功体：优先返回 data 字段；旧接口（负载在顶层）直接返回原 data。
+ * 分域迁移期间两类接口并存，新代码一律经此函数取值。
+ */
+export const unwrapData = <T>(resp: { data: unknown }, fallback?: T): T => {
+  const d = resp.data
+  if (d && typeof d === 'object') {
+    const o = d as Record<string, unknown>
+    if (o.status === 'success' && 'data' in o) return (o.data as T) ?? (fallback as T)
+  }
+  return (d as T) ?? (fallback as T)
+}
+
 export default instance

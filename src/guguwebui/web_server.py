@@ -11,6 +11,7 @@ from typing import Any, Optional
 import aiohttp
 from fastapi import (Body, Depends, FastAPI, Form, HTTPException, Request,
                      status)
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
                                PlainTextResponse, RedirectResponse)
 from mcdreforged.api.event import MCDRPluginEvents
@@ -23,7 +24,8 @@ from starlette.responses import Response
 
 import guguwebui.state as gugu_state
 from guguwebui.constant import *
-from guguwebui.dependencies.auth import get_current_admin, get_current_user
+from guguwebui.dependencies.auth import (get_current_admin, get_current_user,
+                                         is_super_admin_user)
 from guguwebui.panel_merge.proxy import ApiProxyDispatchMiddleware
 from guguwebui.panel_merge.routes import router as panel_merge_router
 from guguwebui.PIM import initialize_pim
@@ -56,7 +58,10 @@ from guguwebui.state import (RCON_ONLINE_CACHE, PluginApiHandlerParams,
 from guguwebui.structures import (BusinessException, ConfigData, DeepseekQuery,
                                   PimInstallRequest, PimUninstallRequest,
                                   PipPackageRequest, PluginInfo, SaveConfig,
-                                  SaveContent, ServerControl, ToggleConfig)
+                                  SaveContent, ToggleConfig)
+from guguwebui.structures.envelope import ApiSuccessEnvelope
+from guguwebui.structures.envelope import error as api_error
+from guguwebui.structures.envelope import success as api_success
 from guguwebui.utils.auth_util import migrate_old_config
 from guguwebui.utils.log_watcher import LogWatcher
 from guguwebui.utils.mc_util import get_plugin_version
@@ -400,7 +405,6 @@ async def qq_qr_login_status(request: Request, code: str = ""):
                 "status": "success",
                 "state": "wait",
                 "message": "正在等待扫码登录...",
-                "ret": "66",
             }
         )
 
@@ -410,7 +414,6 @@ async def qq_qr_login_status(request: Request, code: str = ""):
                 "status": "success",
                 "state": "used",
                 "message": "二维码已过期，请重新开始扫码登录。",
-                "ret": "65",
             }
         )
 
@@ -451,7 +454,7 @@ async def logout(request: Request):
     return await request.app.state.auth_service.logout(request, response)
 
 
-@app.post("/api/logout")
+@app.post("/api/logout", response_model=ApiSuccessEnvelope)
 async def api_logout(request: Request):
     """API 形式的登出"""
     return await request.app.state.auth_service.logout(
@@ -569,11 +572,13 @@ async def mods_page(request: Request, admin: dict = Depends(get_current_admin)):
 async def custom_404_handler(request: Request, exc: StarletteHTTPException):
     if request.url.path.startswith("/api/"):
         return JSONResponse(
-            {"status": "error", "message": "API endpoint not found"}, status_code=404
+            api_error("API endpoint not found", code="not_found"),
+            status_code=404,
         )
     if request.url.path.startswith("/static/"):
         return JSONResponse(
-            {"status": "error", "message": "Static file not found"}, status_code=404
+            api_error("Static file not found", code="not_found"),
+            status_code=404,
         )
     return serve_spa_index(request)
 
@@ -584,7 +589,7 @@ async def connection_reset_handler(request: Request, exc: ConnectionResetError):
     app.state.server_interface.logger.warning(f"连接重置错误: {str(exc)}")
     return JSONResponse(
         status_code=500,
-        content={"status": "error", "message": "连接被重置，请刷新页面重试"},
+        content=api_error("连接被重置，请刷新页面重试", code="connection_reset"),
     )
 
 
@@ -598,16 +603,46 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
     return JSONResponse(
         status_code=exc.status_code,
-        content={"status": "error", "message": str(exc.detail)},
+        content=api_error(
+            str(exc.detail), code=f"http_{exc.status_code}"
+        ),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_handler(request: Request, exc: RequestValidationError):
+    """参数校验错误（422）：统一为 status/code/message/data 错误体。"""
+    errors = exc.errors()
+    first = errors[0] if errors else {}
+    loc = " → ".join(str(x) for x in first.get("loc", []) if x != "body")
+    msg = first.get("msg", "请求参数校验失败")
+    if loc:
+        msg = f"{loc}: {msg}"
+    return JSONResponse(
+        status_code=422,
+        content=api_error(
+            msg,
+            code="validation_error",
+            data={
+                "errors": [
+                    {
+                        "loc": [str(x) for x in e.get("loc", [])],
+                        "msg": e.get("msg"),
+                        "type": e.get("type"),
+                    }
+                    for e in errors
+                ]
+            },
+        ),
     )
 
 
 @app.exception_handler(BusinessException)
 async def business_exception_handler(request: Request, exc: BusinessException):
-    """处理业务异常"""
+    """处理业务异常：统一错误体（status/message/code/data）。"""
     return JSONResponse(
         status_code=exc.status_code,
-        content={"status": "error", "message": exc.message, "data": exc.data},
+        content=api_error(exc.message, code=exc.code, data=exc.data),
     )
 
 
@@ -617,7 +652,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger = getattr(app.state.server_interface, "logger", logging.getLogger(__name__))
     logger.error(error_msg, exc_info=True)
     return JSONResponse(
-        status_code=500, content={"status": "error", "message": "服务器内部错误"}
+        status_code=500, content=api_error("服务器内部错误", code="internal_error")
     )
 
 
@@ -638,18 +673,15 @@ def _is_admin_user(request: Request, user: dict) -> bool:
     return True
 
 
-def _is_super_admin_user(request: Request, user: dict) -> bool:
-    if user.get("auth_via") == "panel_token":
-        return True
-    config = request.app.state.config_service.get_config()
-    return str(user.get("username")) == str(config.get("super_admin_account"))
-
-
-@app.get("/api/checkLogin")
-async def check_login_status(request: Request, user: dict = Depends(get_current_user)):
+@app.get("/api/auth/me", response_model=ApiSuccessEnvelope)
+async def api_auth_me(request: Request, user: dict = Depends(get_current_user)):
+    """
+    获取当前登录用户信息（/api/checkLogin → GET /api/auth/me）。
+    未登录不返回 error 体，而是由依赖直接抛 401（统一错误体）。
+    """
     username = user.get("username")
     nickname = None
-    
+
     # 从 qq_nicknames 中获取昵称
     if username:
         try:
@@ -657,14 +689,17 @@ async def check_login_status(request: Request, user: dict = Depends(get_current_
             nickname = user_db.get("qq_nicknames", {}).get(str(username))
         except Exception:
             pass
-    
-    return JSONResponse({
-        "status": "success",
-        "username": username,
-        "nickname": nickname,
-        "is_admin": _is_admin_user(request, user),
-        "is_super_admin": _is_super_admin_user(request, user),
-    })
+
+    return JSONResponse(
+        api_success(
+            {
+                "username": username,
+                "nickname": nickname,
+                "is_admin": _is_admin_user(request, user),
+                "is_super_admin": is_super_admin_user(request, user),
+            }
+        )
+    )
 
 @app.post("/api/deepseek")
 async def query_deepseek(
@@ -672,7 +707,7 @@ async def query_deepseek(
     query_data: DeepseekQuery,
     admin: dict = Depends(get_current_admin),
 ):
-    """向AI API发送问题并获取回答"""
+    """向AI API发送问题并获取回答（上游响应原样放入统一外壳 data，不再叠包）"""
     ai_service: AIService = request.app.state.ai_service
     result = await ai_service.query(
         query_data.query,
@@ -681,7 +716,7 @@ async def query_deepseek(
         query_data.api_url,
         query_data.system_prompt,
     )
-    return JSONResponse({"status": "success", **result})
+    return JSONResponse(api_success(result))
 
 
 # ============================================================#
@@ -689,25 +724,19 @@ async def query_deepseek(
 # ============================================================#
 
 
-@app.post("/api/self_update")
+@app.post("/api/self_update", response_model=ApiSuccessEnvelope)
 async def api_self_update(request: Request, admin: dict = Depends(get_current_admin)):
-    """执行 WebUI 自身更新"""
-    return JSONResponse(
-        {"status": "success", **request.app.state.plugin_service.self_update()}
-    )
+    """执行 WebUI 自身更新（去 success 双键，消息统一放 message）"""
+    result = request.app.state.plugin_service.self_update()
+    message = str(result.get("message") or "已发送更新指令到 MCDR")
+    return JSONResponse(api_success(message=message))
 
 
-@app.get("/api/self_update_info")
+@app.get("/api/self_update_info", response_model=ApiSuccessEnvelope)
 async def api_get_self_update_info(
     request: Request, admin: dict = Depends(get_current_admin)
 ):
-    """获取 WebUI 自身更新信息"""
-    return JSONResponse(
-        content={
-            "success": True,
-            "info": getattr(
-                request.app.state, "self_update_info", {"available": False}
-            ),
-        }
-    )
+    """获取 WebUI 自身更新信息（统一成功外壳，负载移入 data）"""
+    info = getattr(request.app.state, "self_update_info", {"available": False})
+    return JSONResponse(api_success(info))
 

@@ -1,1837 +1,588 @@
-# MCDR WebUI API 文档
+# GUGU WebUI — API 文档（REST 重构基线）
 
-本文档记录 MCDR WebUI 前端界面使用的 API 接口，并与当前代码实现对齐。若与实际接口有差异，以服务端实现为准。
+> **契约权威来源：本仓库以后端 OpenAPI 为准** —— 启动服务后访问
+> `GET /openapi.json`（Swagger UI：`/docs`、ReDoc：`/redoc`）可导出全量路由、
+> 请求/响应模型与参数约束；本文档是其按业务域的说明性配套，若与 OpenAPI 出现
+> 分歧，一律以 OpenAPI 为准。
+>
+> 所有 `/api/*` 成功端点（除图标/文件等二进制响应外）在 OpenAPI 中均声明统一
+> `response_model`（`ApiSuccessEnvelope` / `PageEnvelope`），并有
+> `tests/snapshots/openapi_routers.json` 快照测试守护，防止无意破坏契约。
 
 ## 通用约定
 
-### HTTP 状态与错误体
+### 1. 统一响应外壳（全库唯一）
 
-- **401 Unauthorized**：未登录或会话无效。常见 body：`{"detail": "User not logged in"}`（FastAPI `HTTPException`）。
-- **403 Forbidden**：已登录但非管理员（`get_current_admin`），或子服场景下其它禁止访问的原因。常见 body：`{"detail": "Admin access required"}`。
-- **业务异常**（`BusinessException`）：`{"status": "error", "message": "...", "data": ...}`，`data` 可选。
-- **未实现的 API 路径**（`/api/*`）：`{"status": "error", "message": "API endpoint not found"}`，状态码 404。
+**成功（2xx）**
 
-### 认证方式
+```json
+{ "status": "success", "message": "可选提示", "data": { } }
+```
 
-1. **浏览器会话**：Cookie `token` + Session `logged_in` / `username`（与多数页面一致）。
-2. **子服模式（`panel_role` 为 `slave`）**：主服或自动化请求可携带请求头 **`X-Panel-Token`**，值为子服 `config.json` 中 `panel_master.allowed_tokens` 里已启用项的 `token`。可选配合 **`allowed_master_ips`** 限制来源 IP。通过该方式认证时，用户名为 `__panel__`，管理员校验对 Panel Token 会放行（权限由主服侧控制）。
+- `status` 只允许 `success | error`，**绝不**用于承载业务状态。
+- 业务负载一律放在 `data` 内；纯提示类响应可省略 `data`，只带 `message`。
+- 业务状态改独立字段：服务器在线 → `data.online: bool`；配对状态机 →
+  `data.phase: "pending|accepted|denied"`；验证码 → `data.verified: bool`。
 
-### 多服面板代理（主服）
+**失败（非 2xx）**
 
-当主服配置为 `panel_role: master` 且存在子服时，对**可代理**的 `/api/*` 请求可指定目标：
+```json
+{ "status": "error", "message": "人类可读信息", "code": "机器码", "data": { } }
+```
 
-- 请求头 **`X-Target-Server`**：子服 `id`（与 `panel_slaves[].id` 一致），或使用查询参数 **`serverId`**（转发时会从出站查询中去掉 `serverId`，避免重复）。
-- 未指定或 `local` 表示当前实例本地执行。
+- `code` 示例：`http_401`、`validation_error`、`plugin_not_found`、
+  `task_not_found`、`super_admin_required`。业务上下文放在 `data`（例如模组
+  上传冲突的 `data.warnings`）。
+- 参数校验失败（FastAPI 422）也走该外壳：`code = "validation_error"`，
+  `data.errors` 为明细数组，不再输出裸 `{"detail": [...]}`。
+- 铁律：`status: "error"` 必须配非 2xx；2xx 不携带错误语义。
 
-**始终仅在主服本地处理、不代理**的示例：`/api/login`、`/api/logout`、`/api/checkLogin`、`/api/servers`、`/api/panel_merge_config`、`/api/langs`、`/api/online-plugins`、以及路径前缀 `/api/pairing/`。详见 `guguwebui/panel_merge/proxy.py` 中 `is_proxy_candidate_path`。
+### 2. 分页列表
 
-### 前端页面（非 API）
+分页响应统一为：
 
-以下路径由服务端返回 React SPA 的 `index.html`（具体权限与 `web_server.py` 中 `Depends` 一致），例如：`GET /login`、`/index`、`/home`、`/mc`、`/mcdr`、`/plugins`、`/online-plugins`、`/settings`、`/about`、`/terminal`、`/chat`、`/player-chat` 等。非 `/api/*` 的未知路径多数也会回退到 SPA 由前端路由处理 404。
+```json
+{ "status": "success", "data": { "items": [], "total": 0, "offset": 0, "limit": 50 } }
+```
+
+当前已统一的分页端点：`GET /api/players`、`GET /api/chat/messages`、
+`GET /api/mods/trash`、`GET /api/audit_logs`。其余列表（`data.plugins`、
+`data.packages`、`data.pages`、`data.versions`、`data.files`、
+`data.servers` 等）为一次性全量数组，仍放于 `data` 下各自的具名键。
+
+### 3. 命名与数据格式
+
+- 路径 `kebab-case`、查询参数 `snake_case`；资源用复数名词与层级表达从属
+  （如 `GET /api/plugins/{id}/versions`）。
+- 动作语义：状态切换 → `PUT .../enabled`（body `{enabled: bool}`）；一次性
+  副作用命令 → `POST /api/server/commands|controls`、`POST /api/pip/tasks`
+  （任务创建返回 `task_id` 后轮询子资源）。
+- 时间字段（`ts`、`timestamp`、`released_at`、`last_update_time`、
+  `expires_at`、`deleted_at`、`modified_at`、`start_time/end_time/access_time`、
+  `last_seen`、`created_at`、`session_seconds` 等）**统一为 epoch 秒**；前端在
+  `utils/format.ts` 集中格式化（`formatEpoch`/`formatEpochDate`/`formatDuration`，
+  见 `pnpm test:format`）。日志行的内嵌时间字符串属于“日志内容”，不作字段契约。
+- 任务状态枚举统一：`running | completed | failed`（PIM 与 pip 一致；
+  无 `pending/success/error`）。
+- 无意义的重复字段已移除：版本 `date/created_at/release_date` 只留
+  `released_at`；在线插件的假 `update_time` 只留 `last_update_time`；
+  自更新 `success` 双键、QQ 登录 `ret` 魔数、玩家 `isLocal` 驼峰等均已废除。
+
+### 4. HTTP 状态码语义
+
+| 场景 | 状态码 |
+|---|---|
+| GET / PUT / POST 成功 | 200 |
+| 创建成功 / 任务创建 | 200（含 `data.task_id`）或 201 |
+| 参数/业务校验失败 | 400 |
+| 未登录 | 401 |
+| 无权限（非管理员 / 非超管） | 403 |
+| 资源不存在 | 404 |
+| 依赖冲突（已存在 / 被依赖） | 409 |
+| 上传超限 / 内容不支持 | 413 / 415 |
+| 频率限制 | 429 |
+| 服务端 / 上游错误 | 500 / 502 / 503 |
+| 参数类型 / 枚举校验失败 | 422（统一错误体） |
+
+### 5. 认证方式
+
+1. **浏览器会话**：Cookie `token` + Session `logged_in` / `username`
+   （Web 管理端与多数业务页面）。
+2. **子服模式**（`panel_role: slave`）：请求头 `X-Panel-Token`，值为
+   `config.json` 中 `panel_master.allowed_tokens` 已启用项的 `token`；可选配
+   `allowed_master_ips` 限制来源 IP。此时用户名为 `__panel__`，管理员校验放行
+   （权限由主服侧判定）。
+
+权限分三级：`登录`（`get_current_user`）、`管理员`（`get_current_admin`）、
+`超级管理员`（`get_super_admin`，仅模组永久清理与上传上限修改等少数动作）。
+未登录访问需登录接口 → **401**；已登录但权限不足 → **403**（非 API 页面
+401/403 会重定向到登录页）。
+
+### 6. 多服面板代理（主服）
+
+`panel_role: master` 时，对**可代理**的请求可指定目标：请求头
+`X-Target-Server`（值为 `panel_slaves[].id`）或查询参数 `serverId`（转发时从
+出站查询剔除）。未指定或 `local` 表示本地执行。
+
+**始终仅在主服本地处理、绝不代理**的清单（`is_proxy_candidate_path`，
+由 `tests/test_proxy_local.py` 全量路由扫描守护）：
+
+- 精确路径：`/api/login`、`/api/login/qq_qr/start`、`/api/login/qq_qr/status`、
+  `/api/logout`、`/api/auth/me`、`/api/servers`、`/api/panel_merge_config`、
+  `/api/audit_logs`、`/api/i18n/languages`、`/api/plugins/online`
+  （含旧路径兜底 `/api/online-plugins`）
+- 前缀：`/api/pairing/*`
+
+### 7. 前端页面（非 API）
+
+`GET /login`、`/index`、`/home`、`/mc`、`/mcdr`、`/plugins`、
+`/online-plugins`、`/settings`、`/about`、`/chat`、`/player-chat`、
+`/terminal`、`/operation-logs`、`/players`、`/mods` 等由服务端返回 React SPA
+的 `index.html`（权限与对应 `Depends` 一致）；非 `/api/*` 的未知路径同样回退
+SPA 由前端路由处理。
+
+### 8. 操作审计
+
+多数写操作（插件开关/重载/安装/卸载/更新、服务器控制/命令、配置保存、玩家
+白名单/OP/封禁/踢出、模组操作、pip 任务、面板合并配置等）会写入审计，通过
+`GET /api/audit_logs` 查询（见下文）。
 
 ---
 
-## 认证相关API
-
-### 检查登录状态
-- 端点: `/api/checkLogin`
-- 方法: GET
-- 功能: 校验当前会话；**仅当已登录时**返回成功 JSON。未登录不会返回 `status: error`，而是 **HTTP 401**。
-- 权限: 需有效登录会话（或子服 `X-Panel-Token`）。
-- 响应（200）: 
-
-  ```json
-  {
-    "status": "success",
-    "username": "用户名或账号",
-    "nickname": null,
-    "is_admin": true,
-    "is_super_admin": true
-  }
-  ```
-
-  `nickname` 为在 `user_db.qq_nicknames` 中配置的 QQ 昵称；无则为 `null`。
-
-- 调用示例:
-
-  ```javascript
-  async function checkLoginStatus() {
-    try {
-      const response = await fetch('/api/checkLogin');
-      if (response.status === 401) {
-        console.log('未登录');
-        return;
-      }
-      const data = await response.json();
-      if (data.status === 'success') {
-        console.log(`已登录，用户名: ${data.username}`, data.nickname);
-      }
-    } catch (error) {
-      console.error('检查登录状态出错:', error);
-    }
-  }
-  ```
-
-- 使用位置: 所有需要认证的页面
-
-## Minecraft 模组管理 API
-
-所有 `/api/mods*` 接口均要求管理员权限，并支持主服通过 `X-Target-Server` 代理到目标子服。接口只管理目标实例工作目录中 `mods/` 顶层的 `.jar` 与 `.jar.disabled` 文件，不会执行模组代码，也不会自动重启 Minecraft 服务器。
-
-文件操作统一返回以下状态字段：
-
-```json
-{
-  "server_running": true,
-  "needs_restart": true,
-  "effective_after": "restart",
-  "warnings": []
-}
-```
-
-`effective_after` 为 `restart` 或 `next_start`。只有运行中的服务器可能已加载受影响状态时，`needs_restart` 才为 `true`。
-
-### 获取模组列表与图标
-
-- `GET /api/mods`：扫描并返回模组列表、元数据、依赖、冲突、文件信息、配置数量和兼容性警告。
-- `GET /api/mods/icon?filename=<文件名>`：读取 JAR 元数据声明的受限大小图标。
-- 元数据支持 `fabric.mod.json`、`quilt.mod.json`、`META-INF/mods.toml`、`META-INF/neoforge.mods.toml` 和 Manifest 降级信息。
-- 无法识别元数据的有效 JAR 仍可管理；损坏 JAR 会标记解析错误。
-
-### 上传模组
-
-- 端点：`POST /api/mods/upload`
-- Content-Type：`multipart/form-data`
-- 字段：`file`（单个 `.jar`）、`enabled`（默认 `true`）、`acknowledge_warnings`（默认 `false`）。
-- 文件按流分块写入同目录临时文件；超过实例限制返回 `413`，重名或同名启用/禁用文件已存在返回 `409`，ZIP/JAR 损坏返回 `400`。
-- 若兼容性检查发现可确认警告，首次请求返回 `409`，错误体 `data.warnings` 包含最新警告；管理员确认后用同一文件重新提交并设置 `acknowledge_warnings=true`。
-
-### 启用、禁用与删除
-
-- `POST /api/mods/toggle`
-
-  ```json
-  {"filename": "example.jar", "enabled": false, "acknowledge_warnings": false}
-  ```
-
-- 禁用会将末尾 `.jar` 原子改名为 `.jar.disabled`，启用执行反向操作；目标已存在时拒绝覆盖。
-- `POST /api/mods/trash`，body 为 `{"filename":"example.jar"}`：将文件移到 `<working_directory>/.guguwebui/mod-trash/<uuid>/`。
-- `GET /api/mods/trash`：列出回收站项目及删除时的元数据快照。
-- `POST /api/mods/trash/{id}/restore`：保持删除前状态恢复，遇到同名文件时返回 `409`。
-- `DELETE /api/mods/trash/{id}?confirm=true`：永久清理。仅超级管理员或经授权的子服 Panel Token 可调用，且必须传入 `confirm=true`。
-
-### 模组配置
-
-- `GET /api/mods/configs?mod_id=<模组ID>&associated_only=true`：列出配置文件；`associated_only=false` 返回全部允许的配置。
-- `GET /api/mods/config?path=<相对工作目录路径>`：读取 UTF-8 配置文本及可用的结构化数据。
-- `PUT /api/mods/config`：原子保存配置。
-
-  ```json
-  {"path": "config/example.json", "content": "{\n  \"enabled\": true\n}\n", "config_data": null}
-  ```
-
-- JSON、YAML、Properties 可用 `config_data` 结构化保存；JSON5、TOML、CFG、CONF 仅接受 `content` 原文。
-- 允许根目录为 `config/`、`defaultconfigs/`、`<level-name>/serverconfig/` 及工作目录直接子目录中的 `serverconfig/`。所有路径会重新解析并拒绝目录穿越或符号链接越界。
-
-### 模组设置
-
-- `GET /api/mods/settings`：返回当前实例 `upload_max_mib` 与 `upload_max_bytes`。管理员可读取。
-- `PUT /api/mods/settings`：body 为 `{"upload_max_mib":10}`，范围 `1–4096` MiB。仅超级管理员或经授权的子服 Panel Token 可修改。
-- 配置保存在每个实例自己的 `config.json` 中，键名为 `mod_upload_max_bytes`，默认 `10 MiB`。
-
-上传、启停、删除、恢复、永久清理、配置保存及上传限制修改都会进入操作审计。
-
-### 登录
-- 端点: `/api/login`（提交登录请求）
-- 方法: POST
-- 参数: 
-  - `account`: 账号（表单字段）
-  - `password`: 密码（表单字段）
-  - `temp_code`: 临时登录码（可选，表单字段）
-  - `remember`: 是否记住登录状态（表单字段）
-- 功能: 用户登录。登录页面为 GET `/login`。
-- 响应:
-  - 成功时：重定向到首页或指定的 redirect 地址
-  - 失败时：返回错误信息
-- 调用示例（表单提交）:
-
-  ```html
-  <form action="/api/login" method="post">
-    <input type="text" name="account" placeholder="账号" required>
-    <input type="password" name="password" placeholder="密码" required>
-    <input type="checkbox" name="remember" value="true"> 记住我
-    <button type="submit">登录</button>
-  </form>
-  ```
-
-- 使用位置: 登录页面
-
-### 登出
-- **页面登出**
-  - 端点: `/logout`
-  - 方法: GET
-  - 功能: 清除会话并 **302 重定向** 到登录页（`get_redirect_url`）。
-- **API 登出**
-  - 端点: `/api/logout`
-  - 方法: POST
-  - 功能: 清除会话，返回 JSON（适合 SPA / `fetch`）。
-  - 响应示例: `{"status": "success", "message": "Logged out"}`
-
-- 调用示例:
-
-  ```javascript
-  function logoutPage() {
-    window.location.href = '/logout';
-  }
-
-  async function logoutApi() {
-    const r = await fetch('/api/logout', { method: 'POST', credentials: 'include' });
-    return r.json();
-  }
-  ```
-
-- 使用位置: 所有页面的退出登录按钮
-
-### 获取语言列表
-- 端点: `/api/langs`
-- 方法: GET
-- 功能: 获取前端可用的语言列表（来自 `/lang` 目录下的 JSON 文件及显示名）。无需登录。
-- 响应: 数组，每项为 `{"code": "语言代码", "name": "显示名称"}`；异常时返回 `{"error": "错误信息"}`，状态码 500。
-
-  ```json
-  [
-    {"code": "zh-CN", "name": "中文"},
-    {"code": "en-US", "name": "English"}
-  ]
-  ```
-
-- 使用位置: 前端语言切换、设置页
-
-## 服务器状态API
-
-### 获取服务器状态
-- 端点: `/api/get_server_status`
-- 方法: GET
-- 功能: 获取 Minecraft 服务器运行状态与版本/玩家摘要。需登录。
-- 响应: 成功时 HTTP 200，body 由 `ServerService.get_server_status()` 展开后再与外层合并；**顶层字段 `status` 表示服务器在线状态**（`online` / `offline`），不是固定的 `"success"`。
-
-  ```json
-  {
-    "status": "online|offline",
-    "version": "Version: ...",
-    "players": "当前/最大 或空字符串"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function checkServerStatus() {
-    try {
-      const response = await fetch('/api/get_server_status');
-      const data = await response.json();
-      
-      if (data.status === 'online') {
-        console.log(`服务器在线，版本: ${data.version}, 玩家: ${data.players}`);
-      } else if (data.status === 'offline') {
-        console.log('服务器离线');
-      } else {
-        console.log('未知状态:', data.status);
-      }
-    } catch (error) {
-      console.error('检查服务器状态出错:', error);
-    }
-  }
-  ```
-
-- 使用位置: 首页、控制面板
-
-### 获取服务器状态监控概览
-- 端点: `/api/monitor/overview`
-- 方法: GET
-- 功能: 获取服务器状态最新快照（TPS/MSPT/CPU/内存/Swap/磁盘/负载/网络）。需登录。
-  数据由后台 `MonitorService` 每秒采样；TPS/MSPT 经 RCON 执行 `/tps`、`/mspt` 解析（每 5 秒一次），
-  `/mspt` 为原版命令（1.16+），兼容 Paper 的 `avg` 与原版的 `average` 输出；TPS 依次尝试
-  `/tps`（Paper/Spigot）、`/forge tps`（Forge/NeoForge 内置），均不可用时由 MSPT 推算
-  `min(20, 1000/MSPT)` 近似值。RCON 未启用或服务端不支持时为 `null`（前端显示 N/A）。
-- 响应:
-
-  ```json
-  {
-    "status": "success",
-    "ts": 1700000000,
-    "online": true,
-    "uptime": 3600,
-    "tps": 19.87,
-    "mspt": 2.1,
-    "cpu": { "system": 12.5, "minecraft": 8.1 },
-    "memory": {
-      "total": 34359738368, "available": 12884901888, "used": 21474836480, "percent": 62.5,
-      "minecraft": 4294967296,
-      "swap_total": 8589934592, "swap_used": 0, "swap_percent": 0.0
-    },
-    "disk": { "path": "server", "total": 107374182400, "used": 48318382080, "percent": 45.0 },
-    "load": { "load1": 1.2, "load5": 1.1, "load15": 1.0 },
-    "network": { "rx": 102400.0, "tx": 51200.0 }
-  }
-  ```
-
-  说明: `cpu.minecraft` / `memory.minecraft` 为 Minecraft 进程组（MCDR 启动的 bash+java 进程树）
-  的占用，CPU 已按整机总核数归一化为百分比；网络为整机 rx/tx 字节每秒。
-
-- 使用位置: 仪表盘服务器状态卡片、`/status` 页面
-
-### 获取监控时间序列
-- 端点: `/api/monitor/history`
-- 方法: GET
-- 参数:
-  - `metric`: `cpu` / `memory` / `network` / `tps` / `mspt` / `load` / `disk`
-  - `range`: `10m` / `30m` / `1h` / `6h` / `12h` / `1d` / `3d` / `7d`
-- 功能: 获取指定指标的时间序列。范围 ≤1h 使用 1 秒精度采样，更大范围使用 1 分钟均值
-  （1 分钟均值持久化于 `guguwebui_static/monitor.db`，插件重载后仍保留）；服务端降采样到不超过 1500 点。
-- 响应:
-
-  ```json
-  {
-    "status": "success",
-    "metric": "cpu",
-    "range": "1h",
-    "sample": "1s",
-    "points": [
-      { "t": 1700000000, "system": 12.5, "minecraft": 8.1 }
-    ]
-  }
-  ```
-
-  说明: `memory` 的 `minecraft` 已按整机总内存归一化为百分比；`network` 返回 `rx`/`tx` 两个字段；
-  其余指标返回 `value`。
-
-- 使用位置: `/status` 页面折线图、仪表盘详情弹窗
-
-### 获取监控统计表
-- 端点: `/api/monitor/table`
-- 方法: GET
-- 参数:
-  - `range`: `10m` / `30m` / `1h` / `6h` / `12h` / `1d` / `3d` / `7d`（默认 `1h`）
-- 功能: 各指标在当前时间范围内的 avg/min/max 统计（范围 ≤1h 使用 1 秒采样，更大范围使用 1 分钟均值）。
-- 响应:
-
-  ```json
-  {
-    "status": "success",
-    "range": "1h",
-    "stats": {
-      "tps": { "avg": 19.8, "min": 19.2, "max": 20.0 },
-      "mspt": { "avg": 2.1, "min": 1.2, "max": 15.6 },
-      "cpu": { "system": {...}, "minecraft": {...} },
-      "memory": { "system": {...}, "minecraft": {...} },
-      "swap": {...}, "disk": {...},
-      "load": { "load1": {...}, "load5": {...}, "load15": {...} },
-      "network": { "rx": {...}, "tx": {...} }
-    }
-  }
-  ```
-
-  说明: 每个统计对象形如 `{ "avg": number|null, "min": number|null, "max": number|null }`，
-  `null` 表示该时间范围内无数据；`memory.minecraft` 保留字节数（表格按 GB 展示），其余字段与
-  overview/history 的单位一致。
-
-- 使用位置: `/status` 页面统计表
-
-### 控制服务器
-- 端点: `/api/control_server`
-- 方法: POST
-- 参数:
-  - `action`: 操作类型（"start"/"stop"/"restart"）
-- 功能: 启动、停止或重启Minecraft服务器
-- 响应:
-
-  ```json
-  {
-    "status": "success|error",
-    "message": "操作结果信息"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function controlServer(action) {
-    try {
-      const response = await fetch('/api/control_server', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: action })
-      });
-      
-      const result = await response.json();
-      if (result.status === 'success') {
-        console.log(`服务器${action}命令已发送: ${result.message}`);
-      } else {
-        console.error(`操作失败: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('控制服务器出错:', error);
-    }
-  }
-  
-  // 使用示例
-  // controlServer('start');   // 启动服务器
-  // controlServer('stop');    // 停止服务器
-  // controlServer('restart'); // 重启服务器
-  ```
-
-- 使用位置: 服务器控制面板
-
-### 获取服务器日志
-- 端点: `/api/server_logs`
-- 方法: GET
-- 参数:
-  - `start_line`: 查询参数仍存在，**当前服务端实现未传入日志逻辑，实际被忽略**（保留兼容）；分页请以返回的 `current_start` / `current_end` 与 `total_lines` 为准或配合 `/api/new_logs`。
-  - `max_lines`: 最大返回行数（默认 100，最大 500）
-- 功能: 获取合并后的服务器日志（MCDR + Minecraft）。需登录。
-- 响应:
-
-  ```json
-  {
-    "status": "success|error",
-    "logs": [
-      {
-        "line_number": 0,
-        "content": "日志内容",
-        "source": "mcdr|minecraft",
-        "counter": 计数器ID
-      }
-    ],
-    "total_lines": 总行数,
-    "current_start": 开始行号,
-    "current_end": 结束行号
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function getServerLogs(startLine = 0, maxLines = 100) {
-    try {
-      const params = new URLSearchParams({
-        start_line: startLine,
-        max_lines: maxLines
-      });
-      
-      const response = await fetch(`/api/server_logs?${params.toString()}`);
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        console.log(`获取到 ${data.logs.length} 行日志`);
-        console.log(`总行数: ${data.total_lines}`);
-        // 处理日志
-        data.logs.forEach(log => {
-          console.log(`${log.line_number}: ${log.content}`);
-        });
-      } else {
-        console.error('获取日志失败');
-      }
-    } catch (error) {
-      console.error('获取服务器日志出错:', error);
-    }
-  }
-  ```
-
-- 使用位置: 日志查看页面
-- 备注: 返回的日志为 MCDR 与 Minecraft 合并结果，每条包含 `source` 字段标识来源
-
-### 获取最新日志更新
-- 端点: `/api/new_logs`
-- 方法: GET
-- 参数:
-  - `last_counter`: 客户端已有的最后一行计数器 ID（`counter`）
-  - `max_lines`: 最大返回行数（默认 100，最大 200）
-- 功能: 自 `last_counter` 之后增量拉取日志，用于轮询刷新。需登录。
-- 响应（成功时 `status` 为 `"success"`，以下为 `LogWatcher.get_logs_since_counter` 合并后的结构）:
-
-  ```json
-  {
-    "status": "success",
-    "logs": [
-      {
-        "line_number": 0,
-        "counter": 123,
-        "timestamp": "2025-01-01 12:00:00",
-        "content": "日志行文本\\n",
-        "source": "all",
-        "is_command": false
-      }
-    ],
-    "total_lines": 总行数,
-    "last_counter": 最后一行计数器ID,
-    "new_logs_count": 新增条数
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function fetchNewLogs(lastCounter, maxLines = 100) {
-    try {
-      const response = await fetch(`/api/new_logs?last_counter=${lastCounter}&max_lines=${maxLines}`);
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        console.log(`获取到 ${data.new_logs_count} 行新日志`);
-        // 处理新日志
-        data.logs.forEach(log => {
-          console.log(`${log.line_number}: ${log.content}`);
-        });
-        
-        // 更新最后一行计数器ID
-        return data.last_counter;
-      }
-      
-      return lastCounter; // 没有新日志，返回原计数器ID
-    } catch (error) {
-      console.error('获取新日志出错:', error);
-      return lastCounter;
-    }
-  }
-  
-  // 定时获取新日志
-  let lastCounter = 0;
-  setInterval(async () => {
-    lastCounter = await fetchNewLogs(lastCounter);
-  }, 3000);
-  ```
-
-- 使用位置: 日志实时监控页面
-- 备注: 通常与`setInterval`配合使用，定期轮询获取新日志
-
-## 插件管理API
-
-### 获取插件列表
-- 端点: `/api/plugins`
-- 方法: GET
-- 参数: 
-  - `plugin_id`: 指定插件 ID（可选；提供时只返回至多一条）
-- 功能: 获取已安装的插件列表。**必须登录**（或子服 `X-Panel-Token`）；未登录为 **401**。
-- 响应:
-
-  ```json
-  {
-    "status": "success",
-    "plugins": [
-      {
-        "id": "插件ID",
-        "name": "插件名称",
-        "version": "插件版本",
-        "description": "插件描述",
-        "status": "loaded|unloaded|disabled",
-        "author": "插件作者",
-        "link": "插件链接",
-        "dependencies": ["依赖插件列表"],
-        "repository": "代码仓库地址"
-      }
-    ]
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  // 获取所有插件
-  async function getAllPlugins() {
-    try {
-      const response = await fetch('/api/plugins');
-      const data = await response.json();
-      
-      if (data.plugins) {
-        console.log(`获取到 ${data.plugins.length} 个插件`);
-        // 处理插件列表
-        data.plugins.forEach(plugin => {
-          console.log(`${plugin.name} (${plugin.id}) - ${plugin.status}`);
-        });
-      } else {
-        console.error('获取插件列表失败或未登录');
-      }
-    } catch (error) {
-      console.error('获取插件列表出错:', error);
-    }
-  }
-
-  // 获取指定插件
-  async function getPluginById(pluginId) {
-    try {
-      const response = await fetch(`/api/plugins?plugin_id=${encodeURIComponent(pluginId)}`);
-      const data = await response.json();
-      
-      if (data.plugins && data.plugins.length > 0) {
-        const plugin = data.plugins[0];
-        console.log(`插件信息: ${plugin.name} (${plugin.id}) - ${plugin.status}`);
-        return plugin;
-      } else {
-        console.error('未找到指定插件或获取失败');
-        return null;
-      }
-    } catch (error) {
-      console.error('获取插件信息出错:', error);
-      return null;
-    }
-  }
-  ```
-
-- 使用位置: 插件管理页面
-- 备注: 接口始终返回详细信息，包括作者、链接等
-
-### 获取在线插件目录（everything_slim 等）
-- 端点: `/api/online-plugins`
-- 方法: GET
-- 查询参数: `repo_url`（可选，覆盖默认目录地址）
-- 功能: 返回在线插件目录 JSON（由 `PluginService.get_online_plugins` 拉取并解析）。**需管理员**；多服场景下**不代理到子服**，始终请求主服本地。
-
-### 获取咕咕机器人插件（已移除）
-- 端点: `/api/gugubot_plugins`
-- 状态: **已移除**。该接口已从当前版本中移除，请使用 `/api/plugins` 获取插件列表。
-
-### 切换插件状态
-- 端点: `/api/toggle_plugin`
-- 方法: POST
-- 参数: 
-  - `plugin_id`: 插件ID
-  - `status`: 目标状态（true为启用，false为禁用）
-- 功能: 启用或禁用指定插件
-- 响应:
-
-  ```json
-  {
-    "status": "success|error",
-    "message": "操作结果信息"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function togglePlugin(pluginId, enable) {
-    try {
-      const response = await fetch('/api/toggle_plugin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          plugin_id: pluginId,
-          status: enable
-        })
-      });
-      
-      const result = await response.json();
-      if (result.status === 'success') {
-        console.log(`插件 ${pluginId} ${enable ? '已启用' : '已禁用'}: ${result.message}`);
-      } else {
-        console.error(`操作失败: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('切换插件状态出错:', error);
-    }
-  }
-  
-  // 使用示例
-  // togglePlugin('example_plugin', true);  // 启用插件
-  // togglePlugin('example_plugin', false); // 禁用插件
-  ```
-
-- 使用位置: 插件管理页面
-
-### 重载插件
-- 端点: `/api/reload_plugin`
-- 方法: POST
-- 参数: 
-  - `plugin_id`: 插件ID
-- 功能: 重新加载指定插件
-- 响应:
-
-  ```json
-  {
-    "status": "success|error",
-    "message": "操作结果信息"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function reloadPlugin(pluginId) {
-    try {
-      const response = await fetch('/api/reload_plugin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          plugin_id: pluginId
-        })
-      });
-      
-      const result = await response.json();
-      if (result.status === 'success') {
-        console.log(`插件 ${pluginId} 已重载: ${result.message}`);
-      } else {
-        console.error(`重载失败: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('重载插件出错:', error);
-    }
-  }
-  ```
-
-- 使用位置: 插件管理页面
-
-### 获取已注册的插件网页列表（侧边栏）
-- 端点: `/api/plugins/web_pages`
-- 方法: GET
-- 功能: 获取所有通过 `register_plugin_page` 注册的插件网页列表，用于侧边栏「插件网页」展示。需登录。
-- 响应:
-
-  ```json
-  {
-    "status": "success",
-    "pages": [
-      {
-        "id": "插件ID",
-        "path": "HTML 文件路径",
-        "name": "插件网页友好名称（可选；不注册时回退为 null）",
-        "icon": "图标声明（可选；Lucide 名称、Emoji 或相对图片路径）"
-      }
-    ]
-  }
-  ```
-
-  - 未登录时: **401**
-- 使用位置: 布局侧边栏、插件网页入口
-
-### 插件页面图标
-
-插件可在 `register_plugin_page` 中传入可选的 `icon` 字符串，侧边栏按以下规则渲染：
-
-- **内置 Lucide 图标名**：支持 `Wrench`、`ChartNoAxesCombined`、`Server` 等常用图标名。名称不存在或未内置时回退为默认拼图图标。
-- **Emoji**：如 `icon="🔧"`。
-- **相对图片路径**：如 `icon="assets/icon.png"` 或 `icon="images/logo.svg"`。路径相对于 `html_path` 所在目录；仅允许该目录及其子目录中的图片文件，拒绝绝对路径和 `..` 越界路径。
-
-图片图标由以下需登录的接口提供，通常无需由插件直接调用：
-
-- 端点: `/api/plugins/web_pages/{plugin_id}/icon`
-- 方法: GET
-- 未配置图片、图片不存在或路径不安全时: **404**
-
-- 使用位置: 布局侧边栏、插件网页入口
-
-### 插件后端 API 代理（可选）
-
-插件在调用 `register_plugin_page` 时可传入 `api_handler`，则 WebUI 将以下路径的请求转发给该处理器（需登录，与多数业务 API 一致）。
-
-- **根路径（子路径为空）**
-  - 端点: `/api/plugin/{plugin_id}`
-  - 方法: `GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`OPTIONS`、`HEAD`
-- **带子路径**
-  - 端点: `/api/plugin/{plugin_id}/{subpath}`
-  - `subpath` 可含多级，例如 `abc` 或 `foo/bar`，对应处理器第一个参数 `url_path` 的字符串。
-
-**处理器约定**（Python）：
-
-- 签名为 `(url_path: str, params: dict) -> ...`
-- `url_path`：去掉 `/api/plugin/{plugin_id}/` 前缀后的子路径；根路径请求时为 `""`。
-- `params` 固定包含：
-  - `method`：HTTP 方法字符串
-  - `query`：查询参数，`dict[str, str | list[str]]`（同名多值为列表）
-  - `auth`：框架注入的鉴权上下文（仅用于插件 `api_handler` 内部权限判断）。结构示例：
-    - `username`：当前登录用户名（子服面板 token 模式下为 `__panel__`）
-    - `auth_via`：认证来源（`cookie` 或 `panel_token`）
-    - `is_admin`：是否通过 `get_current_admin` 策略
-    - `is_super_admin`：是否为配置的 `super_admin_account`
-    - `is_panel`：是否为面板 token 来源
-  - `body`：请求体；无体或未解析时为 `None`。支持：
-    - `application/json`
-    - `application/x-www-form-urlencoded` / `multipart/form-data`（纯文本字段为字符串）
-    - **`multipart/form-data` 文件字段**：每个文件解析为如下 `dict`（字段名与表单 `name` 一致；同一 `name` 多个文件时为列表）：
-      ```python
-      {
-          "type": "file",
-          "filename": str | None,      # 客户端提供的文件名
-          "content_type": str | None,  # 声明的 MIME，可能为空
-          "size": int,                 # 字节长度
-          "data": bytes,               # 文件内容（已读入内存）
-      }
-      ```
-      单文件字段超过大小上限时返回 **`413`**。默认上限为 `guguwebui.constant.PLUGIN_API_MAX_UPLOAD_BYTES`（默认 1 MiB）；插件可在 `register_plugin_page(..., upload_max_bytes=...)` 单独覆盖。
-
-**返回值**：可为 `starlette.responses.Response` 子类（原样返回），或可被 JSON 序列化的对象（封装为 JSON 响应）。
-
-**错误**：
-
-- 未注册 `api_handler` 或该 `plugin_id` 未注册页面：`404`
-- 不支持的 `Content-Type`（非上述类型）：`415`
-- JSON 体非法：`400`
-- 单个上传文件超过大小上限：`413`
-
-**多服**：主服选中子服时，若请求经面板代理转发，子服本地执行对应插件的 `api_handler`（与 RCON 等一致）。
-
-## 配置相关API
-
-### 获取配置文件列表
-- 端点: `/api/list_config_files`
-- 方法: GET
-- 参数: 
-  - `plugin_id`: 插件ID
-- 功能: 获取指定插件的配置文件列表
-- 响应:
-
-  ```json
-  {
-    "status": "success|error",
-    "files": ["配置文件路径列表"],
-    "message": "错误信息（如果失败）"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function getConfigFiles(pluginId) {
-    try {
-      const response = await fetch(`/api/list_config_files?plugin_id=${encodeURIComponent(pluginId)}`);
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        console.log(`获取到 ${data.files.length} 个配置文件`);
-        // 处理文件列表
-        data.files.forEach(file => {
-          console.log(`配置文件: ${file}`);
-        });
-        return data.files;
-      } else {
-        console.error(`获取配置文件列表失败: ${data.message}`);
-        return [];
-      }
-    } catch (error) {
-      console.error('获取配置文件列表出错:', error);
-      return [];
-    }
-  }
-  ```
-
-- 使用位置: 插件配置页面
-
-### 加载配置文件
-- 端点: `/api/load_config`
-- 方法: GET
-- 参数: 
-  - `path`: 配置文件路径
-  - `translation`: 是否需要翻译（可选，布尔值）
-  - `type`: 配置类型（可选，默认为"auto"）
-- 功能: 加载指定配置文件内容
-- 使用位置: 配置编辑页面
-
-### 保存配置文件
-- 端点: `/api/save_config`
-- 方法: POST
-- 参数（JSON body）: 
-  - `file_path`: 配置文件路径（字符串）
-  - `config_data`: 配置内容（对象）
-- 功能: 保存指定路径的配置文件。禁止通过此接口修改 `config\guguwebui\config.json`。
-- 响应: `{"status": "success"}` 或 `{"status": "error", "message": "..."}`
-- 使用位置: 配置编辑页面
-
-### 加载配置文件内容
-- 端点: `/api/load_config_file`
-- 方法: GET
-- 参数: 
-  - `path`: 配置文件路径
-- 功能: 加载指定配置文件的原始内容
-- 响应: 文件内容（纯文本）
-- 使用位置: 配置编辑页面
-
-### 保存配置文件内容
-- 端点: `/api/save_config_file`
-- 方法: POST
-- 参数（JSON body）: 
-  - `action`: 文件路径（字符串）
-  - `content`: 文件内容（字符串）
-- 功能: 保存配置文件原始内容。禁止通过此接口修改 `config\guguwebui\config.json`。
-- 响应: `{"status": "success", "message": "..."}` 或 `{"status": "error", "message": "..."}`
-- 使用位置: 配置编辑页面
-
-### 获取WebUI配置
-- 端点: `/api/get_web_config`
-- 方法: GET
-- 功能: 获取 WebUI 配置（用于设置页）。**不返回真实 AI 密钥**：`ai_api_key` 恒为空字符串，请用 `ai_api_key_configured` 判断是否已配置。
-- 响应（字段与 `ConfigService.get_web_config` 一致，节选）:
-
-  ```json
-  {
-    "host": "0.0.0.0",
-    "port": 8080,
-    "super_admin_account": "超级管理员账号",
-    "disable_admin_login_web": false,
-    "enable_temp_login_password": false,
-    "panel_role": "master|slave",
-    "panel_slaves": [],
-    "panel_master": { "allowed_tokens": [], "allowed_master_ips": [] },
-    "ai_api_key": "",
-    "ai_api_key_configured": true,
-    "ai_model": "deepseek-chat",
-    "ai_api_url": "https://api.deepseek.com/chat/completions",
-    "mcdr_plugins_url": "…",
-    "pf_plugin_catalogue_url": "…",
-    "repositories": [],
-    "ssl_enabled": false,
-    "ssl_certfile": "",
-    "ssl_keyfile": "",
-    "ssl_keyfile_password": "",
-    "public_chat_enabled": false,
-    "public_chat_to_game_enabled": false,
-    "chat_verification_expire_minutes": 10,
-    "chat_session_expire_hours": 24,
-    "force_standalone": false,
-    "icp_records": [],
-    "chat_message_count": 0
-  }
-  ```
-
-- 使用位置: WebUI设置页面
-
-### 保存WebUI配置
-- 端点: `/api/save_web_config`
-- 方法: POST
-- 参数: 
-  - `action`: 操作类型（"config"/"disable_admin_login_web"/"enable_temp_login_password"）
-  - `host`: 主机地址（可选）
-  - `port`: 端口（可选）
-  - `super_account`: 超级管理员账号（可选）
-  - `ai_api_key`: AI API密钥（可选）
-  - `ai_model`: AI模型选择（可选）
-  - `ai_api_url`: AI API地址（可选）
-  - `mcdr_plugins_url`: MCDR插件目录URL（可选）
-  - `repositories`: 仓库列表（可选）
-  - `ssl_enabled`: 是否启用SSL（可选）
-  - `ssl_certfile`: SSL证书文件路径（可选）
-  - `ssl_keyfile`: SSL密钥文件路径（可选）
-  - `ssl_keyfile_password`: SSL密钥密码（可选）
-  - `panel_role`、`panel_slaves`、`panel_master`: 多服面板相关（与 `/api/panel_merge_config` 写入的语义一致，见下文「多服面板与配对 API」）
-- 功能: 保存WebUI配置
-- 响应:
-
-  ```json
-  {
-    "status": "success|error",
-    "message": "操作结果信息（如果有）"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  // 保存基本配置
-  async function saveWebConfig(config) {
-    try {
-      const response = await fetch('/api/save_web_config', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: 'config',
-          ...config
-        })
-      });
-      
-      const result = await response.json();
-      if (result.status === 'success') {
-        console.log('WebUI配置保存成功');
-      } else {
-        console.error(`保存失败: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('保存WebUI配置出错:', error);
-    }
-  }
-  
-  // 使用示例
-  saveWebConfig({
-    host: '0.0.0.0',
-    port: 8080,
-    super_account: 'admin',
-    ai_api_key: 'your-api-key',
-    ai_model: 'deepseek-chat',
-    ai_api_url: 'https://api.deepseek.com/chat/completions',
-    mcdr_plugins_url: 'https://api.mcdreforged.com/catalogue/everything_slim.json.xz',
-    repositories: ['https://example.com/repo'],
-    ssl_enabled: true,
-    ssl_certfile: '/path/to/cert.pem',
-    ssl_keyfile: '/path/to/key.pem',
-    ssl_keyfile_password: 'your-password'
-  });
-  ```
-
-- 使用位置: WebUI设置页面
-- 备注: 保存AI API密钥时，如果不提供值，将保持原值不变。可选参数还包括：`public_chat_enabled`、`public_chat_to_game_enabled`、`chat_verification_expire_minutes`、`chat_session_expire_hours` 等。
-
-### 获取 ICP 备案信息
-- 端点: `/api/config/icp-records`
-- 方法: GET
-- 功能: 获取 WebUI 配置中的 ICP 备案信息（用于页脚展示等）。无需登录。
-- 响应:
-
-  ```json
-  {
-    "status": "success",
-    "icp_records": []
-  }
-  ```
-
-- 使用位置: 页脚、关于页
-
-## 文件操作API
-
-### 加载CSS/JS文件
-- 端点: `/api/load_file`
-- 方法: GET
-- 参数: 
-  - `file`: 文件类型（css/js）
-- 功能: 加载overall.css或overall.js文件内容
-- 响应: 文件内容（纯文本）
-- 使用位置: 自定义样式/脚本编辑页面
-
-### 保存CSS/JS文件
-- 端点: `/api/save_file`
-- 方法: POST
-- 参数: 
-  - `action`: 文件类型（css/js）
-  - `content`: 文件内容
-- 功能: 保存overall.css或overall.js文件
-- 使用位置: 自定义样式/脚本编辑页面
-
-## 外部API
-
-### 获取QQ昵称
-- 端点: `https://api.leafone.cn/api/qqnick`
-- 方法: GET
-- 参数:
-  - `qq`: QQ号码
-- 功能: 获取QQ昵称和头像信息
-- 响应:
-
-  ```json
-  {
-    "code": 200,
-    "msg": "获取成功",
-    "data": {
-      "nickname": "QQ昵称",
-      "avatar": "头像信息"
-    }
-  }
-  ```
-
-- 使用位置: 用户信息显示
-
-### 获取QQ头像
-- 端点: `https://q1.qlogo.cn/g`
-- 方法: GET
-- 参数:
-  - `b`: 固定值为"qq"
-  - `nk`: QQ号码
-  - `s`: 图像尺寸（640为最大）
-- 功能: 获取QQ头像图片
-- 响应: 图片文件
-- 使用位置: 用户头像显示
-
-## AI 辅助 API
-
-### 获取命令补全建议
-- 端点: `/api/command_suggestions`
-- 方法: GET
-- 参数:
-  - `input`: 当前输入内容（可选，用于补全子命令）
-- 功能: 获取 MCDR 命令补全建议，用于终端输入框自动补全。需登录。
-- 响应:
-
-  ```json
-  {
-    "status": "success",
-    "suggestions": [
-      {
-        "command": "命令名或补全片段",
-        "description": "描述"
-      }
-    ],
-    "input": "与请求参数 input 相同的回显字符串"
-  }
-  ```
-
-- 未登录时: **401**
-- 使用位置: 终端页面命令输入补全
-
-### 发送命令到MCDR终端
-- 端点: `/api/send_command`
-- 方法: POST
-- 功能: 向MCDR服务器发送命令。**需管理员**。
-- 参数:
-
-  ```json
-  {
-    "command": "要执行的命令"
-  }
-  ```
-
-- 响应:
-
-  ```json
-  {
-    "status": "success|error",
-    "message": "操作结果信息",
-    "feedback": "命令执行反馈（RCON模式下为 RCON 直接反馈；RCON 不可用时为直接执行捕获的真实输出，无需 RCON）" 
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function sendCommand(command) {
-    try {
-      const response = await fetch('/api/send_command', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ command: command })
-      });
-      
-      const result = await response.json();
-      if (result.status === 'success') {
-        console.log(`命令已发送: ${result.message}`);
-        
-        // 如果有命令反馈（RCON 反馈或直接执行捕获的输出）
-        if (result.feedback) {
-          console.log(`命令反馈: ${result.feedback}`);
-        }
-        
-        return true;
-      } else {
-        console.error(`发送失败: ${result.message}`);
-        return false;
-      }
-    } catch (error) {
-      console.error('发送命令出错:', error);
-      return false;
-    }
-  }
-  
-  // 使用示例
-  // sendCommand('!!MCDR status');  // MCDR命令：直接执行并捕获回复（无需RCON）
-  // sendCommand('/say Hello');      // 服务器命令：RCON可用时优先RCON，否则直接执行并捕获输出
-  ```
-
-- 使用位置: 终端页面
-- 备注: 
-  - 命令分类：以 `!` 开头的为 MCDR 命令；其余（含 `/` 前缀与普通文本，如 `list`、`say hi`）按 Minecraft 服务器命令处理
-  - 服务器命令：若 RCON 已启用并连接，优先通过 RCON 发送并返回直接反馈（RCON 优先级高于直接执行）
-  - RCON 未启用、未连接或执行失败时，回退为「直接执行 + 输出捕获」：命令经 MCDR 写入服务器控制台，并通过 MCDR 日志事件捕获真实输出，**不需要 RCON**
-  - MCDR 命令（`!` 开头）：在 MCDR 进程内以捕获源（权限等级 4）直接执行，命令回复收集后随 `feedback` 返回，同样**不需要 RCON**
-  - `feedback` 可能为空字符串：命令已执行但未捕获到输出（命令无回显 / 服务器未运行），此时以 `message` 提示
-  - 禁止执行以下命令以保护WebUI功能：`!!MCDR plugin reload guguwebui`、`!!MCDR plugin unload guguwebui`
-  - 若命令被策略禁止：HTTP **403**，body 中 `message` 为「该命令已被禁止执行」
-
-### 获取 RCON 状态
-- 端点: `/api/get_rcon_status`
-- 方法: GET
-- 功能: 读取 MCDR `config.yml` 中 RCON 是否启用，并探测 RCON 是否已连接、可选 `list` 查询摘要。需登录。
-- 响应（成功时 `status` 为 `"success"`，与 `ServerService.get_rcon_status` 一致）:
-
-  ```json
-  {
-    "status": "success",
-    "rcon_enabled": true,
-    "rcon_connected": true,
-    "rcon_info": {
-      "list_response": "…",
-      "player_info": "…",
-      "error": "可选错误信息"
-    }
-  }
-  ```
-
-### DeepSeek AI 查询
-- 端点: `/api/deepseek`
-- 方法: POST
-- 功能: 调用 `AIService.query` 向配置的 AI API（默认 DeepSeek 兼容地址）发起请求。**需管理员**。
-- 请求体（`DeepseekQuery`，仅下列字段会被解析）:
-
-  ```json
-  {
-    "query": "您的问题",
-    "system_prompt": "可选的系统指令",
-    "model": "可选模型名",
-    "api_key": "可选临时密钥",
-    "api_url": "可选临时 API 地址"
-  }
-  ```
-
-- 响应: 
-
-  ```json
-  {
-    "status": "success"
-  }
-  ```
-
-  其后字段为 **上游 API 返回的 JSON**（OpenAI 兼容接口时通常含 `choices` 等）。若未配置密钥且非免密钥线路，会返回业务错误（如 400「未配置 AI API Key」）。**当前服务端实现未支持通过本接口传递 `chat_history` 多轮上下文**；若需连续对话须在客户端自行拼接进 `query` 或扩展后端。
-
-- 错误响应: 业务错误时为 `{"status":"error","message":"..."}`；未登录 **401**，非管理员 **403**。
-
-- 调用示例:
-
-  ```javascript
-  async function askAI(query, systemPrompt = null) {
-    const requestData = { query };
-    if (systemPrompt) requestData.system_prompt = systemPrompt;
-    const response = await fetch('/api/deepseek', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestData),
-      credentials: 'include'
-    });
-    const result = await response.json();
-    if (result.status === 'success') {
-      // 上游多为 OpenAI 兼容结构，例如从 choices[0].message.content 取文本
-      return result.choices?.[0]?.message?.content ?? result;
-    }
-    console.error(result.message || response.status);
-    return null;
-  }
-  ```
-
-- 使用位置: 终端日志 AI 分析功能
-- 备注: 
-  - 默认需在 Web 设置中配置有效 API 密钥（部分内置地址可免密钥，以实现为准）
-  - 可通过请求体临时覆盖 `api_key`、`api_url`、`model`
-
-## PIM插件安装器API
-
-### 检查PIM状态
-- 端点: `/api/check_pim_status`
-- 方法: GET
-- 功能: 检查 PIM（`pim_helper`）是否已作为插件安装。**需管理员**。
-- 响应: `{"status":"success","pim_status":"installed|not_installed","message":"..."}`（与 `PluginService.check_pim_status` 合并到统一 JSON）
-
-- 调用示例:
-
-  ```javascript
-  async function checkPimStatus() {
-    try {
-      const response = await fetch('/api/check_pim_status');
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        if (data.pim_status === 'installed') {
-          console.log('PIM插件已安装');
-          return true;
-        } else {
-          console.log('PIM插件未安装');
-          return false;
-        }
-      } else {
-        console.error(`检查PIM状态失败: ${data.message}`);
-        return false;
-      }
-    } catch (error) {
-      console.error('检查PIM状态出错:', error);
-      return false;
-    }
-  }
-  ```
-
-- 使用位置: 插件管理页面
-- 备注: 用于检查PIM插件是否已安装，以便决定是否显示安装PIM插件的选项
-
-### 安装PIM插件
-- 端点: `/api/install_pim_plugin`
-- 方法: GET
-- 功能: 将 PIM 作为独立插件安装到 MCDR 中。**需管理员**。
-- 响应:
-
-  ```json
-  {
-    "status": "success|error",
-    "message": "操作结果信息"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function installPimPlugin() {
-    try {
-      const response = await fetch('/api/install_pim_plugin');
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        console.log(`PIM插件安装成功: ${data.message}`);
-        return true;
-      } else {
-        console.error(`安装失败: ${data.message}`);
-        return false;
-      }
-    } catch (error) {
-      console.error('安装PIM插件出错:', error);
-      return false;
-    }
-  }
-  ```
-
-- 使用位置: 插件管理页面
-- 备注: 将PIM插件从WebUI中提取出来，作为独立插件安装到MCDR中
-
-### 安装插件
-- 端点: `/api/pim/install_plugin`
-- 方法: POST
-- 参数: 
-  - `plugin_id`: 插件ID
-- 功能: 安装指定插件（使用PIM插件安装器）
-- 响应:
-
-  ```json
-  {
-    "success": true|false,
-    "task_id": "任务ID",
-    "message": "操作结果信息",
-    "error": "错误信息（如果失败）"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function installPlugin(pluginId) {
-    if (pluginId === "guguwebui") {
-      console.error("不允许安装WebUI自身，这可能会导致WebUI无法正常工作");
-      return;
-    }
-    
-    try {
-      const response = await fetch('/api/pim/install_plugin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          plugin_id: pluginId
-        })
-      });
-      
-      const result = await response.json();
-      if (result.success) {
-        console.log(`开始安装插件 ${pluginId}, 任务ID: ${result.task_id}`);
-        return result.task_id;
-      } else {
-        console.error(`安装失败: ${result.error || ''}`);
-        return null;
-      }
-    } catch (error) {
-      console.error('安装插件出错:', error);
-      return null;
-    }
-  }
-  ```
-
-- 使用位置: 插件管理页面和在线插件页面
-- 备注: 
-  - 返回的任务ID可用于查询安装进度
-  - 不允许安装ID为"guguwebui"的插件，以保护WebUI自身的稳定性
-
-### 更新插件
-- 端点: `/api/pim/update_plugin`
-- 方法: POST
-- 参数: 
-  - `plugin_id`: 插件ID
-  - `version`: 指定版本号（可选）
-  - `repo_url`: 指定仓库URL（可选）
-- 功能: 更新指定插件（使用PIM插件安装器）
-- 响应:
-
-  ```json
-  {
-    "success": true|false,
-    "task_id": "任务ID",
-    "message": "操作结果信息",
-    "error": "错误信息（如果失败）"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function updatePlugin(pluginId, version = null, repoUrl = null) {
-    if (pluginId === "guguwebui") {
-      console.error("不允许更新WebUI自身，这可能会导致WebUI无法正常工作");
-      return;
-    }
-    
-    try {
-      const requestData = {
-        plugin_id: pluginId
-      };
-      
-      if (version) {
-        requestData.version = version;
-      }
-      
-      if (repoUrl) {
-        requestData.repo_url = repoUrl;
-      }
-      
-      const response = await fetch('/api/pim/update_plugin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-      });
-      
-      const result = await response.json();
-      if (result.success) {
-        console.log(`开始更新插件 ${pluginId}, 任务ID: ${result.task_id}`);
-        return result.task_id;
-      } else {
-        console.error(`更新失败: ${result.error || ''}`);
-        return null;
-      }
-    } catch (error) {
-      console.error('更新插件出错:', error);
-      return null;
-    }
-  }
-  ```
-
-- 使用位置: 插件管理页面
-- 备注: 
-  - 返回的任务ID可用于查询更新进度
-  - 不允许更新ID为"guguwebui"的插件，以保护WebUI自身的稳定性
-  - 可以通过version参数指定要更新到的版本
-  - 可以通过repo_url参数指定要使用的仓库地址
-
-### 卸载插件
-- 端点: `/api/pim/uninstall_plugin`
-- 方法: POST
-- 参数: 
-  - `plugin_id`: 插件ID
-- 功能: 卸载指定插件并删除相关文件（使用PIM插件安装器）
-- 响应:
-
-  ```json
-  {
-    "success": true|false,
-    "task_id": "任务ID",
-    "message": "操作结果信息",
-    "error": "错误信息（如果失败）"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function uninstallPlugin(pluginId) {
-    if (pluginId === "guguwebui") {
-      console.error("不允许卸载WebUI自身，这将导致WebUI无法正常工作");
-      return;
-    }
-    
-    try {
-      const response = await fetch('/api/pim/uninstall_plugin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          plugin_id: pluginId
-        })
-      });
-      
-      const result = await response.json();
-      if (result.success) {
-        console.log(`开始卸载插件 ${pluginId}, 任务ID: ${result.task_id}`);
-        return result.task_id;
-      } else {
-        console.error(`卸载失败: ${result.error || ''}`);
-        return null;
-      }
-    } catch (error) {
-      console.error('卸载插件出错:', error);
-      return null;
-    }
-  }
-  ```
-
-- 使用位置: 插件管理页面
-- 备注: 
-  - 返回的任务ID可用于查询卸载进度
-  - 不允许卸载ID为"guguwebui"的插件，以保护WebUI自身的稳定性
-  - 卸载操作会同时删除插件的文件，是永久性的操作
-  - 如果插件被其他插件依赖，可能会需要额外确认
-
-### 获取任务状态
-- 端点: `/api/pim/task_status`
-- 方法: GET
-- 参数: 
-  - `task_id`: 任务ID（可选，与plugin_id二选一）
-  - `plugin_id`: 插件ID（可选，与task_id二选一）
-- 功能: 获取指定任务的执行状态，或获取指定插件最近的任务状态
-- 响应:
-
-  ```json
-  {
-    "success": true|false,
-    "task_info": {
-      "id": "任务ID",
-      "plugin_id": "插件ID",
-      "status": "pending|running|completed|failed",
-      "progress": 0.0-1.0,
-      "message": "当前状态描述",
-      "start_time": 开始时间戳,
-      "end_time": 结束时间戳,
-      "all_messages": ["任务执行过程中的所有消息列表"],
-      "error_messages": ["错误消息列表"]
-    },
-    "error": "错误信息（如果请求失败）"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  // 通过任务ID查询
-  async function checkTaskStatus(taskId, pluginId = null) {
-    try {
-      let url = `/api/pim/task_status?task_id=${taskId}`;
-      if (pluginId) {
-        url += `&plugin_id=${pluginId}`;
-      }
-      
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      if (data.success && data.task_info) {
-        console.log(`任务 ${taskId} 状态:`, data.task_info);
-        return data.task_info;
-      } else {
-        console.error(`获取任务状态失败: ${data.error || '未知错误'}`);
-        return null;
-      }
-    } catch (error) {
-      console.error('查询任务状态出错:', error);
-      return null;
-    }
-  }
-  
-  // 通过插件ID查询
-  async function checkPluginTaskStatus(pluginId) {
-    try {
-      const response = await fetch(`/api/pim/task_status?plugin_id=${pluginId}`);
-      const data = await response.json();
-      
-      if (data.success && data.task_info) {
-        console.log(`插件 ${pluginId} 最近任务状态:`, data.task_info);
-        return data.task_info;
-      } else {
-        console.error(`获取插件任务状态失败: ${data.error || '未知错误'}`);
-        return null;
-      }
-    } catch (error) {
-      console.error('查询插件任务状态出错:', error);
-      return null;
-    }
-  }
-  ```
-  
-- 使用位置: 插件管理页面和在线插件页面
-- 备注: 
-  - 可以通过任务ID或插件ID查询任务状态
-  - 当任务未找到但提供了插件ID时，会尝试查找关联该插件的最新任务
-  - progress属性为0到1的小数，表示任务进度百分比
-  - all_messages包含任务执行的完整日志
-  - status可能的值：pending（等待中）、running（执行中）、completed（已完成）、failed（失败）
-
-### 获取插件所属仓库信息
-- 端点: `/api/pim/plugin_repository`
-- 方法: GET
-- 查询参数: `plugin_id`
-- 功能: 返回 `PluginService.get_plugin_repository` 结果（结构依实现而定）。需登录。
-
-### 获取插件版本列表
-- 端点: `/api/pim/plugin_versions`
-- 方法: GET
-- 参数:
-  - `plugin_id`: 插件ID
-  - `repo_url`: 指定仓库URL（可选）
-- 功能: 获取指定插件的所有可用版本列表。需登录。
-- 响应:
-
-  ```json
-  {
-    "success": true,
-    "versions": [
-      {
-        "version": "版本号",
-        "tag_name": "标签名",
-        "created_at": "创建时间",
-        "download_url": "下载地址",
-        "download_count": 下载次数,
-        "size": 文件大小,
-        "description": "版本描述"
-      }
-    ]
-  }
-  ```
-
-- 使用位置: 插件管理页面（更新/安装指定版本）
-
-## Pip包管理API
-
-### 获取已安装的Pip包列表
-- 端点: `/api/pip/list`
-- 方法: GET
-- 功能: 获取已安装的 Python 包列表。**需管理员**。
-- 响应:
-
-  ```json
-  {
-    "status": "success|error",
-    "packages": [
-      {
-        "name": "包名",
-        "version": "版本号"
-      }
-    ]
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function getPipPackages() {
-    try {
-      const response = await fetch('/api/pip/list');
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        console.log(`获取到 ${data.packages.length} 个包`);
-        // 处理包列表
-        data.packages.forEach(pkg => {
-          console.log(`${pkg.name} (${pkg.version})`);
-        });
-        return data.packages;
-      } else {
-        console.error('获取包列表失败');
-        return [];
-      }
-    } catch (error) {
-      console.error('获取包列表出错:', error);
-      return [];
-    }
-  }
-  ```
-
-- 使用位置: Pip包管理页面
-
-### 安装Pip包
-- 端点: `/api/pip/install`
-- 方法: POST
-- 参数（JSON）: 
-  - `package`: 包名
-- 功能: 异步安装指定的 Python 包。**需管理员**。
-- 响应:
-
-  ```json
-  {
-    "status": "success",
-    "task_id": "uuid"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function installPipPackage(packageName) {
-    const response = await fetch('/api/pip/install', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ package: packageName }),
-      credentials: 'include'
-    });
-    const result = await response.json();
-    if (result.status === 'success' && result.task_id) {
-      return result.task_id;
-    }
-    return null;
-  }
-  ```
-
-- 使用位置: Pip包管理页面
-- 备注: 使用返回的 `task_id` 调用 `/api/pip/task_status` 查询进度；任务体见 `PipService` 内存表
-
-### 卸载Pip包
-- 端点: `/api/pip/uninstall`
-- 方法: POST
-- 参数（JSON）: 
-  - `package`: 包名
-- 功能: 异步卸载指定的 Python 包。**需管理员**。
-- 响应: 与安装相同，`{"status":"success","task_id":"..."}`
-
-- 调用示例:
-
-  ```javascript
-  async function uninstallPipPackage(packageName) {
-    const response = await fetch('/api/pip/uninstall', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ package: packageName }),
-      credentials: 'include'
-    });
-    return (await response.json()).task_id;
-  }
-  ```
-
-- 使用位置: Pip包管理页面
-- 备注: 使用 `/api/pip/task_status` 轮询任务状态
-
-### 获取Pip任务状态
-- 端点: `/api/pip/task_status`
-- 方法: GET
-- 参数: 
-  - `task_id`: 任务 ID（必填）
-- 功能: 获取指定 Pip 异步任务的执行状态。**需管理员**。若 `task_id` 不存在则 **404**（`BusinessException`）。
-- 响应: `{"status":"success", ...}` ，展开部分为 `pip_tasks[task_id]` 字典，常见字段：`status`（`running`/`success`/`error`）、`message`。
-
-  ```json
-  {
-    "status": "success",
-    "message": "正在install xxx... 或 完成/错误信息"
-  }
-  ```
-
-- 调用示例:
-
-  ```javascript
-  async function checkPipTaskStatus(taskId) {
-    const response = await fetch(`/api/pip/task_status?task_id=${encodeURIComponent(taskId)}`, {
-      credentials: 'include'
-    });
-    return response.json();
-  }
-  ```
-  
-- 使用位置: Pip包管理页面
-- 备注: 与 PIM 任务不同，Pip 任务状态为内存字典、结构较简（见 `guguwebui/services/pip_service.py`）
-
-## WebUI 自身更新
-
-### 触发 WebUI 插件更新
-- 端点: `/api/self_update`
-- 方法: POST
-- 功能: 向 MCDR 发送 `!!MCDR plugin install -U -y guguwebui`。**需管理员**。
-- 响应示例: `{"status":"success","success":true,"message":"已发送更新指令到 MCDR，插件将自动重启并完成更新"}`
-
-### 查询 WebUI 更新信息
-- 端点: `/api/self_update_info`
-- 方法: GET
-- 功能: 返回 `app.state.self_update_info`（若未采集则为 `available: false`）。**需管理员**。
-- 响应: `{"success":true,"info":{...}}`
-
-## 公开聊天 API
-
-以下接口用于 `/chat`、`/player-chat` 等公开聊天页（需在配置中启用 `public_chat_enabled` 等）。与 **Web 管理端登录**（Cookie）相互独立，使用 **聊天会话 `session_id`**（`/api/chat/login` 返回）。
-
-### 生成验证码
-- 端点: `/api/chat/generate_code`
-- 方法: POST
-- 功能: 生成游戏内验证用码；未启用公开聊天时 **400**。
-- 响应: `{"status":"success","code":"...","expire_minutes":n}`
-
-### 查询验证码状态
-- 端点: `/api/chat/check_verification`
-- 方法: POST
-- 请求体: `{"code":"验证码"}`
-- 响应: 已验证时 `verified: true` 且含 `player_id`；否则 `pending` 等（见 `ChatService.check_verification_status`）。
-
-### 设置聊天密码
-- 端点: `/api/chat/set_password`
-- 方法: POST
-- 请求体: `{"code":"...","password":"..."}`（密码至少 6 位）
-- 功能: 在验证码已在游戏内绑定玩家后设置密码。
-
-### 聊天用户登录
-- 端点: `/api/chat/login`
-- 方法: POST
-- 请求体: `{"player_id":"...","password":"..."}`
-- 响应: 成功时含 `session_id`、`player_id`；同一账号活跃 IP 过多时 **429**（见服务端文案）。
-
-### 校验聊天会话
-- 端点: `/api/chat/check_session`
-- 方法: POST
-- 请求体: `{"session_id":"..."}`
-
-### 聊天用户登出
-- 端点: `/api/chat/logout`
-- 方法: POST
-- 请求体: `{"session_id":"..."}`
-
-### 拉取消息（分页）
-- 端点: `/api/chat/get_messages`
-- 方法: POST
-- 请求体: `{"limit":50,"offset":0}` 或 `after_id` / `before_id` 组合（见 `ChatService.get_messages`）
-- 响应: `{"status":"success",...}` 内含 `messages`、`has_more`
-
-### 拉取新消息与在线信息
-- 端点: `/api/chat/get_new_messages`
-- 方法: POST
-- 请求体: `{"after_id":0,"player_id":"可选，用于 Web 端在线心跳"}`
-- 响应: 含 `messages`、`last_message_id`、`online`（`web` / `game` / `bot` 列表）
-
-### 清空聊天记录
-- 端点: `/api/chat/clear_messages`
-- 方法: POST
-- 功能: 清空聊天日志。**需管理员**（Web 管理端权限）。
-
-### 发送消息到游戏
-- 端点: `/api/chat/send_message`
-- 方法: POST
-- 功能: 将聊天内容以 RText 广播到游戏；需 `public_chat_to_game_enabled`。请求体含 `message`、`player_id`、`session_id`；当 **Web 管理端已登录用户** 的 `username` 与 `player_id` 一致时，可按管理员路径跳过聊天会话校验（见 `ChatService.send_message` 的 `is_admin`）。
-
-## 多服面板与配对 API
-
-路由前缀均为 `/api`（见 `guguwebui/panel_merge/routes.py`）。配对相关请求**不经过**主服 API 代理，须在目标机器上直连。
-
-### 服务器列表
-- `GET /api/servers`：返回本地 + `panel_slaves` 中启用的子服摘要。需登录。
-
-### 读取/保存面板合并配置
-- `GET /api/panel_merge_config`：返回 `panel_role`、`panel_slaves`、`panel_master`。**需管理员**。
-- `POST /api/panel_merge_config`：JSON body 同上字段，写入 `config.json`。**需管理员**。
-
-### 子服：开关接受配对
-- `POST /api/pairing/enable`：子服开启约 5 分钟接受窗口，返回 `expires_at`。
-- `POST /api/pairing/disable`：关闭窗口并清空 pending。
-
-### 子服：接收主服连接请求
-- `POST /api/pairing/request`：主服在窗口内向子服 POST；**无需登录**；body 可含 `master_name`。返回 `pending` + `request_id`（首个请求后窗口关闭）。
-
-### 子服：管理待处理请求
-- `GET /api/pairing/pending`：列出待确认请求。**需管理员**。
-- `POST /api/pairing/deny`：body `request_id`。
-- `POST /api/pairing/accept`：body `request_id`，生成 token 并写入子服 `panel_master.allowed_tokens`。
-
-### 查询配对结果（子服侧）
-- `GET /api/pairing/status?request_id=...`：返回 `pending` 或 `accepted`（含 `token`）或 `denied`。
-
-### 主服：发起连接与轮询
-- `POST /api/pairing/connect_request`：body `slave_name`、`base_url`（子服根 URL）。由主服请求子服 `/api/pairing/request`，返回 `connect_id`。
-- `GET /api/pairing/connect_status?connect_id=...`：轮询子服 `pairing/status`；成功时主服将子服写入 `panel_slaves` 并返回 `accepted` 与 `server` 摘要。
+## 认证 / 会话 / 语言
+
+### POST /api/login — 表单登录
+
+- 参数（`application/x-www-form-urlencoded`）：`account`、`password`，
+  可选 `temp_code`（临时登录码）、`remember`。
+- 属“保持现状”项（表单 + Cookie 会话为常规做法，不纳入 REST 外壳）。
+- 登录页为 `GET /login`；QQ 扫码登录：`POST /api/login/qq_qr/start`
+  （返回 `code` + `qrUrl`）→ 轮询 `GET /api/login/qq_qr/status?code=...`。
+
+### GET /api/auth/me — 当前登录用户（检查登录状态）
+
+- 权限：登录。未登录 → **401** `http_401`。
+- `data`：`{username, nickname, is_admin, is_super_admin}`（`nickname` 来自
+  QQ 昵称表，无则 `null`）。
+- 旧路径 `/api/checkLogin`（顶层平铺）已下线。
+
+### POST /api/logout — API 登出
+
+- 返回 `{"status":"success","message":"Logged out"}`。页面登出仍走
+  `GET /logout`（302 重定向登录页）。
+
+### GET /api/i18n/languages — 语言列表
+
+- 无需登录。`data.items`：`[{code, name}, ...]`。
+- 旧路径 `/api/langs`（裸数组）已下线。前端当前无消费方，为可保留的过渡接口。
+
+---
+
+## 服务器域
+
+### GET /api/server/status — 服务器状态
+
+- 权限：登录。`data = {online: bool, version: string, players: string}`。
+- 旧 `/api/get_server_status`（顶层 `status: "online|offline"` 双义）已下线。
+
+### POST /api/server/controls — 启停控制
+
+- 权限：管理员。body `{"action": "start"|"stop"|"restart"}`。
+- 非法动作 → **400** `invalid_action`；执行失败 → **400** `control_failed`。
+- 旧 `/api/control_server` 已下线。
+
+### POST /api/server/commands — 发送命令
+
+- 权限：管理员。body `{"command": "..."}`（≤2000 字符；空 → **400**
+  `invalid_command`）。
+- `data` 可选：`{feedback, capture?, timed_out?, note?}`，`message` 为提示。
+- 语义：`!` 开头为 MCDR 命令（捕获源权限 4 直接执行）；其余为游戏命令 ——
+  RCON 已连接时优先 RCON 并回传直接反馈，否则「直接执行 + 输出捕获」，
+  **均不需要 RCON**。`feedback` 可能为空（无回显）。
+- 保护：禁止 `!!MCDR plugin reload/unload guguwebui` → **403**
+  `forbidden_command`；执行失败 → **400** `command_failed`。
+- 旧 `/api/send_command` 已下线。
+
+### GET /api/server/command-suggestions — 命令补全
+
+- 权限：登录。query `input`（可选，≤200）。`data.suggestions`：
+  `[{command, description}]`。
+
+### GET /api/server/logs — 日志（快照 + 增量统一）
+
+- 权限：登录。query：`cursor`（0=尾部快照；>0=该 counter 之后增量）、
+  `max_lines`（1–500，默认 100）。
+- `data = {logs: [{line_number, content, source: "mcdr"|"minecraft", counter}],
+  total_lines, next_cursor, new_logs_count}`。
+- 旧 `/api/server_logs`、`/api/new_logs`（含 `start_line`）已下线合并。
+
+### GET /api/server/rcon-status — RCON 状态
+
+- 权限：登录。`data = {rcon_enabled, rcon_connected, rcon_info?}`
+  （`rcon_info` 含 `list_response` / `player_info` / `error`）。
+
+### POST /api/server/rcon-setup — 一键启用 RCON
+
+- 权限：管理员。写入 RCON 配置并尝试连接；**不回传密码**（安全要求），
+  `data` 仅含 `{rcon_host, rcon_port}` 等非敏感项。
+- 旧 `/api/setup_rcon` 已下线。
+
+### 监控（MonitorService，权限：登录）
+
+- `GET /api/monitor/overview`：最新快照。`data = {ts, online, uptime, tps,
+  mspt, cpu:{system,minecraft}, memory:{total,available,used,percent,minecraft,
+  swap_total,swap_used,swap_percent}, disk:{path,total,used,percent},
+  load:{load1,load5,load15}, network:{rx,tx}}`。`ts/uptime` 为 epoch 秒。
+  TPS/MSPT 经 RCON 采样（每秒记录；RCON 不可用或命令不支持时为 `null`）。
+- `GET /api/monitor/history?metric=cpu&range=1h`：时间序列。`metric ∈
+  cpu|memory|network|tps|mspt|load|disk`，`range ∈ 10m|30m|1h|6h|12h|1d|3d|7d`
+  （非法值 422 `validation_error`）。`data = {metric, range, sample, points:
+  [{t(epoch 秒), ...}]}`（≤1h 秒级采样、更久 1 分钟均值；服务端降采样 ≤1500 点）。
+- `GET /api/monitor/table?range=1h`：统计表。`data = {range, stats: {指标:
+  {avg, min, max}}}`。
+- 监控服务缺失时 **503** `monitor_unavailable`。
+
+---
+
+## 配置域
+
+### GET /api/plugins/{plugin_id}/config-files — 插件配置文件列表
+
+- 权限：登录。`data.files`：`[{path, name, has_web}]`。
+- 旧 `/api/list_config_files` 已下线。
+
+### GET /api/config-files — 加载配置文件
+
+- 权限：登录。query：`path`（必填；受 SafePath 约束，含 `./`、`..` 与嵌套
+  斜杠，故放查询参数而非路径段）、`translation`、`type`（auto/json/yml/
+  yaml/properties/html）。
+- `data = {path, type, content, config_data?}`；缺文件 → **404**
+  `config_file_not_found`（不再返回 `{}`）；越权路径 → **403`
+  `path_not_allowed`。
+- 旧 `/api/load_config`、`/api/load_config_file`（含任意路径 raw 版）已下线。
+
+### PUT /api/config-files — 保存配置文件
+
+- 权限：管理员。query `path` 同 GET。body 二选一：`content`（原文，旧
+  save_config_file 语义）或 `config_data`（结构化，旧 save_config 语义）；
+  同时/都不给 → **400** `invalid_body`。
+- 保护文件（WebUI 自身 config.json）→ **403** `protected_file`；缺文件 →
+  **404** `config_file_not_found`（旧 `"fail"` 状态值已废除）。
+
+### GET/PUT /api/web-config — WebUI 配置
+
+- GET 权限：登录；PUT 权限：管理员。PUT body 为结构化字段（`WebConfigSaveRequest`，
+  未给字段不修改，无 `action` 分派），覆盖 host/port/super_account、
+  ssl_*、ai_*、public_chat_*、chat_*、icp_records、panel_* 等。
+- GET 的 `data.ai_api_key` 恒为空串，以 `ai_api_key_configured` 判断是否已配置。
+- 旧 `/api/get_web_config`、`/api/save_web_config`（action 翻转）已下线。
+
+### GET /api/config/icp-records — ICP 备案
+
+- 公开。`data.icp_records`：`[{icp, url}]`。
+
+### GET/PUT /api/custom-assets/{kind} — 自定义 CSS/JS
+
+- `kind ∈ css|js`。GET 权限：登录 → `data.content`；PUT 权限：管理员，body
+  `{content}`。
+- 旧 `/api/load_file`、`/api/save_file` 已下线。
+
+---
+
+## 插件域
+
+### GET /api/plugins — 已安装插件列表
+
+- 权限：登录。`data.plugins`：完整元数据数组（含 id/name/version/
+  status/author/link/dependencies/repository/图标等，由
+  `PluginService.get_plugins_list` 提供）。
+- 单项请用子资源（见下），**无 `plugin_id` 查询参数**。
+
+### GET /api/plugins/{plugin_id} — 单个插件
+
+- 权限：登录。`data.plugin`；不存在 → **404** `plugin_not_found`。
+
+### GET /api/plugins/online — 在线插件目录
+
+- 权限：管理员。query `repo_url`（可选）。`data.items` 为目录数组
+  （字段：id/name/version/description/authors/dependencies/labels/
+  repository_url/license/downloads/readme_url/`last_update_time`（epoch 秒
+  或 null）等）。
+- 恒走主服本地（不代理）。旧 `/api/online-plugins`（裸数组）已下线。
+
+### GET /api/plugins/web-pages — 注册的插件网页
+
+- 权限：登录。`data.pages`：`[{id, path, name, icon}]`。旧 `/plugins/web_pages`
+  已下线。
+- `GET /api/plugins/web-pages/{plugin_id}/icon`：图片图标（二进制）；未配置/
+  越界/缺失 → **404**。
+
+### PUT /api/plugins/{plugin_id}/enabled — 启用/禁用
+
+- 权限：管理员。body `{enabled: bool}`（true=加载，false=卸载）。失败 →
+  **400** `plugin_action_failed`。写审计 `plugin.toggle`。
+- 旧 `POST /api/toggle_plugin` 已下线。
+
+### POST /api/plugins/{plugin_id}/reload — 重载
+
+- 权限：管理员。失败 → **400** `plugin_action_failed`；写审计 `plugin.reload`。
+- 旧 `POST /api/reload_plugin` 已下线。
+
+### PIM 子域（版本 / 仓库 / 任务 / 安装）
+
+- `GET /api/plugins/{plugin_id}/repository`（登录）：`data.repository`
+  `{url, name, name_key, is_official}`；未收录 → **404**
+  `plugin_not_in_repository`。
+- `GET /api/plugins/{plugin_id}/versions`（登录；query `repo_url` 可选）：
+  `data.versions`，条目统一 `{version, tag_name, prerelease, released_at(epoch
+  秒), download_url, download_count, size, description}`（旧
+  `date/created_at/release_date` 均已移除）。
+- `POST /api/plugins/{plugin_id}/install` / `/update`（管理员；body
+  `{version?, repo_url?}`）：创建安装/更新任务，`data.task_id`。
+- `POST /api/plugins/{plugin_id}/uninstall`（管理员）：卸载任务，
+  `data.task_id`；会联动卸载依赖方。
+- 上述三类动作对 `plugin_id = "guguwebui"` 一律拒绝 → **400**
+  `webui_self_operation`；失败 → **500** `pim_task_create_failed`；写审计。
+- `GET /api/pim/tasks/{task_id}`（登录）：`data.task_info`；不存在 → **404**
+  `task_not_found`。任务体：`{id, plugin_id, action, status:
+  running|completed|failed, progress, message, start_time/end_time/access_time
+  (epoch 秒), all_messages, error_messages}`；终态 30 分钟无访问回收。
+- `GET /api/pim/status`（管理员）：`data = {pim_status:
+  installed|not_installed, message}`。
+- `POST /api/pim/bootstrap`（管理员）：把内置 PIM 打包安装为独立插件；
+  失败 → **500** `pim_bootstrap_failed`。旧 `GET /install_pim_plugin`、
+  `/check_pim_status`、`/pim/task_status`、`/pim/plugin_repository`、
+  `/pim/plugin_versions`、`/pim/install_plugin` 等全部下线。
+
+### 插件后端 API 代理（扩展点，保持现状）
+
+`/api/plugin/{plugin_id}` 与 `/api/plugin/{plugin_id}/{subpath}`：第三方插件
+`register_plugin_page(api_handler=...)` 注册的自定义接口。方法/入参/返回由插件
+自定，**不纳入统一外壳**；`auth` 注入 `{username, auth_via, is_admin,
+is_super_admin, is_panel}`；支持 multipart 文件解析；错误语义
+404/415/400/413 由插件注册规则决定。
+
+---
+
+## 玩家域（权限：管理员）
+
+数据源为 `whitelist.json` / `ops.json` / `banned-players.json` /
+`banned-ips.json` / `usercache.json` 与 RCON 实时查询；服务器离线时文件类操作
+退化为直接改写（重启生效，`message` 会说明）。
+
+- `GET /api/players`：分页列表（`search`/`filter ∈ all|online|offline|bot|op`/
+  `offset`/`limit ≤200`/`exclude_bots`）。`data.items`（分页统一；旧
+  `data.players` 已下线）+ `total/offset/limit/online_count/bot_count/
+  server_running`。条目字段：name/uuid/online/is_bot/ips/ip/is_op/whitelisted/
+  banned/session_seconds/total_playtime/last_seen(epoch 秒)/position/dimension。
+- `GET /api/players/bots`：`data = {bots, total, server_running}`。
+- `GET /api/players/whitelist`：`data = {enabled, members:[{name,uuid}],
+  server_running}`。
+- `GET /api/players/ops`：`data = {ops:[{name,uuid,level?,
+  bypassesPlayerLimit?}], server_running}`。
+- `GET /api/players/bans`：`data = {players:[{name?,uuid?,reason?,created?,
+  expires?,source?}], ips:[...], server_running}`（时间字段来自原版封禁文件，
+  属文件内容）。
+- `PUT /api/players/whitelist`：body `{enabled}` 开关；`POST
+  /api/players/whitelist/reload`：重载。
+- `PUT/DELETE /api/players/whitelist/{name}`：增删成员（自动重载）。
+- `PUT/DELETE /api/players/{name}/op`：设/撤 OP。
+- `POST /api/players/{target}/ban`：body `{type: "player"|"ip", reason?}`；
+  `type` 非法 → **400** `invalid_type`。
+- `POST /api/players/{target}/unban`：body `{type}`（改文件，重启生效）。
+- `POST /api/players/{name}/kick`：body `{reason?}`。
+
+动作失败错误码：`server_not_running`(400)、`command_failed`(400)、
+`ban_not_found`(404)、`file_write_failed`(500)。
+写审计：`whitelist.*`、`player.op|deop|ban|ban_ip|unban|unban_ip|kick`。
+旧动作路径（POST 集合 + body 带 name/target）全部下线。
+
+---
+
+## 模组域（权限：管理员，工作目录 `mods/` 顶层 `.jar`/`.jar.disabled`）
+
+文件操作响应统一 `{status, message?, data}`，`data` 含操作状态字段
+`{server_running, needs_restart, effective_after: "restart"|"next_start",
+warnings}`。
+
+- `GET /api/mods`：`data = {mods, server_running, mods_path}`。条目
+  `modified_at` 为 **epoch 秒**，含元数据/依赖/冲突/大小/警告等。
+- `GET /api/mods/icon?filename=`：受限大小图标二进制（不走外壳）。
+- `POST /api/mods/upload`（multipart：`file`/`enabled`/`acknowledge_warnings`）：
+  超限 **413**、重名 **409**、损坏 **400**；兼容性警告首请求返回 **409** 且
+  错误体 `data.warnings` 供二次确认，确认后带 `acknowledge_warnings=true`
+  重提。成功 `data` 含 `mod` 与操作状态。
+- `PUT /api/mods/{filename}/enabled`：body `{enabled, acknowledge_warnings?}`
+  （旧 `POST /mods/toggle` + body filename 已下线）。
+- `POST /api/mods/trash`（body `{filename}`）→ `GET /api/mods/trash`
+  （分页外壳，`data.items`，`deleted_at` 为 epoch 秒）→ `POST
+  /api/mods/trash/{id}/restore`、`DELETE /api/mods/trash/{id}?confirm=true`
+  （仅超管；非超管 403 `super_admin_required`；缺 confirm 400
+  `confirm_required`）。
+- `GET /api/mods/configs?mod_id=&associated_only=`：`data.files`。
+- `GET /api/mods/config?path=`：`data = {path, content?, config_data?}`；
+  `PUT /api/mods/config`：body `{path, content?, config_data?}`。
+  JSON/YAML/Properties 可结构化保存；JSON5/TOML/CFG/CONF 仅原文。路径限定
+  `config/`、`defaultconfigs/`、`<level>/serverconfig/` 等安全根。
+- `GET /api/mods/settings`：`data = {upload_max_mib, upload_max_bytes}`；
+  `PUT /api/mods/settings`（仅超管）：body `{upload_max_mib}`（1–4096，越界
+  **400** `invalid_value`）。
+
+---
+
+## 聊天 / pip / 任务型接口
+
+### 公开聊天
+
+聊天会话体系与 Web 管理端登录相互独立：验证码在游戏内由
+`!!webui verify <code>` 绑定 → `PUT /chat/accounts/{name}/password` 签发
+`session_id`（或用已有密码 `POST /chat/sessions` 登录）。时间字段
+`timestamp` 为 epoch 秒。
+
+- `POST /api/chat/verifications`：生成验证码 → `data {code, expire_minutes}`。
+  未启用公开聊天 → **403** `public_chat_disabled`。
+- `GET /api/chat/verifications/{code}`：查绑定 → `data {verified: bool,
+  player_id?, message?}`；码不存在/过期 → **404** `verification_not_found` /
+  **400** `verification_expired`。
+- `PUT /api/chat/accounts/{name}/password`：body `{code, password}`；路径
+  `name` 必须与码绑定玩家一致（否则 **400** `verification_mismatch`）；
+  成功后**直接签发会话**，`data` 含 `session_id/player_id/uuid`。
+- `POST /api/chat/sessions`：body `{player_id, password}` → `data` 含
+  `session_id`。账号不存在 **404** `user_not_found`；密码错 **401**
+  `invalid_password`；IP 超限 **429** `ip_limit_exceeded`。
+- `GET /api/chat/session/{session_id}`：`data {valid, player_id?, uuid?}`；
+  不存在 **404** `session_not_found`、过期 **401** `session_expired`。
+- `DELETE /api/chat/session/{session_id}`：登出（幂等）。
+- `GET /api/chat/messages`：分页外壳（query `limit`(1–200)/`offset`/
+  `after_id`/`before_id`）→ `data.items`（新→旧）。
+- `GET /api/chat/messages/incremental?after_id=&player_id=`：轮询增量 →
+  `data {messages, last_message_id, online: {web, game, bot}}`。
+- `DELETE /api/chat/messages`（管理员）：清空。
+- `POST /api/chat/messages`：body `{message, player_id, session_id?}` 广播到
+  游戏。需 `public_chat_to_game_enabled`（**403** `chat_to_game_disabled`）；
+  Web 管理端已登录且 username==player_id 走管理员通道；否则校验会话
+  （401 `invalid_session` / `session_player_mismatch` / `session_expired`，
+  **429** `rate_limited`）。
+
+旧路径 `/chat/get_messages|get_new_messages|check_session|check_verification|
+send_message|set_password|logout|login|generate_code|clear_messages` 全部下线。
+
+### pip 包管理（仪表盘）
+
+- `GET /api/pip/packages`（管理员）：`data.packages: [{name, version}]`。
+- `POST /api/pip/tasks`（管理员）：body `{action: "install"|"uninstall",
+  package}`。非法 action → **400** `invalid_action`；空包名 → **400**
+  `invalid_package`。返回 `data.task_id`，写审计 `pip.install|uninstall`。
+- `GET /api/pip/tasks/{task_id}`（管理员）：`data.task_info`，结构同 PIM 任务
+  （`status: running|completed|failed`；`all_messages` 逐行收集 pip
+  stdout/stderr，`error_messages` 为错误子集）。不存在 → **404**
+  `task_not_found`（前端停止轮询）；终态 30 分钟无访问回收。
+- 任务终态只取 `completed|failed`，不再有“成功但永不结束”的轮询
+  死循环；轮询条件显式三态判定。
+
+---
+
+## 审计 / WebUI 自身更新
+
+### GET /api/audit_logs（管理员）
+
+- query `offset`/`limit`（默认 0/50，上限 500）。分页外壳：`data.items`，
+  条目 `{id, ts(epoch 秒整型), operation_type, summary, detail?, account?}`。
+- 恒主服本地（不代理）。旧顶层 `records` 平铺已迁入 `data.items`。
+
+### POST /api/self_update（管理员）
+
+- 向 MCDR 发送 `!!MCDR plugin install -U -y guguwebui` 指令，
+  返回 `{"status":"success","message":...}`（旧 `success` 双键已移除）。
+
+### GET /api/self_update_info（管理员）
+
+- `data`：更新信息对象（未采集时 `{"available": false}`；否则含
+  `available/current/latest` 等）。
+
+### POST /api/deepseek（管理员，AI 查询）
+
+- body `{query, system_prompt?, model?, api_key?, api_url?}`；上游响应原样放
+  入统一外壳 `data`（OpenAI 兼容结构如 `choices[0].message.content`）。
+  业务错误 400/500 走统一错误体；未登录 401。
+
+---
+
+## 多服面板与配对
+
+响应外壳、`data.phase`（pending/accepted/denied）状态机、入参 Pydantic 模型
+（校验失败 422）、`expires_at` 等时间 epoch 秒。配对类请求不经过代理，须在
+目标机直连。
+
+- `GET /api/servers`（登录）：`data.servers: [{id, name, enabled, local}]`
+  （`local` 取代旧驼峰 `isLocal`）。
+- `GET/PUT /api/panel_merge_config`（管理员）：读 `data {panel_role,
+  panel_slaves, panel_master}`；写 body `{panel_role: "master"|"slave",
+  panel_slaves?, panel_master?}`，失败 **500** `config_write_failed`。
+  旧 `POST /panel_merge_config` 已下线。
+- 子服侧：`POST /api/pairing/enable` → `data.expires_at`（epoch 秒）；
+  `POST /api/pairing/disable`；非子服 → **400** `role_mismatch`。
+- 子服侧 `POST /api/pairing/request`（无需登录，body `{master_name?}`）：
+  窗口外 → **403** `pairing_window_closed`；成功 `data {phase: "pending",
+  request_id}`（首个请求后窗口自动关闭）。
+- 子服侧 `GET /api/pairing/pending`（管理员）→ `data.pending`；
+  `POST /api/pairing/accept|deny`（body `{request_id}`；accept 生成 token 写入
+  `panel_master.allowed_tokens`，请求不存在 **404** `request_not_found`）。
+- `GET /api/pairing/status?request_id=`（公开）：`data.phase`（accepted 时含
+  `token`）。
+- 主服侧 `POST /api/pairing/connect_request`（管理员，body
+  `{slave_name, base_url}`）：请求子服 `/pairing/request`，不可达/拒绝 →
+  **400** `pairing_request_failed`；成功 `data {phase: "pending",
+  connect_id}`。
+- 主服侧 `GET /api/pairing/connect_status?connect_id=`（管理员）：轮询子服
+  `/pairing/status`；accepted 时把子服写入 `panel_slaves` 并返回
+  `data {phase, server:{id,name,base_url}}`；`connect_id` 不存在 → **404**
+  `connect_not_found`。跨服读取统一走 `data.phase` 契约。
+
+---
+
+## 保持现状 / 不做统一外壳的例外
+
+- `/api/plugin/{plugin_id}/...`：第三方插件扩展点（见上）。
+- `POST /api/login`：表单登录 + Cookie 会话；QQ 扫码端点（`code/qrUrl/state`
+  顶层字段）随登录体系保留。
+- 二进制响应：`/api/plugins/web-pages/{id}/icon`、`/api/mods/icon`、静态资源、
+  自定义 css/js 不经外壳。
+- SSE/长连接（未来日志实时推送）：另行设计，不属于本轮 REST 范围。
+
+---
+
+## 旧路径迁移速查（重构对照）
+
+| 旧路径 | 新路径 |
+|---|---|
+| `GET /api/get_server_status` | `GET /api/server/status` |
+| `POST /api/control_server` | `POST /api/server/controls` |
+| `POST /api/send_command` | `POST /api/server/commands` |
+| `GET /api/command_suggestions` | `GET /api/server/command-suggestions` |
+| `GET /api/get_rcon_status` | `GET /api/server/rcon-status` |
+| `POST /api/setup_rcon` | `POST /api/server/rcon-setup` |
+| `GET /api/server_logs`、`/api/new_logs` | `GET /api/server/logs`（cursor 分页） |
+| `GET /api/list_config_files?plugin_id=` | `GET /api/plugins/{id}/config-files` |
+| `GET /api/load_config`、`/api/load_config_file*` | `GET /api/config-files?path=` |
+| `POST /api/save_config`、`/api/save_config_file*` | `PUT /api/config-files?path=` |
+| `GET /api/get_web_config` | `GET /api/web-config` |
+| `POST /api/save_web_config` | `PUT /api/web-config` |
+| `GET/POST /api/load_file`、`/api/save_file` | `GET/PUT /api/custom-assets/{kind}` |
+| `GET /api/plugins`（?plugin_id= 过滤） | `GET /api/plugins/{plugin_id}` |
+| `POST /api/toggle_plugin` | `PUT /api/plugins/{id}/enabled` |
+| `POST /api/reload_plugin` | `POST /api/plugins/{id}/reload` |
+| `GET /api/plugins/web_pages` | `GET /api/plugins/web-pages` |
+| `GET /api/online-plugins`（裸数组） | `GET /api/plugins/online`（data.items） |
+| `GET /api/pim/plugin_repository` | `GET /api/plugins/{id}/repository` |
+| `GET /api/pim/plugin_versions` | `GET /api/plugins/{id}/versions` |
+| `POST /api/pim/install_plugin` | `POST /api/plugins/{id}/install` |
+| `POST /api/pim/update_plugin` | `POST /api/plugins/{id}/update` |
+| `POST /api/pim/uninstall_plugin` | `POST /api/plugins/{id}/uninstall` |
+| `GET /api/pim/task_status?task_id=` | `GET /api/pim/tasks/{task_id}` |
+| `GET /api/check_pim_status` | `GET /api/pim/status` |
+| `GET /api/install_pim_plugin` | `POST /api/pim/bootstrap` |
+| `GET /api/pip/list` | `GET /api/pip/packages` |
+| `POST /api/pip/install`、`/pip/uninstall` | `POST /api/pip/tasks` |
+| `GET /api/pip/task_status?task_id=` | `GET /api/pip/tasks/{task_id}` |
+| `GET /api/checkLogin` | `GET /api/auth/me` |
+| `GET /api/langs` | `GET /api/i18n/languages` |
+| `POST /chat/generate_code` | `POST /api/chat/verifications` |
+| `POST /chat/check_verification` | `GET /api/chat/verifications/{code}` |
+| `POST /chat/set_password` | `PUT /api/chat/accounts/{name}/password` |
+| `POST /chat/login` | `POST /api/chat/sessions` |
+| `POST /chat/check_session` | `GET /api/chat/session/{id}` |
+| `POST /chat/logout` | `DELETE /api/chat/session/{id}` |
+| `POST /chat/get_messages` | `GET /api/chat/messages` |
+| `POST /chat/get_new_messages` | `GET /api/chat/messages/incremental` |
+| `POST /chat/send_message` | `POST /api/chat/messages` |
+| `POST /chat/clear_messages` | `DELETE /api/chat/messages`（管理员） |
+| `POST /players/ban|unban|kick`、`POST /players/op|deop`、`POST /players/whitelist/*`（集合） | `POST /players/{target}/ban|unban|kick`、`PUT/DELETE /players/{name}/op`、`PUT/DELETE /players/whitelist/{name}`、`PUT /players/whitelist`、`POST /players/whitelist/reload` |
+| `POST /mods/toggle` | `PUT /mods/{filename}/enabled` |
+| `POST /panel_merge_config` | `PUT /api/panel_merge_config` |
+| 旧 `/api/audit_logs` 顶层 records | `/api/audit_logs`（data.items 分页） |
+
+> 本表为 REST 重构收尾基线。所有旧路径均已
+> 下线、**不保留别名**；`panel_merge/proxy.py` 的“不代理”本地清单、
+> `tests/test_proxy_local.py`、`tests/test_contract.py` 与 OpenAPI 快照
+> `tests/snapshots/openapi_routers.json` 共同守护该基线。

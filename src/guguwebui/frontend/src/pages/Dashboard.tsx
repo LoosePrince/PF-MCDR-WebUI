@@ -28,11 +28,11 @@ import { DashboardStatSkeleton, NoticeRowSkeleton, Skeleton } from '../component
 
 // 弹窗内含图表库（recharts），懒加载避免拖慢仪表盘首屏
 const ServerStatusModal = lazy(() => import('../components/ServerStatusModal'))
-import api, { isCancel } from '../utils/api'
+import api, { isCancel, unwrapData } from '../utils/api'
 import { fetchNotice, type NoticeData } from '../utils/notice'
 
 interface ServerStatus {
-  status: 'online' | 'offline' | 'loading' | 'error'
+  online: boolean
   version: string
   players: string
 }
@@ -61,10 +61,11 @@ const Dashboard: React.FC = () => {
   const cache = useCache()
   const noticeModal = useNoticeModal()
   const [serverStatus, setServerStatus] = useState<ServerStatus>({
-    status: 'loading',
+    online: false,
     version: '',
     players: '0/0',
   })
+  const [serverPhase, setServerPhase] = useState<'loading' | 'online' | 'offline' | 'error'>('loading')
   const [rconStatus, setRconStatus] = useState<RconStatus>({
     rcon_enabled: false,
     rcon_connected: false,
@@ -111,11 +112,18 @@ const Dashboard: React.FC = () => {
       const cachedStatus = cache.get<ServerStatus>('server_status')
       if (cachedStatus) {
         setServerStatus(cachedStatus)
+        setServerPhase(cachedStatus.online ? 'online' : 'offline')
       } else {
-        const statusResp = await api.get('/get_server_status', { signal })
-        setServerStatus(statusResp.data)
+        const statusResp = await api.get('/server/status', { signal })
+        const statusData = unwrapData<ServerStatus>(statusResp, {
+          online: false,
+          version: '',
+          players: '',
+        })
+        setServerStatus(statusData)
+        setServerPhase(statusData.online ? 'online' : 'offline')
         // 缓存5秒
-        cache.set('server_status', statusResp.data, 5000)
+        cache.set('server_status', statusData, 5000)
       }
 
       // RCON状态使用短期缓存（5秒）
@@ -123,16 +131,14 @@ const Dashboard: React.FC = () => {
       if (cachedRcon) {
         setRconStatus(cachedRcon)
       } else {
-        const rconResp = await api.get('/get_rcon_status', { signal })
-        if (rconResp.data.status === 'success') {
-          const rconData = {
-            rcon_enabled: rconResp.data.rcon_enabled,
-            rcon_connected: rconResp.data.rcon_connected,
-          }
-          setRconStatus(rconData)
-          // 缓存5秒
-          cache.set('rcon_status', rconData, 5000)
-        }
+        const rconResp = await api.get('/server/rcon-status', { signal })
+        const rconData = unwrapData<RconStatus>(rconResp, {
+          rcon_enabled: false,
+          rcon_connected: false,
+        })
+        setRconStatus(rconData)
+        // 缓存5秒
+        cache.set('rcon_status', rconData, 5000)
       }
     } catch (error: unknown) {
       const err = error as { name?: string; code?: string }
@@ -141,7 +147,7 @@ const Dashboard: React.FC = () => {
         return
       }
       console.error('Failed to fetch dashboard data:', error)
-      setServerStatus(prev => ({ ...prev, status: 'error' }))
+      setServerPhase('error')
     } finally {
       statusFetchingRef.current = false
       setRconLoading(false)
@@ -160,14 +166,11 @@ const Dashboard: React.FC = () => {
   const refreshPipPackages = useCallback(async (signal?: AbortSignal) => {
     setLoadingPipPackages(true)
     try {
-      const { data } = await api.get('/pip/list', { signal })
-      if (data.status === 'success') {
-        setPipPackages(data.packages || [])
+      const resp = await api.get('/pip/packages', { signal })
+      const data = unwrapData<{ packages?: PipPackage[] }>(resp, {})
+      if (data && Array.isArray(data.packages)) {
+        setPipPackages(data.packages)
       } else {
-        showNotificationMessage(
-          `${t('page.index.pip_list_failed_prefix')}${data.message || t('common.unknown')}`,
-          'error'
-        )
         setPipPackages([])
       }
     } catch (error: unknown) {
@@ -187,62 +190,61 @@ const Dashboard: React.FC = () => {
     }
   }, [showNotificationMessage, t])
 
+  // 轮询契约与后端统一——任务状态 running|completed|failed，终止条件明确，
+  // 不再等待后端从未返回的 completed/output 字段（旧实现导致成功也无限轮询）
   const pollPipTaskStatus = useCallback(async (taskId: string) => {
     try {
-      const { data } = await api.get('/pip/task_status', {
-        params: { task_id: taskId },
-      })
-
-      if (data.status === 'success') {
-        if (Array.isArray(data.output) && data.output.length > 0) {
-          setPipOutput(data.output)
+      const resp = await api.get(`/pip/tasks/${encodeURIComponent(taskId)}`)
+      const taskInfo = unwrapData<{
+        task_info?: {
+          status?: string
+          message?: string
+          all_messages?: string[]
         }
+      } | null>(resp, null)?.task_info
 
-        if (data.completed) {
-          if (data.success) {
-            showNotificationMessage(
-              t('page.index.pip_op_succeeded'),
-              'success'
-            )
-          } else {
-            showNotificationMessage(
-              t('page.index.pip_op_failed'),
-              'error'
-            )
-          }
-          setInstallingPip(false)
-          setUninstallingPip(false)
-          setNewPipPackage('')
-          refreshPipPackages()
-          return
+      if (taskInfo && (taskInfo.all_messages?.length ?? 0) > 0) {
+        setPipOutput(taskInfo.all_messages || [])
+      }
+
+      if (taskInfo && (taskInfo.status === 'completed' || taskInfo.status === 'failed')) {
+        if (taskInfo.status === 'completed') {
+          showNotificationMessage(
+            t('page.index.pip_op_succeeded'),
+            'success'
+          )
+        } else {
+          showNotificationMessage(
+            t('page.index.pip_op_failed'),
+            'error'
+          )
         }
+        setInstallingPip(false)
+        setUninstallingPip(false)
+        setNewPipPackage('')
+        refreshPipPackages()
+        return
+      }
 
+      if (taskInfo && taskInfo.status === 'running') {
         setTimeout(() => {
           pollPipTaskStatus(taskId)
         }, 1000)
-      } else {
-        setPipOutput(prev => [
-          ...prev,
-          `${t('page.index.get_task_status_failed_prefix')}${data.message || t('common.unknown')}`,
-        ])
-        setInstallingPip(false)
-        setUninstallingPip(false)
+        return
       }
+
+      // 任务不存在（404）或异常：停止轮询，避免按钮永久卡死
+      setInstallingPip(false)
+      setUninstallingPip(false)
     } catch (error: unknown) {
-      const err = error as { message?: string }
       console.error('Error checking pip task status:', error)
-      setPipOutput(prev => [
-        ...prev,
-        `${t('page.index.get_task_status_failed_prefix')}${err.message || t('common.unknown')}`,
-      ])
       setInstallingPip(false)
       setUninstallingPip(false)
     }
   }, [refreshPipPackages, showNotificationMessage, t])
 
-  const startPipOperation = useCallback(async (url: string, pkgName: string | null, installing: boolean) => {
-    if (!url) return
-    if (pkgName !== null && !pkgName.trim()) return
+  const startPipOperation = useCallback(async (action: 'install' | 'uninstall', pkgName: string, installing: boolean) => {
+    if (!pkgName.trim()) return
 
     if (installing) {
       setInstallingPip(true)
@@ -252,14 +254,13 @@ const Dashboard: React.FC = () => {
     setPipOutput([])
 
     try {
-      const payload = pkgName ? { package: pkgName } : {}
-      const { data } = await api.post(url, payload)
+      const resp = await api.post('/pip/tasks', {
+        action,
+        package: pkgName,
+      })
+      const taskId = unwrapData<{ task_id?: string } | null>(resp, null)?.task_id
 
-      if (data.status !== 'success' || !data.task_id) {
-        setPipOutput(prev => [
-          ...prev,
-          `${t('page.index.operation_failed_prefix')}${data.message || t('common.unknown')}`,
-        ])
+      if (!taskId) {
         showNotificationMessage(
           t('page.index.pip_op_failed'),
           'error'
@@ -269,7 +270,6 @@ const Dashboard: React.FC = () => {
         return
       }
 
-      const taskId: string = data.task_id
       pollPipTaskStatus(taskId)
     } catch (error: unknown) {
       const err = error as { message?: string }
@@ -290,18 +290,18 @@ const Dashboard: React.FC = () => {
   const handleInstallPip = useCallback(async () => {
     if (!newPipPackage.trim() || installingPip) return
     setShowInstallPipModal(false)
-    await startPipOperation('/pip/install', newPipPackage.trim(), true)
+    await startPipOperation('install', newPipPackage.trim(), true)
   }, [installingPip, newPipPackage, startPipOperation])
 
   const handleUninstallPip = useCallback(async (pkgName: string) => {
     if (!pkgName || uninstallingPip) return
-    await startPipOperation('/pip/uninstall', pkgName, false)
+    await startPipOperation('uninstall', pkgName, false)
   }, [startPipOperation, uninstallingPip])
 
   const setupRcon = useCallback(async () => {
     try {
       setSettingUpRcon(true)
-      const { data } = await api.post('/setup_rcon')
+      const { data } = await api.post('/server/rcon-setup')
 
       if (data.status === 'success') {
         setShowRconSetupModal(false)
@@ -331,20 +331,20 @@ const Dashboard: React.FC = () => {
 
   const fetchWebVersion = useCallback(async (signal?: AbortSignal) => {
     try {
-      // 使用 plugin_id 精确获取指定插件信息
-      const { data } = await api.get('/plugins', { params: { plugin_id: 'guguwebui' }, signal })
-      const plugins = Array.isArray(data.plugins) ? data.plugins : []
-      const webui = plugins[0]
+      // 单项查询（GET /plugins/{plugin_id}，原 ?plugin_id= 过滤参数已移除）
+      const pluginResp = await api.get('/plugins/guguwebui', { signal })
+      const webui = unwrapData<{ plugin?: { version?: string } }>(pluginResp, {}).plugin
       if (webui && webui.version) {
         setWebVersion(webui.version)
       } else {
         setWebVersion(t('page.index.unknown'))
       }
 
-      // 获取更新信息
+      // 获取更新信息（统一外壳 data.info → 直接解包 data）
       const updateResp = await api.get('/self_update_info', { signal })
-      if (updateResp.data.success) {
-        setSelfUpdateInfo(updateResp.data.info)
+      const updateInfo = unwrapData<SelfUpdateInfo>(updateResp, { available: false })
+      if (updateInfo && typeof updateInfo.available === 'boolean') {
+        setSelfUpdateInfo(updateInfo)
       }
     } catch (error: unknown) {
       const err = error as { name?: string; code?: string }
@@ -361,11 +361,11 @@ const Dashboard: React.FC = () => {
     setLoadingOverall(true)
     try {
       const [cssResp, jsResp] = await Promise.all([
-        api.get('/load_file', { params: { file: 'css' }, signal }),
-        api.get('/load_file', { params: { file: 'js' }, signal }),
+        api.get('/custom-assets/css', { signal }),
+        api.get('/custom-assets/js', { signal }),
       ])
-      setOverallCss(typeof cssResp.data === 'string' ? cssResp.data : '')
-      setOverallJs(typeof jsResp.data === 'string' ? jsResp.data : '')
+      setOverallCss(unwrapData<{ content?: string }>(cssResp, {}).content || '')
+      setOverallJs(unwrapData<{ content?: string }>(jsResp, {}).content || '')
     } catch (error: unknown) {
       const err = error as { name?: string; code?: string }
       if (isCancel(error) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
@@ -383,7 +383,7 @@ const Dashboard: React.FC = () => {
     setSavingOverall(fileType)
     try {
       const content = fileType === 'css' ? overallCss : overallJs
-      const { data } = await api.post('/save_file', { action: fileType, content })
+      const { data } = await api.put(`/custom-assets/${fileType}`, { content })
       if (data?.status === 'success') {
         showNotificationMessage(t('page.index.custom_assets.save_success'), 'success')
       } else {
@@ -408,12 +408,8 @@ const Dashboard: React.FC = () => {
     if (updatingSelf) return
     setUpdatingSelf(true)
     try {
-      const { data } = await api.post('/self_update')
-      if (data.success) {
-        showNotificationMessage(t('plugins.self_update.success'), 'success')
-      } else {
-        showNotificationMessage(data.error || t('plugins.self_update.failed'), 'error')
-      }
+      await api.post('/self_update')
+      showNotificationMessage(t('plugins.self_update.success'), 'success')
     } catch (error: unknown) {
       console.error('Self update error:', error)
       showNotificationMessage(t('plugins.self_update.failed'), 'error')
@@ -465,7 +461,7 @@ const Dashboard: React.FC = () => {
   const handleAction = async (action: 'start' | 'stop' | 'restart') => {
     setActionLoading(action)
     try {
-      const { data } = await api.post('/control_server', { action })
+      const { data } = await api.post('/server/controls', { action })
       if (data.status === 'success') {
         const actionText =
           action === 'start'
@@ -505,7 +501,7 @@ const Dashboard: React.FC = () => {
   }
 
   // 首次拉取服务器状态完成前，控制按钮不可用并展示加载态
-  const statusLoading = serverStatus.status === 'loading'
+  const statusLoading = serverPhase === 'loading'
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -595,7 +591,7 @@ const Dashboard: React.FC = () => {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => handleAction('start')}
-                disabled={serverStatus.status === 'online' || statusLoading || !!actionLoading}
+                disabled={serverPhase === 'online' || statusLoading || !!actionLoading}
                 className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-green-500/20 flex items-center gap-2 group"
               >
                 {statusLoading || actionLoading === 'start' ? (
@@ -607,7 +603,7 @@ const Dashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => handleAction('restart')}
-                disabled={serverStatus.status === 'offline' || statusLoading || !!actionLoading}
+                disabled={serverPhase === 'offline' || statusLoading || !!actionLoading}
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2 group"
               >
                 {statusLoading || actionLoading === 'restart' ? (
@@ -619,7 +615,7 @@ const Dashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => handleAction('stop')}
-                disabled={serverStatus.status === 'offline' || statusLoading || !!actionLoading}
+                disabled={serverPhase === 'offline' || statusLoading || !!actionLoading}
                 className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-rose-500/20 flex items-center gap-2 group"
               >
                 {statusLoading || actionLoading === 'stop' ? (
@@ -662,14 +658,14 @@ const Dashboard: React.FC = () => {
                   <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
                     <Server className="w-6 h-6" />
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[serverStatus.status]}`}>
-                    {t(`nav.status_${serverStatus.status}`)}
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[serverPhase]}`}>
+                    {t(`nav.status_${serverPhase}`)}
                   </div>
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('page.index.server')}</p>
                   <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                    {serverStatus.status === 'online' ? t('page.index.running') : t('page.index.stopped')}
+                    {serverPhase === 'online' ? t('page.index.running') : t('page.index.stopped')}
                   </p>
                 </div>
                 <div className="h-8" />
@@ -681,7 +677,7 @@ const Dashboard: React.FC = () => {
                   <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-600 dark:text-slate-400">
                     <Users className="w-6 h-6" />
                   </div>
-                  {serverStatus.status === 'online' && (
+                  {serverPhase === 'online' && (
                     <Activity className="w-4 h-4 text-green-500 animate-pulse" />
                   )}
                 </div>
@@ -706,7 +702,7 @@ const Dashboard: React.FC = () => {
                     {t('page.index.server_version')}
                   </p>
                   <p className="text-xl font-bold text-slate-900 dark:text-white mt-1 truncate">
-                    {serverStatus.version.replace('Version: ', '') || t('page.index.unknown')}
+                    {serverStatus.version || t('page.index.unknown')}
                   </p>
                 </div>
                 <div className="h-8" />

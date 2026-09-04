@@ -617,8 +617,8 @@ class MonitorService:
                 raise ValueError(f"Unknown metric: {metric}")
             result_points.append(entry)
 
+        # service 不再自造外壳（status 键），统一由路由层包 envelope
         return {
-            "status": "success",
             "metric": metric,
             "range": range_key,
             "sample": "1s" if not use_minutes else "1m",
@@ -644,8 +644,8 @@ class MonitorService:
                 round(max(values), 2),
             )
 
+        # service 不再自造外壳（status 键），统一由路由层包 envelope
         return {
-            "status": "success",
             "range": range_key,
             "stats": {
                 "tps": stat("tps"),

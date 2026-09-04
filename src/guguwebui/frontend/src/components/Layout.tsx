@@ -59,7 +59,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { NoticeModalProvider } from '../context/NoticeModalContext'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
-import api, { getTargetServerId, setTargetServerId, SLAVE_OFFLINE_EVENT } from '../utils/api'
+import api, { getTargetServerId, setTargetServerId, SLAVE_OFFLINE_EVENT, unwrapData } from '../utils/api'
 import { fetchNotice, type NoticeData } from '../utils/notice'
 import { NiceSelect } from './NiceSelect'
 import VersionFooter from './VersionFooter'
@@ -70,7 +70,7 @@ interface LayoutProps {
 
 type ServerStatusType = 'online' | 'offline' | 'loading' | 'error'
 
-type TargetServer = { id: string; name: string; enabled: boolean; isLocal: boolean }
+type TargetServer = { id: string; name: string; enabled: boolean; local: boolean }
 
 type PluginPage = { id: string; path: string; name?: string | null; icon?: string | null }
 
@@ -135,7 +135,7 @@ const PluginPageIcon: React.FC<{ pageId: string; icon?: string | null }> = ({ pa
 
     let active = true
     let objectUrl: string | null = null
-    void api.get(`/plugins/web_pages/${encodeURIComponent(pageId)}/icon`, { responseType: 'blob' })
+    void api.get(`/plugins/web-pages/${encodeURIComponent(pageId)}/icon`, { responseType: 'blob' })
       .then((response) => {
         objectUrl = URL.createObjectURL(response.data as Blob)
         if (active) setImageUrl(objectUrl)
@@ -178,20 +178,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [pluginPages, setPluginPages] = useState<PluginPage[]>([])
   const [isPluginPagesOpen, setIsPluginPagesOpen] = useState(true)
   const [serverStatus, setServerStatus] = useState<ServerStatusType>('loading')
-  const [servers, setServers] = useState<TargetServer[]>([{ id: 'local', name: 'local', enabled: true, isLocal: true }])
+  const [servers, setServers] = useState<TargetServer[]>([{ id: 'local', name: 'local', enabled: true, local: true }])
   const [targetServerId, setTargetServerIdState] = useState<string>(getTargetServerId())
   const [noticeData, setNoticeData] = useState<NoticeData | null>(null)
   const [noticeModalOpen, setNoticeModalOpen] = useState(false)
   const [slaveOfflineToast, setSlaveOfflineToast] = useState(false)
-  const hasSlaves = servers.some(s => !s.isLocal && s.id !== 'local' && !!s.enabled)
+  const hasSlaves = servers.some(s => !s.local && s.id !== 'local' && !!s.enabled)
 
   const fetchServers = useCallback(async () => {
     try {
       const resp = await api.get('/servers')
-      if (resp.data?.status === 'success' && Array.isArray(resp.data.servers)) {
-        setServers(resp.data.servers)
+      const d = unwrapData<{ servers?: TargetServer[] }>(resp, {})
+      if (Array.isArray(d.servers)) {
+        setServers(d.servers)
         // 如果当前选择不在列表中，回退到 local
-        const ids = new Set((resp.data.servers as TargetServer[]).map(s => s.id))
+        const ids = new Set((d.servers as TargetServer[]).map(s => s.id))
         if (!ids.has(targetServerId)) {
           setTargetServerId('local')
           setTargetServerIdState('local')
@@ -209,9 +210,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     const fetchServerStatus = async () => {
       try {
-        const resp = await api.get('/get_server_status')
-        const s = resp.data?.status
-        setServerStatus(s === 'online' || s === 'offline' ? s : 'offline')
+        const resp = await api.get('/server/status')
+        const st = unwrapData<{ online?: boolean }>(resp)
+        setServerStatus(st?.online ? 'online' : 'offline')
       } catch {
         setServerStatus('offline')
       }
@@ -246,8 +247,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     const fetchPluginPages = async () => {
       try {
-        const resp = await api.get('/plugins/web_pages')
-        setPluginPages(resp.data.pages || [])
+        const resp = await api.get('/plugins/web-pages')
+        setPluginPages(unwrapData<{ pages?: PluginPage[] }>(resp, {}).pages || [])
       } catch (err) {
         console.error('Failed to fetch registered plugin pages:', err)
       }

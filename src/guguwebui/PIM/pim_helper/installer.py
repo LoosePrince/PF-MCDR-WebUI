@@ -405,10 +405,9 @@ class PluginInstaller:
                 {
                     "version": release.version,
                     "tag_name": release.tag_name,
-                    # 前端映射优先使用 date 字段
-                    "date": release.created_at,
-                    "created_at": release.created_at,
                     "prerelease": release.prerelease,
+                    # 时间统一 epoch 秒；旧字段 date / created_at 已合并为 released_at
+                    "released_at": self._to_epoch_seconds(release.created_at),
                     "download_url": release.browser_download_url,
                     "download_count": release.download_count,
                     "size": release.size,
@@ -416,6 +415,38 @@ class PluginInstaller:
                 }
             )
         return versions
+
+    @staticmethod
+    def _to_epoch_seconds(value) -> Optional[int]:
+        """把 ISO8601 / 数字（含字符串）统一为 epoch 秒；无法解析返回 None。"""
+        if value is None or isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            n = float(value)
+            if n <= 0:
+                return None
+            return int(n / 1000) if n >= 1e12 else int(n)
+        s = str(value).strip()
+        if not s:
+            return None
+        if s.lstrip("-").isdigit() or s.replace(".", "", 1).lstrip("-").isdigit():
+            try:
+                n = float(s)
+                if n <= 0:
+                    return None
+                return int(n / 1000) if n >= 1e12 else int(n)
+            except ValueError:
+                return None
+        try:
+            from datetime import datetime, timezone
+
+            text = s[:-1] + "+00:00" if s.endswith("Z") else s
+            dt = datetime.fromisoformat(text)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return int(dt.timestamp())
+        except Exception:
+            return None
 
     def _install_thread(self, task_id: str, plugin_id: str, version: str, repo_url: str):
         try:

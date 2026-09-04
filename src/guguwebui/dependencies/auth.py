@@ -3,6 +3,7 @@ import ipaddress
 from fastapi import Depends, HTTPException, Request, status
 
 from guguwebui.constant import user_db
+from guguwebui.structures import ForbiddenException
 
 async def get_current_user(request: Request):
     """获取当前登录用户，如果未登录则抛出 401 异常"""
@@ -81,6 +82,20 @@ def _ip_allowed(client_ip: str, allowed_master_ips: list) -> bool:
             continue
     return False
 
+def is_super_admin_user(request: Request, user: dict) -> bool:
+    """判断用户是否为超级管理员（子服 Panel Token 视为放行，权限由主服侧控制）。
+
+    把 mod_router 内联的 _is_super_admin / web_server._is_super_admin_user 收敛到此。
+    """
+    if user.get("auth_via") == "panel_token":
+        return True
+    config_service = getattr(request.app.state, "config_service", None)
+    if config_service is None:
+        return False
+    config = config_service.get_config()
+    return str(user.get("username")) == str(config.get("super_admin_account"))
+
+
 async def get_current_admin(request: Request, current_user: dict = Depends(get_current_user)):
     """获取当前管理员用户，如果不是管理员则抛出 403 异常"""
     # 子服模式的面板 token：权限由主服控制，子服只校验 token 有效性
@@ -105,4 +120,13 @@ async def get_current_admin(request: Request, current_user: dict = Depends(get_c
             detail="Admin access required"
         )
             
+    return current_user
+
+
+async def get_super_admin(request: Request, current_user: dict = Depends(get_current_admin)):
+    """超级管理员依赖：非超级管理员（或 Panel Token）抛 403（统一错误体）。"""
+    if not is_super_admin_user(request, current_user):
+        raise ForbiddenException(
+            "只有超级管理员可以执行该操作", code="super_admin_required"
+        )
     return current_user

@@ -1,159 +1,139 @@
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from typing import Any, Literal, Optional
+
+from fastapi import APIRouter, Depends, Query, Request
+from pydantic import BaseModel, Field
 
 from guguwebui.dependencies.auth import get_current_admin, get_current_user
-from guguwebui.services.config_service import ConfigService
 from guguwebui.services.operation_audit_service import record_operation
-from guguwebui.structures import ConfigData, SaveContent, SaveConfig
+from guguwebui.structures import BusinessException, WebConfigSaveRequest
+from guguwebui.structures.envelope import ApiSuccessEnvelope, success
 
 router = APIRouter()
 
 
-@router.get("/config/icp-records")
+class ConfigFileWriteRequest(BaseModel):
+    """写入配置文件：content（原始文本）与 config_data（结构化）二选一"""
+
+    content: Optional[str] = Field(default=None, description="原始文本内容（原 save_config_file 语义）")
+    config_data: Any = Field(default=None, description="结构化配置内容（原 save_config 语义）")
+
+
+class CustomAssetContent(BaseModel):
+    content: str = Field(..., description="自定义文件内容")
+
+
+@router.get("/config/icp-records", response_model=ApiSuccessEnvelope)
 async def api_get_icp_records(request: Request):
-    """获取ICP备案信息"""
+    """获取ICP备案信息（公开）"""
     state = request.app.state
-    return JSONResponse(state.file_service.get_icp_records(state.config_service))
+    records = state.file_service.get_icp_records(state.config_service)
+    return success({"icp_records": records.get("icp_records", [])})
 
 
-@router.get("/get_web_config")
+@router.get("/web-config", response_model=ApiSuccessEnvelope)
 async def api_get_web_config(
     request: Request,
     _user: dict = Depends(get_current_user),
 ):
     """获取Web配置"""
-    return JSONResponse(await request.app.state.config_service.get_web_config())
+    data = await request.app.state.config_service.get_web_config()
+    return success(data)
 
 
-@router.post("/save_web_config")
+@router.put("/web-config", response_model=ApiSuccessEnvelope)
 async def api_save_web_config(
     request: Request,
-    config: SaveConfig,
+    config: WebConfigSaveRequest,
     admin: dict = Depends(get_current_admin),
 ):
-    """保存Web配置"""
+    """保存Web配置（结构化字段，无 action 分派；为 None 的字段不修改）"""
     result = request.app.state.config_service.save_web_config(config)
-    if isinstance(result, dict) and result.get("status") == "success":
-        record_operation(
-            admin,
-            operation_type="webui.save_web_config",
-            summary=f"保存 Web 设置（action={config.action}）",
-            detail={"action": config.action},
-        )
-    return JSONResponse(result)
+    changed = {
+        field: value
+        for field, value in config.model_dump(exclude_unset=True).items()
+        if value is not None
+    }
+    record_operation(
+        admin,
+        operation_type="webui.save_web_config",
+        summary="保存 Web 设置",
+        detail={"fields": sorted(changed.keys())},
+    )
+    return success(message=result.get("message") or "配置已保存")
 
 
-@router.get("/load_config")
+@router.get("/config-files", response_model=ApiSuccessEnvelope)
 async def api_load_config(
     request: Request,
-    path: str,
-    translation: bool = False,
-    type: str = "auto",
+    path: str = Query(..., description="文件路径（受 SafePath 约束）"),
+    translation: bool = Query(False, description="是否加载 _lang 翻译文件"),
+    type: str = Query("auto", description="解析类型：auto/json/yml/yaml/properties/html"),
     _user: dict = Depends(get_current_user),
 ):
-    """加载配置文件"""
-    return JSONResponse(
-        request.app.state.config_service.load_config(path, translation, type)
-    )
+    """加载配置文件，统一返回 {path, type, content, config_data} 文档"""
+    doc = request.app.state.config_service.load_config(path, translation, type)
+    return success(doc)
 
 
-@router.post("/save_config")
+@router.put("/config-files", response_model=ApiSuccessEnvelope)
 async def api_save_config(
     request: Request,
-    config_data: ConfigData,
+    body: ConfigFileWriteRequest,
+    path: str = Query(..., description="文件路径（受 SafePath 约束）"),
     admin: dict = Depends(get_current_admin),
 ):
-    """保存配置文件"""
-    config_service: ConfigService = request.app.state.config_service
-    result = config_service.save_config(config_data.file_path, config_data.config_data)
-    if isinstance(result, dict) and result.get("status") == "success":
-        nkeys = (
-            len(config_data.config_data)
-            if isinstance(config_data.config_data, dict)
-            else None
+    """写入配置文件：content=原始文本（原 save_config_file），config_data=结构化（原 save_config）"""
+    has_content = body.content is not None
+    has_config = body.config_data is not None
+    if has_content == has_config:
+        raise BusinessException(
+            "请提供 content（原始文本）或 config_data（结构化）二者之一",
+            status_code=400,
+            code="invalid_body",
         )
-        record_operation(
-            admin,
-            operation_type="config.save_plugin_config",
-            summary=f"保存插件配置: {config_data.file_path}",
-            detail={"file_path": config_data.file_path, "top_level_keys": nkeys},
-        )
-    return JSONResponse(result)
+
+    config_service = request.app.state.config_service
+    if has_content:
+        result = config_service.save_config_file_raw(path, body.content or "")
+    else:
+        result = config_service.save_config(path, body.config_data)
+
+    record_operation(
+        admin,
+        operation_type="config.save_config",
+        summary=f"保存配置: {path}",
+        detail={
+            "path": path,
+            "mode": "raw" if has_content else "structured",
+        },
+    )
+    return success(message=result.get("message") or "配置文件保存成功")
 
 
-@router.post("/setup_rcon")
-async def api_setup_rcon(
+@router.get("/custom-assets/{kind}", response_model=ApiSuccessEnvelope)
+async def get_custom_asset(
     request: Request,
-    admin: dict = Depends(get_current_admin),
-):
-    """一键启用RCON配置"""
-    result = request.app.state.config_service.setup_rcon()
-    if isinstance(result, dict) and result.get("status") == "success":
-        record_operation(
-            admin,
-            operation_type="config.setup_rcon",
-            summary="一键配置并启用 RCON",
-            detail={},
-        )
-    return JSONResponse(result)
-
-
-@router.get("/load_file")
-async def load_file(
-    request: Request,
-    file: str,
+    kind: Literal["css", "js"],
     _user: dict = Depends(get_current_user),
 ):
-    """load overall.js / overall.css"""
-    return PlainTextResponse(request.app.state.file_service.load_custom_file(file))
+    """读取全局自定义文件 overall.css / overall.js"""
+    content = request.app.state.file_service.load_custom_file(kind)
+    return success({"content": content})
 
 
-@router.post("/save_file")
-async def save_file(
+@router.put("/custom-assets/{kind}", response_model=ApiSuccessEnvelope)
+async def save_custom_asset(
     request: Request,
-    data: SaveContent,
+    kind: Literal["css", "js"],
+    data: CustomAssetContent,
     admin: dict = Depends(get_current_admin),
 ):
-    """save overall.js / overall.css"""
-    result = request.app.state.file_service.save_custom_file(data.action, data.content)
-    if isinstance(result, dict) and result.get("status") == "success":
-        record_operation(
-            admin,
-            operation_type="custom.save_overall_asset",
-            summary=f"保存全局自定义文件: {data.action}",
-            detail={
-                "file": data.action,
-                "content_length": len(data.content or ""),
-            },
-        )
-    return JSONResponse(result)
-
-
-@router.get("/load_config_file")
-async def load_config_file(
-    request: Request,
-    path: str,
-    _user: dict = Depends(get_current_user),
-):
-    """load config file"""
-    return PlainTextResponse(request.app.state.config_service.load_config_file_raw(path))
-
-
-@router.post("/save_config_file")
-async def save_config_file(
-    request: Request,
-    data: SaveContent,
-    admin: dict = Depends(get_current_admin),
-):
-    """save config file"""
-    config_service: ConfigService = request.app.state.config_service
-    result = config_service.save_config_file_raw(data.action, data.content)
-    if isinstance(result, dict) and result.get("status") == "success":
-        record_operation(
-            admin,
-            operation_type="config.save_config_file_raw",
-            summary=f"保存配置文件（文本）: {data.action}",
-            detail={"path": data.action, "content_length": len(data.content or "")},
-        )
-    return JSONResponse(result)
-
+    """保存全局自定义文件 overall.css / overall.js"""
+    result = request.app.state.file_service.save_custom_file(kind, data.content)
+    record_operation(
+        admin,
+        operation_type="custom.save_overall_asset",
+        summary=f"保存全局自定义文件: {kind}",
+        detail={"file": kind, "content_length": len(data.content or "")},
+    )
+    return success(message=result.get("message") or f"{kind} 保存成功")

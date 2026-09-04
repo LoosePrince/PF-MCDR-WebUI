@@ -39,7 +39,8 @@ import { NiceSelect } from '../components/NiceSelect';
 import { PluginRelationModal } from '../components/PluginRelationModal';
 import { VersionSelectModal } from '../components/VersionSelectModal';
 import { PluginCardSkeleton } from '../components/Skeleton';
-import api, { isCancel } from '../utils/api';
+import api, { isCancel, unwrapData } from '../utils/api';
+import { formatEpochDate } from '../utils/format';
 
 // --- 接口定义 ---
 
@@ -57,8 +58,7 @@ interface OnlinePlugin {
   version: string;
   repository?: string;
   link?: string;
-  last_update_time?: string; // JS 对应字段
-  last_update?: string;      // 兼容旧字段
+  last_update_time?: number | null; // epoch 秒（原为本地化字符串，已统一）
   downloads?: number;
   labels?: string[];
   license?: string;
@@ -271,8 +271,9 @@ const OnlinePlugins: React.FC = () => {
   const fetchLocalPlugins = useCallback(async (signal?: AbortSignal) => {
     try {
       const resp = await api.get('/plugins', { signal });
-      if (resp.data && resp.data.plugins) {
-        setLocalPlugins(resp.data.plugins);
+      const pluginList = unwrapData<{ plugins?: Parameters<typeof setLocalPlugins>[0] }>(resp, {}).plugins;
+      if (pluginList) {
+        setLocalPlugins(pluginList);
       }
     } catch (error: unknown) {
       // 忽略取消的请求错误
@@ -286,9 +287,13 @@ const OnlinePlugins: React.FC = () => {
 
   const fetchRepositories = useCallback(async (signal?: AbortSignal) => {
     try {
-      const resp = await api.get('/get_web_config', { signal, headers: { 'X-Target-Server': 'local' } });
-      const data = resp.data;
-      const pfCatalogueUrl = data.pf_plugin_catalogue_url || '';
+      const resp = await api.get('/web-config', { signal, headers: { 'X-Target-Server': 'local' } });
+      const data = unwrapData<{
+        pf_plugin_catalogue_url?: string;
+        mcdr_plugins_url?: string;
+        repositories?: Array<{ name: string; url: string }>;
+      }>(resp, {});
+      const pfCatalogueUrl = data?.pf_plugin_catalogue_url || '';
       const repos: Repository[] = [
         { name: t('page.settings.repo.official'), url: data.mcdr_plugins_url || '', repoId: 0 },
         { name: t('page.settings.repo.loose_repo'), url: pfCatalogueUrl, repoId: 1 },
@@ -316,12 +321,13 @@ const OnlinePlugins: React.FC = () => {
     setLoading(true);
     await fetchLocalPlugins(signal);
     try {
-      const resp = await api.get('/online-plugins', {
+      const resp = await api.get('/plugins/online', {
         params: { repo_url: selectedRepo || undefined },
         headers: { 'X-Target-Server': 'local' },
         signal
       });
-      setPlugins(resp.data || []);
+      const items = unwrapData<{ items?: OnlinePlugin[] }>(resp, {}).items || [];
+      setPlugins(items);
     } catch (error: unknown) {
       // 忽略取消的请求错误
       const meta = getErrorMeta(error)
@@ -496,11 +502,17 @@ const OnlinePlugins: React.FC = () => {
     }
     taskPollingRef.current = true;
     try {
-      const resp = await api.get(`/pim/task_status?task_id=${taskId}`);
-      if (resp.data.success && resp.data.task_info) {
-        const taskInfo = resp.data.task_info;
+      const resp = await api.get(`/pim/tasks/${encodeURIComponent(taskId)}`);
+      const taskInfo = unwrapData<{
+        task_info?: {
+          status?: string;
+          message?: string;
+          all_messages?: string[];
+        }
+      } | null>(resp, null)?.task_info;
+      if (taskInfo) {
         const status: TaskStatus = {
-          status: taskInfo.status,
+          status: taskInfo.status || 'running',
           message: taskInfo.message || '',
           all_messages: taskInfo.all_messages || []
         };
@@ -567,13 +579,13 @@ const OnlinePlugins: React.FC = () => {
     }
 
     try {
-      const resp = await api.post('/pim/install_plugin', {
-        plugin_id: pluginId,
-        version: version,
+      const resp = await api.post(`/plugins/${encodeURIComponent(pluginId)}/install`, {
+        version: version || undefined,
         repo_url: selectedRepo || undefined
       });
-      if (resp.data.success) {
-        setInstallingTaskId(resp.data.task_id);
+      const taskId = unwrapData<{ task_id?: string } | null>(resp, null)?.task_id;
+      if (taskId) {
+        setInstallingTaskId(taskId);
         setOperatingPluginId(pluginId);
         setTaskProgress(null);
         setShowTaskModal(true);
@@ -581,7 +593,7 @@ const OnlinePlugins: React.FC = () => {
         applyOnlineUrlPatch({ versions: null }, true);
         lastVersionsSyncRef.current = null;
       } else {
-        notify(t('plugins.msg.install_failed_prefix', { message: resp.data.error }), 'error');
+        notify(t('plugins.msg.install_failed'), 'error');
       }
     } catch (error) {
       notify(t('plugins.msg.install_failed'), 'error');
@@ -607,19 +619,24 @@ const OnlinePlugins: React.FC = () => {
     setLoadingVersions(true);
     setShowVersionModal(true);
     try {
-      const resp = await api.get(`/pim/plugin_versions`, {
-        params: { plugin_id: plugin.id, repo_url: selectedRepo || undefined }
+      const resp = await api.get(`/plugins/${encodeURIComponent(plugin.id)}/versions`, {
+        params: { repo_url: selectedRepo || undefined }
       });
-      if (resp.data.success) {
-        const versions = (resp.data.versions as Array<Record<string, unknown>>).map((v) => ({
-          version: String(v.version ?? ''),
-          installed: v.version === local?.version,
-          prerelease: !!v.prerelease,
-          date: String(v.date ?? v.release_date ?? v.time ?? v.published_at ?? ''),
-          downloads: typeof v.downloads === 'number' ? v.downloads : (typeof v.download_count === 'number' ? v.download_count : 0)
-        }));
-        setAvailableVersions(versions);
-      }
+      const backendVersions = unwrapData<{ versions?: Array<Record<string, unknown>> }>(resp, {}).versions || [];
+      const versions = backendVersions.map((v) => ({
+        version: String(v.version ?? ''),
+        installed: v.version === local?.version,
+        prerelease: !!v.prerelease,
+        date: typeof v.released_at === 'number' && v.released_at > 0
+          ? new Date(v.released_at * 1000).toLocaleDateString(i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            })
+          : '',
+        downloads: typeof v.download_count === 'number' ? v.download_count : 0
+      }));
+      setAvailableVersions(versions);
     } catch (error) {
       notify(t('page.online_plugins.msg.versions_failed'), 'error');
       setShowVersionModal(false);
@@ -825,8 +842,9 @@ const OnlinePlugins: React.FC = () => {
       if (sortBy === 'name') {
         comparison = a.name.localeCompare(b.name);
       } else if (sortBy === 'time') {
-        const timeA = new Date(a.last_update_time || a.last_update || 0).getTime();
-        const timeB = new Date(b.last_update_time || b.last_update || 0).getTime();
+        // last_update_time 为 epoch 秒，直接按数值比较
+        const timeA = a.last_update_time || 0;
+        const timeB = b.last_update_time || 0;
         comparison = timeA - timeB;
       } else if (sortBy === 'downloads') {
         comparison = (a.downloads || 0) - (b.downloads || 0);
@@ -1146,7 +1164,7 @@ const OnlinePlugins: React.FC = () => {
             </button>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold">
               <Calendar size={14} />
-              <span>{selectedPlugin?.last_update_time || selectedPlugin?.last_update}</span>
+              <span>{formatEpochDate(selectedPlugin?.last_update_time)}</span>
             </div>
           </div>
 
@@ -1494,17 +1512,6 @@ const OnlinePluginCard: React.FC<{
 }> = ({ plugin, status, t, onInstall, onSelectVersion, onViewDetails, onOpenReadme, getLocalizedDescription }) => {
   const isSelfWebUI = plugin.id === 'guguwebui';
 
-  // 格式化时间
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' });
-    } catch {
-      return dateString;
-    }
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1595,10 +1602,10 @@ const OnlinePluginCard: React.FC<{
 
         {/* 时间和协议信息 */}
         <div className="flex items-center gap-3 text-[10px] text-slate-400">
-          {(plugin.last_update_time || plugin.last_update) && (
+          {plugin.last_update_time != null && (
             <div className="flex items-center gap-1">
               <Calendar size={10} />
-              <span>{formatDate(plugin.last_update_time || plugin.last_update)}</span>
+              <span>{formatEpochDate(plugin.last_update_time)}</span>
             </div>
           )}
           {plugin.license && (

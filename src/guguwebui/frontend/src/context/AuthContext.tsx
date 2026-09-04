@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import api, { getBasePath } from '../utils/api'
+import api, { getBasePath, unwrapData } from '../utils/api'
 
 interface AuthContextType {
   isAuthenticated: boolean | null
@@ -30,13 +30,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkLoginStatus = async () => {
     try {
-      const response = await api.get('/checkLogin')
+      const response = await api.get('/auth/me')
+      const data = unwrapData<{
+        username?: string | null
+        nickname?: string | null
+        is_admin?: boolean
+        is_super_admin?: boolean
+      }>(response, {})
       if (response.data.status === 'success') {
         setIsAuthenticated(true)
-        setUsername(response.data.username)
-        setNickname(response.data.nickname || null)
-        setIsAdmin(Boolean(response.data.is_admin))
-        setIsSuperAdmin(Boolean(response.data.is_super_admin))
+        setUsername(data.username ?? null)
+        setNickname(data.nickname || null)
+        setIsAdmin(Boolean(data.is_admin))
+        setIsSuperAdmin(Boolean(data.is_super_admin))
       } else {
         setIsAuthenticated(false)
         setUsername(null)

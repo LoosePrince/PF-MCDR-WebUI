@@ -25,7 +25,8 @@ import { ModIcon } from '../components/ModIcon'
 import { NiceSelect } from '../components/NiceSelect'
 import { ConfigFileRowSkeleton } from '../components/Skeleton'
 import { useAuth } from '../hooks/useAuth'
-import api from '../utils/api'
+import api, { unwrapData } from '../utils/api'
+import { formatEpoch } from '../utils/format'
 
 type Warning = { code: string; message: string }
 type Dependency = { id: string; version?: string; mandatory?: boolean }
@@ -42,7 +43,7 @@ type Mod = {
   dependencies: Dependency[]
   conflicts: Dependency[]
   size: number
-  modified_at: string
+  modified_at: number
   recognized: boolean
   parse_error?: string | null
   has_icon?: boolean
@@ -67,7 +68,7 @@ const Mods: React.FC = () => {
   const { t, i18n } = useTranslation()
   const { isSuperAdmin } = useAuth()
   const [mods, setMods] = useState<Mod[]>([])
-  const [trash, setTrash] = useState<Array<{ id: string; filename: string; enabled: boolean; deleted_at: string }>>([])
+  const [trash, setTrash] = useState<Array<{ id: string; filename: string; enabled: boolean; deleted_at: number }>>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<'all' | 'enabled' | 'disabled'>('all')
@@ -102,8 +103,9 @@ const Mods: React.FC = () => {
     setLoading(true)
     try {
       const response = await api.get('/mods')
-      setMods(response.data?.mods || [])
-      if (response.data?.server_running) setNeedsRestart((current) => current)
+      const data = unwrapData<{ mods?: Mod[]; server_running?: boolean }>(response, {})
+      setMods(data.mods || [])
+      if (data.server_running) setNeedsRestart((current) => current)
     } catch (error) {
       showNotice(errorMessage(error).message || t('page.mods.load_failed'), 'error')
     } finally {
@@ -114,7 +116,7 @@ const Mods: React.FC = () => {
   const refreshTrash = useCallback(async () => {
     try {
       const response = await api.get('/mods/trash')
-      setTrash(response.data?.items || [])
+      setTrash(unwrapData<{ items?: typeof trash }>(response, {}).items || [])
     } catch (error) {
       showNotice(errorMessage(error).message || t('page.mods.load_failed'), 'error')
     }
@@ -123,7 +125,9 @@ const Mods: React.FC = () => {
   useEffect(() => {
     void refresh()
     void refreshTrash()
-    api.get('/mods/settings').then((response) => setUploadLimit(response.data?.upload_max_mib || null)).catch(() => undefined)
+    api.get('/mods/settings')
+      .then((response) => setUploadLimit(unwrapData<{ upload_max_mib?: number }>(response, {}).upload_max_mib || null))
+      .catch(() => undefined)
   }, [refresh, refreshTrash])
 
   const loaders = useMemo(() => ['all', ...Array.from(new Set(mods.map((mod) => mod.loader).filter(Boolean)))], [mods])
@@ -133,6 +137,9 @@ const Mods: React.FC = () => {
       (status === 'all' || (status === 'enabled' ? mod.enabled : !mod.enabled)) &&
       (loader === 'all' || mod.loader === loader)
   }), [loader, mods, query, status])
+
+  const operationStateOf = (response: { data: unknown }) =>
+    unwrapData<{ needs_restart?: boolean; warnings?: Warning[] }>(response, {})
 
   const applyOperationState = (data: { needs_restart?: boolean; warnings?: Warning[] }) => {
     if (data.needs_restart) setNeedsRestart(true)
@@ -168,8 +175,11 @@ const Mods: React.FC = () => {
 
   const toggleMod = async (mod: Mod, acknowledge = false) => {
     try {
-      const response = await api.post('/mods/toggle', { filename: mod.filename, enabled: !mod.enabled, acknowledge_warnings: acknowledge })
-      applyOperationState(response.data)
+      const response = await api.put(`/mods/${encodeURIComponent(mod.filename)}/enabled`, {
+        enabled: !mod.enabled,
+        acknowledge_warnings: acknowledge,
+      })
+      applyOperationState(operationStateOf(response))
       showNotice(t('page.mods.toggle_success'), 'success')
       await refresh()
       if (detailMod?.filename === mod.filename) setDetailMod(null)
@@ -185,7 +195,7 @@ const Mods: React.FC = () => {
     if (!window.confirm(t('page.mods.delete_confirm'))) return
     try {
       const response = await api.post('/mods/trash', { filename: mod.filename })
-      applyOperationState(response.data)
+      applyOperationState(operationStateOf(response))
       showNotice(t('page.mods.delete_success'), 'success')
       setDetailMod(null)
       await Promise.all([refresh(), refreshTrash()])
@@ -202,7 +212,7 @@ const Mods: React.FC = () => {
       const response = await api.post('/mods/upload', form, {
         onUploadProgress: (event) => setUploadProgress(event.total ? Math.round((event.loaded / event.total) * 100) : 0),
       })
-      applyOperationState(response.data)
+      applyOperationState(operationStateOf(response))
       setUploadOpen(false)
       setUploadFile(null)
       setUploadWarnings([])
@@ -229,7 +239,7 @@ const Mods: React.FC = () => {
     setConfigDirty(false)
     try {
       const response = await api.get('/mods/configs', { params: { mod_id: mod.id, associated_only: configAssociatedOnly } })
-      setConfigFiles(response.data?.files || [])
+      setConfigFiles(unwrapData<{ files?: ConfigFile[] }>(response, {}).files || [])
     } catch (error) { showNotice(errorMessage(error).message || t('page.mods.config_load_failed'), 'error') }
     finally { setConfigLoading(false) }
   }
@@ -242,7 +252,7 @@ const Mods: React.FC = () => {
       const response = await api.get('/mods/configs', {
         params: { mod_id: configMod.id, associated_only: associatedOnly },
       })
-      setConfigFiles(response.data?.files || [])
+      setConfigFiles(unwrapData<{ files?: ConfigFile[] }>(response, {}).files || [])
       backToConfigFileList()
     } catch (error) {
       showNotice(errorMessage(error).message || t('page.mods.config_load_failed'), 'error')
@@ -255,9 +265,10 @@ const Mods: React.FC = () => {
     setConfigLoading(true)
     try {
       const response = await api.get('/mods/config', { params: { path: file.path } })
+      const doc = unwrapData<{ content?: string; config_data?: GenericConfigObject }>(response, {})
       setSelectedConfig(file)
-      setConfigContent(response.data?.content || '')
-      const data = response.data?.config_data && typeof response.data.config_data === 'object' ? response.data.config_data as GenericConfigObject : null
+      setConfigContent(doc?.content || '')
+      const data = doc?.config_data && typeof doc.config_data === 'object' ? doc.config_data as GenericConfigObject : null
       setConfigData(data)
       setConfigMode(requestedMode === 'form' && data ? 'form' : requestedMode || (data ? 'form' : 'code'))
       setConfigDirty(false)
@@ -272,14 +283,14 @@ const Mods: React.FC = () => {
     if (configMode === 'form' && configData) { content = null; data = configData }
     try {
       const response = await api.put('/mods/config', { path: selectedConfig.path, content, config_data: data })
-      applyOperationState(response.data)
+      applyOperationState(operationStateOf(response))
       setConfigDirty(false)
       showNotice(t('page.mods.config_saved'), 'success')
     } catch (error) { showNotice(errorMessage(error).message || t('page.mods.config_save_failed'), 'error') }
   }
 
   const restoreTrash = async (id: string) => {
-    try { const response = await api.post(`/mods/trash/${id}/restore`); applyOperationState(response.data); await Promise.all([refresh(), refreshTrash()]); showNotice(t('page.mods.restore_success'), 'success') }
+    try { const response = await api.post(`/mods/trash/${id}/restore`); applyOperationState(operationStateOf(response)); await Promise.all([refresh(), refreshTrash()]); showNotice(t('page.mods.restore_success'), 'success') }
     catch (error) { showNotice(errorMessage(error).message || t('page.mods.operation_failed'), 'error') }
   }
 
@@ -324,7 +335,7 @@ const Mods: React.FC = () => {
             <div className="flex items-center gap-1"><button type="button" onClick={() => void toggleMod(mod)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title={mod.enabled ? t('page.mods.disable') : t('page.mods.enable')}><Power className="w-4 h-4" /></button><button type="button" onClick={() => void openConfigs(mod)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title={t('page.mods.config')}><FileCode2 className="w-4 h-4" /></button><button type="button" onClick={() => setDetailMod(mod)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title={t('page.mods.details')}><Info className="w-4 h-4" /></button><button type="button" onClick={() => void trashMod(mod)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20" title={t('common.delete')}><Trash2 className="w-4 h-4" /></button></div>
           </div>)}
         </div>
-      </> : <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">{trash.length === 0 ? <div className="p-8 text-center text-sm text-slate-500">{t('page.mods.trash_empty')}</div> : trash.map((item) => <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 border-b last:border-b-0 border-slate-100 dark:border-slate-800"><Trash2 className="w-4 h-4 text-slate-400" /><div className="flex-1 min-w-0"><div className="font-medium truncate text-slate-900 dark:text-white">{item.filename}</div><div className="text-xs text-slate-500">{new Date(item.deleted_at).toLocaleString()} · {item.enabled ? t('page.mods.enabled') : t('page.mods.disabled')}</div></div><button type="button" onClick={() => void restoreTrash(item.id)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20" title={t('page.mods.restore')}><RotateCcw className="w-4 h-4" /></button>{isSuperAdmin && <button type="button" onClick={() => void purgeTrash(item.id)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20" title={t('page.mods.purge')}><Trash2 className="w-4 h-4" /></button>}</div>)}</div>}
+      </> : <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">{trash.length === 0 ? <div className="p-8 text-center text-sm text-slate-500">{t('page.mods.trash_empty')}</div> : trash.map((item) => <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 border-b last:border-b-0 border-slate-100 dark:border-slate-800"><Trash2 className="w-4 h-4 text-slate-400" /><div className="flex-1 min-w-0"><div className="font-medium truncate text-slate-900 dark:text-white">{item.filename}</div>              <div className="text-xs text-slate-500">{formatEpoch(item.deleted_at)} · {item.enabled ? t('page.mods.enabled') : t('page.mods.disabled')}</div></div><button type="button" onClick={() => void restoreTrash(item.id)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20" title={t('page.mods.restore')}><RotateCcw className="w-4 h-4" /></button>{isSuperAdmin && <button type="button" onClick={() => void purgeTrash(item.id)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20" title={t('page.mods.purge')}><Trash2 className="w-4 h-4" /></button>}</div>)}</div>}
 
       {detailMod && <Modal isOpen={true} onClose={() => setDetailMod(null)} closeLabel={t('common.close')} title={detailMod.name || detailMod.filename}>
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">

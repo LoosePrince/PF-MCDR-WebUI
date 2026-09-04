@@ -320,9 +320,6 @@ class PluginService:
                             },
                             "labels": labels,
                             "repository_url": plugin_data.link,
-                            "update_time": datetime.datetime.now().strftime(
-                                "%Y-%m-%d %H:%M:%S"
-                            ),
                             "latest_version": plugin_data.latest_version,
                             "license": license_key,
                             "license_url": license_url,
@@ -335,13 +332,10 @@ class PluginService:
                                 dt = datetime.datetime.fromisoformat(
                                     latest_release.created_at.replace("Z", "+00:00")
                                 )
-                                plugin_entry["last_update_time"] = dt.strftime(
-                                    "%Y-%m-%d %H:%M:%S"
-                                )
+                                # epoch 秒（前端统一格式化，不再发本地化字符串）
+                                plugin_entry["last_update_time"] = int(dt.timestamp())
                             except Exception:
-                                plugin_entry["last_update_time"] = (
-                                    latest_release.created_at
-                                )
+                                plugin_entry["last_update_time"] = None
 
                         plugins_data.append(plugin_entry)
                     except Exception:
@@ -603,7 +597,7 @@ class PluginService:
         command = "!!MCDR plugin install -U -y guguwebui"
         self.server.logger.info(f"执行自更新命令: {command}")
         self.server.execute_command(command)
+        # 不再返回 success 键（外壳由路由层包），只提供展示用 message
         return {
-            "success": True,
             "message": "已发送更新指令到 MCDR，插件将自动重启并完成更新",
         }

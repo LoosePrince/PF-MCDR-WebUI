@@ -1,138 +1,150 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+"""公开聊天 API：验证码、账号、会话与消息。
+
+路径迁移：
+- POST /chat/generate_code       → POST   /chat/verifications
+- POST /chat/check_verification  → GET    /chat/verifications/{code}
+- POST /chat/set_password        → PUT    /chat/accounts/{name}/password
+- POST /chat/login               → POST   /chat/sessions
+- POST /chat/check_session       → GET    /chat/session/{id}
+- POST /chat/logout              → DELETE /chat/session/{id}
+- POST /chat/get_messages        → GET    /chat/messages（limit/after_id/before_id query）
+- POST /chat/get_new_messages    → GET    /chat/messages/incremental
+- POST /chat/clear_messages      → DELETE /chat/messages（仅管理员）
+- POST /chat/send_message        → POST   /chat/messages
+
+错误不再按 message 关键字猜状态码（get_status_code_for_result 已删除），
+统一抛 BusinessException 显式状态码 + 机器错误码。
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.dependencies.auth import get_current_admin, get_current_user
 from guguwebui.services.chat_service import ChatService
+from guguwebui.structures import (
+    ChatLoginRequest,
+    ChatMessageCreateRequest,
+    ChatSetPasswordRequest,
+)
+from guguwebui.structures.envelope import ApiSuccessEnvelope, PageEnvelope, success
 
-router = APIRouter()
+router = APIRouter(tags=["chat"])
 
 
-@router.post("/chat/generate_code")
+def _get_service(request: Request) -> ChatService:
+    return request.app.state.chat_service
+
+
+@router.post("/chat/verifications", response_model=ApiSuccessEnvelope)
 async def chat_generate_code(request: Request):
-    """生成聊天页验证码"""
-    code, expire_minutes = request.app.state.chat_service.generate_verification_code()
-    return JSONResponse(
-        {"status": "success", "code": code, "expire_minutes": expire_minutes}
+    """生成聊天页验证码（公开聊天页未启用 → 403 public_chat_disabled）"""
+    code, expire_minutes = _get_service(request).generate_verification_code()
+    return JSONResponse(success({"code": code, "expire_minutes": expire_minutes}))
+
+
+@router.get("/chat/verifications/{code}", response_model=ApiSuccessEnvelope)
+async def chat_check_verification(request: Request, code: str):
+    """检查验证码验证状态：data.verified 为业务状态（不再复用 status）"""
+    result = _get_service(request).check_verification_status(code)
+    return JSONResponse(success(result))
+
+
+@router.put("/chat/accounts/{name}/password", response_model=ApiSuccessEnvelope)
+async def chat_set_password(
+    request: Request,
+    name: str,
+    body: ChatSetPasswordRequest,
+):
+    """设置聊天页用户密码（name 必须与验证码绑定的玩家一致；成功后直接签发会话）"""
+    result = await _get_service(request).set_user_password(
+        body.code, body.password, player_id=name
     )
+    return JSONResponse(success(result, message=result.get("message")))
 
 
-@router.post("/chat/check_verification")
-async def chat_check_verification(request: Request):
-    """检查验证码验证状态"""
-    data = await request.json()
-    chat_service: ChatService = request.app.state.chat_service
-    result = chat_service.check_verification_status(data.get("code", ""))
-    return JSONResponse(
-        result, status_code=(200 if result.get("status") != "error" else 400)
+@router.post("/chat/sessions", response_model=ApiSuccessEnvelope)
+async def chat_login(request: Request, body: ChatLoginRequest):
+    """聊天页用户登录（创建会话）"""
+    client_ip = request.client.host if request.client else "unknown"
+    result = await _get_service(request).login(
+        body.player_id, body.password, client_ip
     )
+    return JSONResponse(success(result, message=result.get("message")))
 
 
-@router.post("/chat/set_password")
-async def chat_set_password(request: Request):
-    """设置聊天页用户密码"""
-    data = await request.json()
-    chat_service: ChatService = request.app.state.chat_service
-    result = await chat_service.set_user_password(data.get("code", ""), data.get("password", ""))
-    return JSONResponse(
-        result, status_code=(200 if result.get("status") != "error" else 400)
-    )
+@router.get("/chat/session/{session_id}", response_model=ApiSuccessEnvelope)
+async def chat_check_session(request: Request, session_id: str):
+    """检查聊天页会话状态（不存在 → 404 session_not_found，过期 → 401 session_expired）"""
+    result = await _get_service(request).check_session(session_id)
+    return JSONResponse(success(result))
 
 
-@router.post("/chat/login")
-async def chat_login(request: Request):
-    """聊天页用户登录"""
-    data, client_ip = await request.json(), (
-        request.client.host if request.client else "unknown"
-    )
-    chat_service: ChatService = request.app.state.chat_service
-    result = await chat_service.login(
-        data.get("player_id", ""), data.get("password", ""), client_ip
-    )
-    status_code = 400 if result.get("status") == "error" else 200
-    if status_code == 400 and "IP已达上限" in result.get("message", ""):
-        status_code = 429
-    return JSONResponse(result, status_code=status_code)
-
-
-@router.post("/chat/check_session")
-async def chat_check_session(request: Request):
-    """检查聊天页会话状态"""
-    data = await request.json()
-    chat_service: ChatService = request.app.state.chat_service
-    result = await chat_service.check_session(data.get("session_id", ""))
-    return JSONResponse(
-        result, status_code=(200 if result.get("status") != "error" else 400)
-    )
-
-
-@router.post("/chat/logout")
-async def chat_logout(request: Request):
+@router.delete("/chat/session/{session_id}", response_model=ApiSuccessEnvelope)
+async def chat_logout(request: Request, session_id: str):
     """聊天页用户退出登录"""
-    data = await request.json()
-    chat_service: ChatService = request.app.state.chat_service
-    result = chat_service.logout(data.get("session_id", ""))
-    return JSONResponse(
-        result, status_code=(200 if result.get("status") != "error" else 400)
+    result = _get_service(request).logout(session_id)
+    return JSONResponse(success(message=result.get("message")))
+
+
+@router.get("/chat/messages", response_model=PageEnvelope)
+async def get_chat_messages(
+    request: Request,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    after_id: Optional[int] = Query(None, ge=0),
+    before_id: Optional[int] = Query(None, ge=0),
+):
+    """获取聊天消息（新→旧；after_id/before_id 为游标，与 offset 二选一）"""
+    result = await _get_service(request).get_messages(
+        limit=limit,
+        offset=offset,
+        after_id=after_id,
+        before_id=before_id,
     )
+    return JSONResponse(success(result))
 
 
-@router.post("/chat/get_messages")
-async def get_chat_messages(request: Request):
-    """获取聊天消息"""
-    data, chat_service = await request.json(), request.app.state.chat_service
-    result = await chat_service.get_messages(
-        limit=data.get("limit", 50),
-        offset=data.get("offset", 0),
-        after_id=data.get("after_id"),
-        before_id=data.get("before_id"),
+@router.get("/chat/messages/incremental", response_model=ApiSuccessEnvelope)
+async def get_new_chat_messages(
+    request: Request,
+    after_id: int = Query(0, ge=0),
+    player_id: Optional[str] = None,
+):
+    """获取新消息与在线状态（轮询接口，基于最后消息 ID；player_id 作心跳）"""
+    result = await _get_service(request).get_new_messages(
+        after_id=after_id, player_id_heartbeat=player_id
     )
-    return JSONResponse({"status": "success", **result})
+    return JSONResponse(success(result))
 
 
-@router.post("/chat/get_new_messages")
-async def get_new_chat_messages(request: Request):
-    """获取新消息（基于最后消息ID）"""
-    data, chat_service = await request.json(), request.app.state.chat_service
-    result = await chat_service.get_new_messages(
-        after_id=data.get("after_id", 0), player_id_heartbeat=data.get("player_id")
-    )
-    return JSONResponse({"status": "success", **result})
-
-
-@router.post("/chat/clear_messages")
+@router.delete("/chat/messages", response_model=ApiSuccessEnvelope)
 async def chat_clear_messages(
     request: Request,
     _admin: dict = Depends(get_current_admin),
 ):
-    """清空聊天消息"""
-    return JSONResponse(
-        {"status": "success", **request.app.state.chat_service.clear_messages()}
-    )
+    """清空聊天消息（仅管理员）"""
+    result = _get_service(request).clear_messages()
+    return JSONResponse(success(message=result.get("message")))
 
 
-@router.post("/chat/send_message")
-async def send_chat_message(request: Request):
-    """发送聊天消息到游戏"""
-    data = await request.json()
-    player_id = data.get("player_id", "")
-    session_id = data.get("session_id", "")
-    chat_service: ChatService = request.app.state.chat_service
-
-    # 玩家聊天页允许匿名访问；若当前是 WebUI 登录用户且与 player_id 一致，则按管理员通道发送
+@router.post("/chat/messages", response_model=ApiSuccessEnvelope)
+async def send_chat_message(request: Request, body: ChatMessageCreateRequest):
+    """发送聊天消息到游戏（公开接口；WebUI 登录用户且用户名与 player_id 一致时走管理员通道）"""
+    chat_service = _get_service(request)
     is_admin = False
     try:
         user = await get_current_user(request)
-        is_admin = bool(user and user.get("username") == player_id)
+        is_admin = bool(user and user.get("username") == body.player_id)
     except HTTPException:
         is_admin = False
-
     result = await chat_service.send_message(
-        data.get("message", "").strip(),
-        player_id,
-        session_id,
+        body.message.strip(),
+        body.player_id,
+        body.session_id or "",
         is_admin,
     )
-    return JSONResponse(
-        result, status_code=chat_service.get_status_code_for_result(result)
-    )
-
+    return JSONResponse(success(message=result.get("message")))

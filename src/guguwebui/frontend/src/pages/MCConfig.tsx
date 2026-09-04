@@ -25,7 +25,7 @@ import { useSearchParams } from 'react-router-dom';
 import { NiceSelect } from '../components/NiceSelect';
 import { ConfigCardSkeleton, Skeleton } from '../components/Skeleton';
 import serverLang from '../i18n/server_lang.json';
-import api, { isCancel } from '../utils/api';
+import api, { isCancel, unwrapData } from '../utils/api';
 
 interface Category {
   id: string;
@@ -37,7 +37,6 @@ interface Category {
 interface RconConfig {
   rcon_host: string;
   rcon_port: number;
-  rcon_password: string;
 }
 
 type McUrlPatch = Partial<{ q: string | null; category: string | null }>;
@@ -177,14 +176,16 @@ const MCConfig: React.FC = () => {
     setLoading(true);
     try {
       // 1. Get server path from MCDR config
-      const mcdrResp = await api.get('/load_config?path=config.yml', { signal });
-      const workingDir = mcdrResp.data.working_directory || 'server';
+      const mcdrResp = await api.get('/config-files', { params: { path: 'config.yml' }, signal });
+      const mcdrDoc = unwrapData<{ config_data?: { working_directory?: string } }>(mcdrResp, {});
+      const workingDir = mcdrDoc?.config_data?.working_directory || 'server';
       const path = workingDir.endsWith('/') ? workingDir : workingDir + '/';
       setServerPath(path);
 
       // 2. Load minecraft config
-      const configResp = await api.get(`/load_config?path=${path}server.properties`, { signal });
-      const rawData = configResp.data;
+      const configResp = await api.get('/config-files', { params: { path: `${path}server.properties` }, signal });
+      const docData = unwrapData<{ config_data?: Record<string, unknown> }>(configResp, {});
+      const rawData: Record<string, unknown> = docData?.config_data || {};
 
       // Convert string boolean to real boolean
       const processedData: Record<string, unknown> = {};
@@ -247,9 +248,8 @@ const MCConfig: React.FC = () => {
         }
       }
 
-      const resp = await api.post('/save_config', {
-        file_path: `${serverPath}server.properties`,
-        config_data: formattedConfig
+      const resp = await api.put('/config-files', { config_data: formattedConfig }, {
+        params: { path: `${serverPath}server.properties` }
       });
 
       if (resp.data.status === 'success') {
@@ -267,14 +267,16 @@ const MCConfig: React.FC = () => {
   const setupRcon = async () => {
     setSettingUpRcon(true);
     try {
-      const resp = await api.post('/setup_rcon');
+      const resp = await api.post('/server/rcon-setup');
       if (resp.data.status === 'success') {
-        setRconConfig(resp.data.config);
+        const cfg = unwrapData<{ rcon_host?: string; rcon_port?: number }>(resp, {});
+        setRconConfig({ rcon_host: cfg?.rcon_host || '', rcon_port: cfg?.rcon_port ?? 0 });
         setShowRconSetupModal(false);
         setShowRconRestartModal(true);
         // Reload config to show new values
-        const configResp = await api.get(`/load_config?path=${serverPath}server.properties`);
-        setConfigData(configResp.data);
+        const configResp = await api.get('/config-files', { params: { path: `${serverPath}server.properties` } });
+        const reloadDoc = unwrapData<{ config_data?: Record<string, unknown> }>(configResp, {});
+        setConfigData(reloadDoc?.config_data || {});
         notify(t('page.mc.rcon.setup_success_msg'), 'success');
       } else {
         notify(t('page.mc.rcon.setup_failed_prefix') + (resp.data.message || ''), 'error');
@@ -289,7 +291,7 @@ const MCConfig: React.FC = () => {
   const restartServer = async () => {
     setRestarting(true);
     try {
-      const resp = await api.post('/control_server', { action: 'restart' });
+      const resp = await api.post('/server/controls', { action: 'restart' });
       if (resp.data.status === 'success') {
         setShowRconRestartModal(false);
         notify(t('page.mc.rcon.restart_success'), 'success');
@@ -556,7 +558,6 @@ const MCConfig: React.FC = () => {
             <div className="space-y-1 text-sm font-mono opacity-80">
               <div className="flex justify-between"><span>{t('page.mcdr.rcon.config_host')}:</span> <span>{rconConfig?.rcon_host}</span></div>
               <div className="flex justify-between"><span>{t('page.mcdr.rcon.config_port')}:</span> <span>{rconConfig?.rcon_port}</span></div>
-              <div className="flex justify-between"><span>{t('page.mcdr.rcon.config_password')}:</span> <span>{rconConfig?.rcon_password}</span></div>
             </div>
           </div>
           <p className="text-slate-600 dark:text-slate-400">{t('page.mcdr.rcon.restart_question')}</p>

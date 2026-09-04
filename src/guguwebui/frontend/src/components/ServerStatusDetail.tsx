@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { STATUS_RANGES } from '../constants'
 import { useTheme } from '../hooks/useTheme'
-import api, { isCancel } from '../utils/api'
+import api, { isCancel, unwrapData } from '../utils/api'
 import {
   formatBytes,
   formatLoad,
@@ -55,7 +55,6 @@ interface NetInfo {
 }
 
 export interface Overview {
-  status?: string
   ts: number
   online: boolean
   uptime: number | null
@@ -119,9 +118,10 @@ const ServerStatusDetail: React.FC = () => {
 
     const fetchOverview = async () => {
       try {
-        const { data } = await api.get('/monitor/overview', { signal: ac.signal })
+        const resp = await api.get('/monitor/overview', { signal: ac.signal })
+        const data = unwrapData<Overview | null>(resp, null)
         if (!cancelled && data && typeof data.online === 'boolean') {
-          setOverview(data as Overview)
+          setOverview(data)
         }
       } catch (e: unknown) {
         const err = e as { name?: string; code?: string }
@@ -138,10 +138,13 @@ const ServerStatusDetail: React.FC = () => {
           api.get('/monitor/history', { params: { metric: 'network', range }, signal: ac.signal }),
         ])
         if (cancelled) return
+        const cpu = unwrapData<{ points?: ChartPoint[] }>(cpuResp, {})
+        const memory = unwrapData<{ points?: ChartPoint[] }>(memResp, {})
+        const network = unwrapData<{ points?: ChartPoint[] }>(netResp, {})
         setHistory({
-          cpu: (cpuResp.data?.points as ChartPoint[]) ?? [],
-          memory: (memResp.data?.points as ChartPoint[]) ?? [],
-          network: (netResp.data?.points as ChartPoint[]) ?? [],
+          cpu: cpu.points ?? [],
+          memory: memory.points ?? [],
+          network: network.points ?? [],
         })
       } catch (e: unknown) {
         const err = e as { name?: string; code?: string }
@@ -154,9 +157,10 @@ const ServerStatusDetail: React.FC = () => {
 
     const fetchTable = async () => {
       try {
-        const { data } = await api.get('/monitor/table', { params: { range }, signal: ac.signal })
-        if (!cancelled && data?.stats) {
-          setTableStats(data.stats as TableStats)
+        const resp = await api.get('/monitor/table', { params: { range }, signal: ac.signal })
+        const data = unwrapData<{ stats?: TableStats }>(resp, {})
+        if (!cancelled && data.stats) {
+          setTableStats(data.stats)
         }
       } catch (e: unknown) {
         const err = e as { name?: string; code?: string }

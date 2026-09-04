@@ -10,6 +10,7 @@ from typing import List, Optional
 from guguwebui.constant import (DEFALUT_CONFIG, MCDR_OFFICIAL_CATALOGUE_URL,
                                 PF_PLUGIN_CATALOGUE_URL,
                                 SERVER_PROPERTIES_PATH)
+from guguwebui.structures import BusinessException
 from guguwebui.utils.api_cache import api_cache
 from guguwebui.utils.chat_logger import ChatLogger
 from guguwebui.utils.i18n_util import (build_json_i18n_translations,
@@ -164,82 +165,71 @@ class ConfigService:
         }
 
     def save_web_config(self, config_info):
+        """保存 Web 配置（WebConfigSaveRequest：结构化字段，为 None 不修改）。"""
         web_config = self.server.load_config_simple(
             "config.json", DEFALUT_CONFIG, echo_in_console=False
         )
-        action = config_info.action
 
-        if action == "config":
-            if config_info.host:
-                web_config["host"] = config_info.host
-            if config_info.port:
-                web_config["port"] = int(config_info.port)
-            if config_info.super_account:
-                # 支持字符串类型的超级管理员账号（如QQ号）
-                # 如果是纯数字字符串，转换为整数；否则保持字符串
-                super_account_str = str(config_info.super_account).strip()
-                if super_account_str.isdigit():
-                    web_config["super_admin_account"] = int(super_account_str)
-                else:
-                    web_config["super_admin_account"] = super_account_str
-            if config_info.ai_api_key is not None:
-                web_config["ai_api_key"] = config_info.ai_api_key
-            if config_info.ai_model is not None:
-                web_config["ai_model"] = config_info.ai_model
-            if config_info.ai_api_url is not None:
-                web_config["ai_api_url"] = config_info.ai_api_url
-            if config_info.mcdr_plugins_url is not None:
-                web_config["mcdr_plugins_url"] = config_info.mcdr_plugins_url
-            if config_info.repositories is not None:
-                web_config["repositories"] = config_info.repositories
-            if config_info.ssl_enabled is not None:
-                web_config["ssl_enabled"] = config_info.ssl_enabled
-            if config_info.ssl_certfile is not None:
-                web_config["ssl_certfile"] = config_info.ssl_certfile
-            if config_info.ssl_keyfile is not None:
-                web_config["ssl_keyfile"] = config_info.ssl_keyfile
-            if config_info.ssl_keyfile_password is not None:
-                web_config["ssl_keyfile_password"] = config_info.ssl_keyfile_password
-            if config_info.public_chat_enabled is not None:
-                web_config["public_chat_enabled"] = config_info.public_chat_enabled
-            if config_info.public_chat_to_game_enabled is not None:
-                web_config["public_chat_to_game_enabled"] = (
-                    config_info.public_chat_to_game_enabled
-                )
-            if config_info.chat_verification_expire_minutes is not None:
-                web_config["chat_verification_expire_minutes"] = (
-                    config_info.chat_verification_expire_minutes
-                )
-            if config_info.chat_session_expire_hours is not None:
-                web_config["chat_session_expire_hours"] = (
-                    config_info.chat_session_expire_hours
-                )
-            if config_info.force_standalone is not None:
-                web_config["force_standalone"] = config_info.force_standalone
-            if config_info.log_capture_compat_mode is not None:
-                web_config["log_capture_compat_mode"] = config_info.log_capture_compat_mode
-            if config_info.icp_records is not None:
-                web_config["icp_records"] = config_info.icp_records
-            # 多服面板合并
-            if config_info.panel_role is not None:
-                web_config["panel_role"] = config_info.panel_role
-            if config_info.panel_slaves is not None:
-                web_config["panel_slaves"] = config_info.panel_slaves
-            if config_info.panel_master is not None:
-                web_config["panel_master"] = config_info.panel_master
-            response = {"status": "success", "message": "配置已保存，修改后生效情况请查看页面提示"}
-        elif action in ["disable_admin_login_web", "enable_temp_login_password"]:
-            config_map = {
-                "disable_admin_login_web": "disable_other_admin",
-                "enable_temp_login_password": "allow_temp_password",
-            }
-            web_config[config_map[action]] = not web_config[config_map[action]]
-            response = {"status": "success", "message": web_config[config_map[action]]}
-        elif action == "toggle_ssl":
-            web_config["ssl_enabled"] = not web_config.get("ssl_enabled", False)
-            response = {"status": "success", "message": web_config["ssl_enabled"]}
-        else:
-            return {"status": "error", "message": "Invalid action"}
+        if config_info.host is not None:
+            web_config["host"] = config_info.host
+        if config_info.port is not None:
+            web_config["port"] = int(config_info.port)
+        if config_info.super_account is not None:
+            # 支持字符串类型的超级管理员账号（如QQ号）；纯数字字符串转为整数
+            super_account_str = str(config_info.super_account).strip()
+            if super_account_str.isdigit():
+                web_config["super_admin_account"] = int(super_account_str)
+            else:
+                web_config["super_admin_account"] = super_account_str
+        if config_info.disable_admin_login_web is not None:
+            web_config["disable_other_admin"] = config_info.disable_admin_login_web
+        if config_info.enable_temp_login_password is not None:
+            web_config["allow_temp_password"] = config_info.enable_temp_login_password
+        if config_info.ai_api_key is not None:
+            web_config["ai_api_key"] = config_info.ai_api_key
+        if config_info.ai_model is not None:
+            web_config["ai_model"] = config_info.ai_model
+        if config_info.ai_api_url is not None:
+            web_config["ai_api_url"] = config_info.ai_api_url
+        if config_info.mcdr_plugins_url is not None:
+            web_config["mcdr_plugins_url"] = config_info.mcdr_plugins_url
+        if config_info.repositories is not None:
+            web_config["repositories"] = config_info.repositories
+        if config_info.ssl_enabled is not None:
+            web_config["ssl_enabled"] = config_info.ssl_enabled
+        if config_info.ssl_certfile is not None:
+            web_config["ssl_certfile"] = config_info.ssl_certfile
+        if config_info.ssl_keyfile is not None:
+            web_config["ssl_keyfile"] = config_info.ssl_keyfile
+        if config_info.ssl_keyfile_password is not None:
+            web_config["ssl_keyfile_password"] = config_info.ssl_keyfile_password
+        if config_info.public_chat_enabled is not None:
+            web_config["public_chat_enabled"] = config_info.public_chat_enabled
+        if config_info.public_chat_to_game_enabled is not None:
+            web_config["public_chat_to_game_enabled"] = (
+                config_info.public_chat_to_game_enabled
+            )
+        if config_info.chat_verification_expire_minutes is not None:
+            web_config["chat_verification_expire_minutes"] = (
+                config_info.chat_verification_expire_minutes
+            )
+        if config_info.chat_session_expire_hours is not None:
+            web_config["chat_session_expire_hours"] = (
+                config_info.chat_session_expire_hours
+            )
+        if config_info.force_standalone is not None:
+            web_config["force_standalone"] = config_info.force_standalone
+        if config_info.log_capture_compat_mode is not None:
+            web_config["log_capture_compat_mode"] = config_info.log_capture_compat_mode
+        if config_info.icp_records is not None:
+            web_config["icp_records"] = config_info.icp_records
+        # 多服面板合并
+        if config_info.panel_role is not None:
+            web_config["panel_role"] = config_info.panel_role
+        if config_info.panel_slaves is not None:
+            web_config["panel_slaves"] = config_info.panel_slaves
+        if config_info.panel_master is not None:
+            web_config["panel_master"] = config_info.panel_master
 
         try:
             config_dir = self.server.get_data_folder()
@@ -247,18 +237,28 @@ class ConfigService:
             config_path = Path(config_dir) / "config.json"
             with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(web_config, f, ensure_ascii=False, indent=4)
-            return response
         except Exception as e:
             logger.error(f"保存配置文件时出错: {e}")
-            return {"status": "error", "message": f"保存配置文件失败: {str(e)}"}
+            raise BusinessException(
+                f"保存配置文件失败: {str(e)}",
+                status_code=500,
+                code="config_save_failed",
+            )
+        return {"status": "success", "message": "配置已保存，修改后生效情况请查看页面提示"}
 
     def load_config(
         self, path: str, translation: bool = False, config_type: str = "auto"
     ):
+        """加载配置文件，统一返回 {path, type, content, config_data} 文档。
+
+        文件不存在/越权/读取异常抛 BusinessException（404/403/500），不再返回 {}。
+        """
         try:
             path_obj = SafePath.get_safe_path(path, get_base_dirs(self.server))
         except ValueError as e:
-            return {"status": "error", "message": str(e), "code": 403}
+            raise BusinessException(
+                str(e), status_code=403, code="path_not_allowed"
+            )
 
         config_dir = path_obj.parent
         main_json_path = config_dir / "main.json"
@@ -278,16 +278,17 @@ class ConfigService:
                     try:
                         with open(html_path, "r", encoding="UTF-8") as f:
                             return {
-                                "status": "success",
+                                "path": path,
                                 "type": "html",
                                 "content": f.read(),
+                                "config_data": None,
                             }
-                    except Exception:
-                        return {
-                            "status": "error",
-                            "message": "Failed to read HTML file",
-                            "code": 500,
-                        }
+                    except Exception as e:
+                        raise BusinessException(
+                            f"Failed to read HTML file: {str(e)}",
+                            status_code=500,
+                            code="html_read_failed",
+                        )
 
         if translation:
             if path_obj.suffix in [".json", ".properties"]:
@@ -296,20 +297,26 @@ class ConfigService:
                 path_obj = path_obj.with_suffix(f".json")
 
         if not path_obj.exists():
-            return {}
+            raise BusinessException(
+                f"Config file not found: {path}",
+                status_code=404,
+                code="config_file_not_found",
+            )
 
+        raw_text = ""
+        config = {}
+        suffix = path_obj.suffix.lower()
         try:
-            raw_text = None
             with open(path_obj, "r", encoding="UTF-8") as f:
                 raw_text = f.read()
                 f.seek(0)
-                if path_obj.suffix == ".json":
+                if suffix == ".json":
                     config = json.load(f)
-                elif path_obj.suffix in [".yml", ".yaml"]:
+                elif suffix in [".yml", ".yaml"]:
                     from ..utils.table import yaml
 
                     config = yaml.load(f)
-                elif path_obj.suffix == ".properties":
+                elif suffix == ".properties":
                     import javaproperties
 
                     config = javaproperties.load(f)
@@ -321,45 +328,105 @@ class ConfigService:
                         )
                         for k, v in config.items()
                     }
-                elif path_obj.suffix == ".html":
+                elif suffix == ".html":
                     # 直接加载插件页等 HTML（无 main.json 映射时仍走此分支）
                     return {
-                        "status": "success",
+                        "path": path,
                         "type": "html",
                         "content": raw_text or "",
+                        "config_data": None,
                     }
                 else:
-                    config = {}
-        except Exception:
-            config = {}
+                    return {
+                        "path": path,
+                        "type": "text",
+                        "content": raw_text,
+                        "config_data": {},
+                    }
+        except Exception as e:
+            raise BusinessException(
+                f"读取配置文件失败: {str(e)}",
+                status_code=500,
+                code="config_read_failed",
+            )
 
         if translation:
-            if path_obj.suffix == ".json":
+            if suffix == ".json":
                 try:
-                    return self._maybe_nest_i18n(build_json_i18n_translations(config))
+                    config = self._maybe_nest_i18n(
+                        build_json_i18n_translations(config)
+                    )
+                    return {
+                        "path": path,
+                        "type": "i18n",
+                        "content": raw_text,
+                        "config_data": config,
+                    }
                 except Exception:
                     pass
-            elif path_obj.suffix in [".yml", ".yaml"]:
+            elif suffix in [".yml", ".yaml"]:
                 try:
-                    return self._maybe_nest_i18n(
-                        build_yaml_i18n_translations(config, raw_text or "")
+                    config = self._maybe_nest_i18n(
+                        build_yaml_i18n_translations(config, raw_text)
                     )
+                    return {
+                        "path": path,
+                        "type": "i18n",
+                        "content": raw_text,
+                        "config_data": config,
+                    }
                 except Exception:
-                    return get_comment(config)
+                    return {
+                        "path": path,
+                        "type": "i18n",
+                        "content": raw_text,
+                        "config_data": get_comment(config),
+                    }
 
-        return config
+        type_map = {
+            ".json": "json",
+            ".yml": "yaml",
+            ".yaml": "yaml",
+            ".properties": "properties",
+        }
+        return {
+            "path": path,
+            "type": type_map.get(suffix, "text"),
+            "content": raw_text,
+            "config_data": config,
+        }
+
+    def _assert_not_webui_config(self, config_path: Path):
+        """阻止通过配置编辑入口改写 guguwebui 自身的 config.json"""
+        parts = [p.lower() for p in config_path.parts]
+        if config_path.name.lower() == "config.json" and "guguwebui" in parts:
+            raise BusinessException(
+                "无法在此处修改guguwebui配置文件",
+                status_code=403,
+                code="protected_file",
+            )
 
     def save_config(self, file_path: str, config_data: dict):
         try:
             config_path = SafePath.get_safe_path(file_path, get_base_dirs(self.server))
         except ValueError as e:
-            return {"status": "error", "message": str(e), "code": 403}
+            raise BusinessException(
+                str(e), status_code=403, code="path_not_allowed"
+            )
 
         if config_path == Path(self.server.get_data_folder()) / "config.json":
-            return {"status": "error", "message": "无法在此处修改guguwebui配置文件"}
+            raise BusinessException(
+                "无法在此处修改guguwebui配置文件",
+                status_code=403,
+                code="protected_file",
+            )
 
         if not config_path.exists():
-            return {"status": "fail", "message": "plugin config not found"}
+            raise BusinessException(
+                f"Config file not found: {file_path}",
+                status_code=404,
+                code="config_file_not_found",
+            )
 
         try:
             with open(config_path, "r", encoding="UTF-8") as f:
@@ -408,11 +475,18 @@ class ConfigService:
 
                     javaproperties.dump(data, f)
             return {"status": "success", "message": "配置文件保存成功"}
+        except BusinessException:
+            raise
         except Exception as e:
             logger.error(f"Error saving config file: {e}")
-            return {"status": "error", "message": str(e), "code": 500}
+            raise BusinessException(
+                f"Error saving config file: {str(e)}",
+                status_code=500,
+                code="config_save_failed",
+            )
 
     def setup_rcon(self):
+        """一键启用 RCON：密码仅写入配置文件，不随响应返回。"""
         try:
             mc_server_port = get_server_port(self.server)
             rcon_host = "127.0.0.1"
@@ -420,45 +494,51 @@ class ConfigService:
             rcon_password = self._generate_random_password(16)
 
             # Update server.properties
-            if SERVER_PROPERTIES_PATH.exists():
-                import javaproperties
-
-                with open(SERVER_PROPERTIES_PATH, "r", encoding="UTF-8") as f:
-                    mc_config = javaproperties.load(f)
-                mc_config.update(
-                    {
-                        "enable-rcon": "true",
-                        "rcon.port": str(rcon_port),
-                        "rcon.password": rcon_password,
-                        "broadcast-rcon-to-ops": "false",
-                    }
+            if not SERVER_PROPERTIES_PATH.exists():
+                raise BusinessException(
+                    "找不到server.properties文件",
+                    status_code=404,
+                    code="server_properties_not_found",
                 )
-                with open(SERVER_PROPERTIES_PATH, "w", encoding="UTF-8") as f:
-                    javaproperties.dump(mc_config, f)
-            else:
-                return {"status": "error", "message": "找不到server.properties文件"}
+            import javaproperties
+
+            with open(SERVER_PROPERTIES_PATH, "r", encoding="UTF-8") as f:
+                mc_config = javaproperties.load(f)
+            mc_config.update(
+                {
+                    "enable-rcon": "true",
+                    "rcon.port": str(rcon_port),
+                    "rcon.password": rcon_password,
+                    "broadcast-rcon-to-ops": "false",
+                }
+            )
+            with open(SERVER_PROPERTIES_PATH, "w", encoding="UTF-8") as f:
+                javaproperties.dump(mc_config, f)
 
             # Update MCDR config.yml
             config_path = Path("config.yml")
-            if config_path.exists():
-                from ..utils.table import yaml
-
-                with open(config_path, "r", encoding="UTF-8") as f:
-                    mcdr_config = yaml.load(f)
-                if "rcon" not in mcdr_config:
-                    mcdr_config["rcon"] = {}
-                mcdr_config["rcon"].update(
-                    {
-                        "enable": True,
-                        "address": rcon_host,
-                        "port": rcon_port,
-                        "password": rcon_password,
-                    }
+            if not config_path.exists():
+                raise BusinessException(
+                    "找不到MCDR config.yml文件",
+                    status_code=404,
+                    code="mcdr_config_not_found",
                 )
-                with open(config_path, "w", encoding="UTF-8") as f:
-                    yaml.dump(mcdr_config, f)
-            else:
-                return {"status": "error", "message": "找不到MCDR config.yml文件"}
+            from ..utils.table import yaml
+
+            with open(config_path, "r", encoding="UTF-8") as f:
+                mcdr_config = yaml.load(f)
+            if "rcon" not in mcdr_config:
+                mcdr_config["rcon"] = {}
+            mcdr_config["rcon"].update(
+                {
+                    "enable": True,
+                    "address": rcon_host,
+                    "port": rcon_port,
+                    "password": rcon_password,
+                }
+            )
+            with open(config_path, "w", encoding="UTF-8") as f:
+                yaml.dump(mcdr_config, f)
 
             api_cache.invalidate("rcon_status")
             self.server.execute_command("!!MCDR reload config")
@@ -468,11 +548,16 @@ class ConfigService:
                 "config": {
                     "rcon_host": rcon_host,
                     "rcon_port": rcon_port,
-                    "rcon_password": rcon_password,
                 },
             }
+        except BusinessException:
+            raise
         except Exception as e:
-            return {"status": "error", "message": f"配置RCON时发生错误: {str(e)}"}
+            raise BusinessException(
+                f"配置RCON时发生错误: {str(e)}",
+                status_code=500,
+                code="rcon_setup_failed",
+            )
 
     def _maybe_nest_i18n(self, i18n: dict) -> dict:
         try:
@@ -524,28 +609,30 @@ class ConfigService:
             secrets.choice(string.ascii_letters + string.digits) for _ in range(length)
         )
 
-    def load_config_file_raw(self, path: str) -> str:
-        """读取原始配置文件内容"""
-        try:
-            with open(path, "r", encoding="utf-8") as file:
-                return file.read()
-        except FileNotFoundError:
-            from fastapi import HTTPException
-
-            raise HTTPException(status_code=404, detail=f"File not found: {path}")
-
     def save_config_file_raw(self, path: str, content: str):
-        """保存原始配置文件内容"""
-        if "config/guguwebui/config.json" in path.replace("\\", "/"):
-            from guguwebui.structures import BusinessException
+        """以原始文本方式保存配置（SafePath 校验后写入，文件必须存在）。"""
+        try:
+            config_path = SafePath.get_safe_path(path, get_base_dirs(self.server))
+        except ValueError as e:
+            raise BusinessException(
+                str(e), status_code=403, code="path_not_allowed"
+            )
 
-            raise BusinessException("无法在此处修改 guguwebui 配置文件")
+        self._assert_not_webui_config(config_path)
+        if not config_path.exists():
+            raise BusinessException(
+                f"Config file not found: {path}",
+                status_code=404,
+                code="config_file_not_found",
+            )
 
         try:
-            with open(path, "w", encoding="utf-8") as file:
+            with open(config_path, "w", encoding="utf-8") as file:
                 file.write(content)
             return {"status": "success", "message": f"{path} saved successfully"}
         except Exception as e:
-            from guguwebui.structures import BusinessException
-
-            raise BusinessException(f"保存文件失败: {str(e)}")
+            raise BusinessException(
+                f"保存文件失败: {str(e)}",
+                status_code=500,
+                code="config_save_failed",
+            )

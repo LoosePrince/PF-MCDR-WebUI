@@ -161,14 +161,13 @@ class ChatLogger:
             if message is None:
                 break
 
-            # 转换为可序列化格式
+            # 转换为可序列化格式（timestamp_str 为服务端预拼本地化字符串，已移除，前端用 epoch 秒集中格式化）
             serializable_message = {
                 'id': message['id'],
                 'player_id': message['player_id'],
                 'message': message['message'],
                 'timestamp': int(message['timestamp'].timestamp()),
                 'timestamp_ms': int(message['timestamp'].timestamp() * 1000),
-                'timestamp_str': message['timestamp_str'],
                 'is_rtext': message.get('is_rtext', False),
                 'rtext_data': message.get('rtext_data', None),
                 'is_plugin': message.get('is_plugin', False),
@@ -492,14 +491,13 @@ class ChatLogger:
         index["file_size"] = self.chat_messages_file.stat().st_size
         self._write_index(index)
 
-        # 添加到内存缓存
+        # 添加到内存缓存（timestamp_str 仅用于内部兼容旧文件格式，不再随 API 输出）
         self._add_to_cache({
             'id': message_id,
             'player_id': player_id,
             'message': message,
             'timestamp': int(timestamp.timestamp()),
             'timestamp_ms': int(timestamp.timestamp() * 1000),
-            'timestamp_str': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
             'is_rtext': rtext_data is not None,
             'rtext_data': rtext_data,
             'is_plugin': message_type == 2,
@@ -688,7 +686,6 @@ class ChatLogger:
             'message': message['message'],
             'timestamp': int(message['timestamp'].timestamp()),
             'timestamp_ms': int(message['timestamp'].timestamp() * 1000),
-            'timestamp_str': message['timestamp_str'],
             'is_rtext': message.get('is_rtext', False),
             'rtext_data': message.get('rtext_data', None),
             'is_plugin': message.get('is_plugin', False),

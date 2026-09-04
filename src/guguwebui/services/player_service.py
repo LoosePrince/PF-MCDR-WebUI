@@ -628,6 +628,7 @@ class PlayerService:
     def _not_running(self) -> Dict[str, Any]:
         return {
             "status": "error",
+            "code": "server_not_running",
             "message": "服务器未运行，无法执行该命令",
             "server_running": False,
         }
@@ -660,7 +661,7 @@ class PlayerService:
             return self._not_running()
         result = self._run_mc_command(f"whitelist {'on' if enabled else 'off'}")
         if not result.get("ok"):
-            return {"status": "error", "message": result.get("error", "命令执行失败")}
+            return {"status": "error", "code": "command_failed", "message": result.get("error", "命令执行失败")}
         return {
             "status": "success",
             "message": "白名单已开启" if enabled else "白名单已关闭",
@@ -672,7 +673,7 @@ class PlayerService:
             return self._not_running()
         result = self._run_mc_command("whitelist reload")
         if not result.get("ok"):
-            return {"status": "error", "message": result.get("error", "命令执行失败")}
+            return {"status": "error", "code": "command_failed", "message": result.get("error", "命令执行失败")}
         return {"status": "success", "message": "白名单已重载"}
 
     def whitelist_add(self, name: str) -> Dict[str, Any]:
@@ -680,7 +681,7 @@ class PlayerService:
             return self._not_running()
         result = self._run_mc_command(f"whitelist add {name}")
         if not result.get("ok"):
-            return {"status": "error", "message": result.get("error", "命令执行失败")}
+            return {"status": "error", "code": "command_failed", "message": result.get("error", "命令执行失败")}
         # 更新后自动触发白名单重载
         self._run_mc_command("whitelist reload")
         return {"status": "success", "message": f"已将 {name} 加入白名单"}
@@ -690,7 +691,7 @@ class PlayerService:
             return self._not_running()
         result = self._run_mc_command(f"whitelist remove {name}")
         if not result.get("ok"):
-            return {"status": "error", "message": result.get("error", "命令执行失败")}
+            return {"status": "error", "code": "command_failed", "message": result.get("error", "命令执行失败")}
         self._run_mc_command("whitelist reload")
         return {"status": "success", "message": f"已将 {name} 移出白名单"}
 
@@ -722,7 +723,7 @@ class PlayerService:
             return self._not_running()
         result = self._run_mc_command(f"op {name}")
         if not result.get("ok"):
-            return {"status": "error", "message": result.get("error", "命令执行失败")}
+            return {"status": "error", "code": "command_failed", "message": result.get("error", "命令执行失败")}
         return {"status": "success", "message": f"已将 {name} 设为 OP"}
 
     def deop_player(self, name: str) -> Dict[str, Any]:
@@ -730,7 +731,7 @@ class PlayerService:
             return self._not_running()
         result = self._run_mc_command(f"deop {name}")
         if not result.get("ok"):
-            return {"status": "error", "message": result.get("error", "命令执行失败")}
+            return {"status": "error", "code": "command_failed", "message": result.get("error", "命令执行失败")}
         return {"status": "success", "message": f"已取消 {name} 的 OP"}
 
     # ------------------------------------------------------------------ #
@@ -786,6 +787,7 @@ class PlayerService:
             if not result.get("ok"):
                 return {
                     "status": "error",
+                    "code": "command_failed",
                     "message": result.get("error", "命令执行失败"),
                 }
             return {
@@ -811,7 +813,7 @@ class PlayerService:
             }
         )
         if not self._save_json(path, entries):
-            return {"status": "error", "message": "写入 banned-players.json 失败"}
+            return {"status": "error", "code": "file_write_failed", "message": "写入 banned-players.json 失败"}
         return {
             "status": "success",
             "message": f"已通过文件封禁玩家 {name}（重启服务器后生效）",
@@ -827,6 +829,7 @@ class PlayerService:
             if not result.get("ok"):
                 return {
                     "status": "error",
+                    "code": "command_failed",
                     "message": result.get("error", "命令执行失败"),
                 }
             return {
@@ -850,7 +853,7 @@ class PlayerService:
             }
         )
         if not self._save_json(path, entries):
-            return {"status": "error", "message": "写入 banned-ips.json 失败"}
+            return {"status": "error", "code": "file_write_failed", "message": "写入 banned-ips.json 失败"}
         return {
             "status": "success",
             "message": f"已通过文件封禁 IP {ip}（重启服务器后生效）",
@@ -877,9 +880,9 @@ class PlayerService:
                 continue
             remaining.append(e)
         if not removed:
-            return {"status": "error", "message": f"未找到玩家 {name} 的封禁记录"}
+            return {"status": "error", "code": "ban_not_found", "message": f"未找到玩家 {name} 的封禁记录"}
         if not self._save_json(path, remaining):
-            return {"status": "error", "message": "写入 banned-players.json 失败"}
+            return {"status": "error", "code": "file_write_failed", "message": "写入 banned-players.json 失败"}
         return {
             "status": "success",
             "message": f"已解封玩家 {name}（重启服务器后生效）",
@@ -895,9 +898,9 @@ class PlayerService:
         target = ip.strip()
         remaining = [e for e in entries if (e.get("ip") or "") != target]
         if len(remaining) == len(entries):
-            return {"status": "error", "message": f"未找到 IP {ip} 的封禁记录"}
+            return {"status": "error", "code": "ban_not_found", "message": f"未找到 IP {ip} 的封禁记录"}
         if not self._save_json(path, remaining):
-            return {"status": "error", "message": "写入 banned-ips.json 失败"}
+            return {"status": "error", "code": "file_write_failed", "message": "写入 banned-ips.json 失败"}
         return {
             "status": "success",
             "message": f"已解封 IP {ip}（重启服务器后生效）",
@@ -916,5 +919,5 @@ class PlayerService:
             cmd += f" {reason}"
         result = self._run_mc_command(cmd)
         if not result.get("ok"):
-            return {"status": "error", "message": result.get("error", "命令执行失败")}
+            return {"status": "error", "code": "command_failed", "message": result.get("error", "命令执行失败")}
         return {"status": "success", "message": f"已将 {name} 踢出服务器"}

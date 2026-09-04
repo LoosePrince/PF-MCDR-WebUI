@@ -21,71 +21,98 @@ def get_target_server_id(request: Request) -> str:
     return sid or "local"
 
 
+# 本地/代理路由归属语义收敛为单一清单（原 inline 手写排除清单）。
+# - 登录/登出/会话/面板合并/审计等：必须由主服本地处理（cookie 建立在主服域、握手不跨服、审计只看主服）；
+# - /api/plugins/online 大数据永远走本地，避免无意义传输；
+# - /api/pairing/* 配对握手永远走本地（避免跨服代理导致握手混乱）。
+# 约束由 tests/test_proxy_local.py 全量路由表扫描守护：当前路由表必须与清单完全一致，新增路由不会“漏配”也不会“误配”。
+LOCAL_ONLY_PATHS: Tuple[str, ...] = (
+    "/api/login",
+    "/api/login/qq_qr/start",
+    "/api/login/qq_qr/status",
+    "/api/logout",
+    "/api/auth/me",
+    "/api/servers",
+    "/api/panel_merge_config",
+    "/api/audit_logs",
+    "/api/i18n/languages",
+    "/api/plugins/online",
+)
+
+# 已下线路由但仍保留“不代理”兜底的旧路径（请求由主服本地 404，避免跨服转发）
+LOCAL_ONLY_LEGACY_PATHS: Tuple[str, ...] = (
+    "/api/online-plugins",
+)
+
+LOCAL_ONLY_PREFIXES: Tuple[str, ...] = (
+    "/api/pairing/",
+)
+
+
 def is_proxy_candidate_path(path: str) -> bool:
     # 只代理 /api/*，并排除主服本地必须处理的少量端点
     if not path.startswith("/api/"):
         return False
-    # 登录/登出/校验登录：必须由主服本地处理（cookie 建立在主服域）
-    if path in [
-        "/api/login",
-        "/api/login/qq_qr/start",
-        "/api/login/qq_qr/status",
-        "/api/logout",
-        "/api/checkLogin",
-        "/api/servers",
-        "/api/panel_merge_config",
-        "/api/audit_logs",
-    ]:
+    if path in LOCAL_ONLY_PATHS or path in LOCAL_ONLY_LEGACY_PATHS:
         return False
-    # OpenAPI 文档与语言列表也保持主服本地（避免跨服混淆）
-    if path in ["/api/langs"]:
-        return False
-    # 在线插件列表等大数据：永远走本地，避免无意义传输
-    if path in ["/api/online-plugins"]:
-        return False
-    # 配对连接：永远走本地（避免跨服代理导致握手混乱）
-    if path.startswith("/api/pairing/"):
+    if path.startswith(LOCAL_ONLY_PREFIXES):
         return False
     return True
 
 
-def is_admin_api_path(path: str) -> bool:
-    # 近似映射：需要管理员权限的接口集合（与路由 Depends(get_current_admin) 对齐）
-    admin_exact = {
-        "/api/toggle_plugin",
-        "/api/reload_plugin",
-        "/api/save_config",
-        "/api/setup_rcon",
-        "/api/save_file",
-        "/api/save_config_file",
-        "/api/control_server",
-        "/api/send_command",
-        "/api/self_update",
-        "/api/pip/list",
-        "/api/pip/install",
-        "/api/pip/uninstall",
-        "/api/pip/task_status",
-        "/api/pim/install_plugin",
-        "/api/pim/uninstall_plugin",
-        "/api/pim/update_plugin",
-        "/api/chat/clear_messages",
-        "/api/install_pim_plugin",
-        "/api/check_pim_status",
-        "/api/deepseek",
-        "/api/online-plugins",
-        "/api/audit_logs",
-    }
-    if path in admin_exact:
-        return True
-    # /api/pim/* 基本都是管理员
-    if path.startswith("/api/pim/"):
-        return True
-    # 兜底：pip 相关均视为管理员
-    if path.startswith("/api/pip/"):
-        return True
-    if path.startswith("/api/mods"):
-        return True
+def _route_requires_admin(route: Any) -> bool:
+    """判断单个 FastAPI 路由是否声明了 get_current_admin 依赖（由路由元数据驱动）。
+
+    函数签名里的 `Depends(get_current_admin)` 记录在 route.dependant 依赖树中
+    （route.dependencies 只保存路由级依赖），因此需要沿 dependant 图递归查找。
+    """
+    try:
+        from fastapi.routing import APIRoute
+    except Exception:
+        return False
+    if not isinstance(route, APIRoute):
+        return False
+    dependant = getattr(route, "dependant", None)
+    stack = [dependant] if dependant is not None else []
+    seen = set()
+    while stack:
+        node = stack.pop()
+        if node is None or id(node) in seen:
+            continue
+        seen.add(id(node))
+        if getattr(node, "call", None) is get_current_admin:
+            return True
+        stack.extend(getattr(node, "dependencies", None) or [])
     return False
+
+
+def _route_requires_admin_for_request(request: Request) -> bool | None:
+    """
+    在本地路由表中按 method+path 精确匹配，返回该路由是否需要管理员。
+    - True / False：匹配到本地路由，按其真实依赖判定（替代历史硬编码清单，
+      避免 /api/players/*、/api/save_web_config 等新老路由漏配导致越权）；
+    - None：本地路由表无匹配（理论上仅出现在插件自注册等动态场景），调用方自行兜底。
+    """
+    try:
+        routes = request.app.routes
+        from starlette.routing import Match
+    except Exception:
+        return None
+    scope = {
+        "type": "http",
+        "method": request.method,
+        "path": request.url.path,
+        "headers": [],
+        "query_string": b"",
+    }
+    for route in routes:
+        try:
+            match = route.matches(scope)
+        except Exception:
+            continue
+        if match and match[0] == Match.FULL:
+            return _route_requires_admin(route)
+    return None
 
 
 def _filter_query_items(items: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
@@ -185,8 +212,13 @@ class ApiProxyDispatchMiddleware(BaseHTTPMiddleware):
             if not is_proxy_candidate_path(request.url.path):
                 return await call_next(request)
 
-            # 主服本地先做权限判定（权限在主服判定）
-            if is_admin_api_path(request.url.path):
+            # 主服本地先做权限判定（权限在主服判定）：
+            # 管理员要求直接取自本地路由的真实 Depends(get_current_admin)，不再维护第二份清单。
+            requires_admin = _route_requires_admin_for_request(request)
+            if requires_admin is None:
+                # 本地路由表无匹配（插件自注册等）：按普通登录处理，子服侧仍会执行自己的权限判定
+                requires_admin = False
+            if requires_admin:
                 current_user = await get_current_user(request)
                 await get_current_admin(request, current_user=current_user)
             else:

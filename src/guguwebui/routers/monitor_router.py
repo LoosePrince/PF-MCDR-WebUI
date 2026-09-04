@@ -1,42 +1,53 @@
-import asyncio
-from typing import Optional
+from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+import asyncio
+from typing import Literal, Optional
+
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.dependencies.auth import get_current_user
-from guguwebui.services.monitor_service import RANGE_MAP, MonitorService
+from guguwebui.services.monitor_service import MonitorService
+from guguwebui.structures import BusinessException
+from guguwebui.structures.envelope import ApiSuccessEnvelope, success
 
 router = APIRouter()
 
-METRICS = {"cpu", "memory", "network", "tps", "mspt", "load", "disk"}
+# metric/range 枚举收敛（非法值由 FastAPI 校验为 422 + 统一错误体，不再手写 400 分支）
+MetricName = Literal["cpu", "memory", "network", "tps", "mspt", "load", "disk"]
+RangeKey = Literal["10m", "30m", "1h", "6h", "12h", "1d", "3d", "7d"]
 
 
 def _get_service(request: Request) -> Optional[MonitorService]:
     return getattr(request.app.state, "monitor_service", None)
 
 
-@router.get("/monitor/overview")
+def _require_service(request: Request) -> MonitorService:
+    service = _get_service(request)
+    if service is None:
+        raise BusinessException(
+            "Monitor service unavailable",
+            status_code=503,
+            code="monitor_unavailable",
+        )
+    return service
+
+
+@router.get("/monitor/overview", response_model=ApiSuccessEnvelope)
 async def api_monitor_overview(
     request: Request,
     _user: dict = Depends(get_current_user),
 ):
     """获取服务器状态最新快照（TPS/MSPT/CPU/内存/Swap/磁盘/负载/网络）"""
-    service = _get_service(request)
-    if service is None:
-        return JSONResponse(
-            {"status": "error", "message": "Monitor service unavailable"},
-            status_code=503,
-        )
-    result = await asyncio.to_thread(service.get_overview)
-    return JSONResponse(result)
+    result = await asyncio.to_thread(_require_service(request).get_overview)
+    return JSONResponse(success(result))
 
 
-@router.get("/monitor/history")
+@router.get("/monitor/history", response_model=ApiSuccessEnvelope)
 async def api_monitor_history(
     request: Request,
-    metric: str = "cpu",
-    range: str = "1h",
+    metric: MetricName = Query("cpu"),
+    range: RangeKey = Query("1h"),
     _user: dict = Depends(get_current_user),
 ):
     """获取指定指标的时间序列（含降采样）。
@@ -44,43 +55,18 @@ async def api_monitor_history(
     metric: cpu / memory / network / tps / mspt / load / disk
     range: 10m / 30m / 1h / 6h / 12h / 1d / 3d / 7d
     """
-    service = _get_service(request)
-    if service is None:
-        return JSONResponse(
-            {"status": "error", "message": "Monitor service unavailable"},
-            status_code=503,
-        )
-    if metric not in METRICS:
-        return JSONResponse(
-            {"status": "error", "message": f"Unknown metric: {metric}"},
-            status_code=400,
-        )
-    if range not in RANGE_MAP:
-        return JSONResponse(
-            {"status": "error", "message": f"Unknown range: {range}"},
-            status_code=400,
-        )
-    result = await asyncio.to_thread(service.get_history, metric, range)
-    return JSONResponse(result)
+    result = await asyncio.to_thread(
+        _require_service(request).get_history, metric, range
+    )
+    return JSONResponse(success(result))
 
 
-@router.get("/monitor/table")
+@router.get("/monitor/table", response_model=ApiSuccessEnvelope)
 async def api_monitor_table(
     request: Request,
-    range: str = "1h",
+    range: RangeKey = Query("1h"),
     _user: dict = Depends(get_current_user),
 ):
     """统计表数据：各指标在当前时间范围内的 avg/min/max"""
-    service = _get_service(request)
-    if service is None:
-        return JSONResponse(
-            {"status": "error", "message": "Monitor service unavailable"},
-            status_code=503,
-        )
-    if range not in RANGE_MAP:
-        return JSONResponse(
-            {"status": "error", "message": f"Unknown range: {range}"},
-            status_code=400,
-        )
-    result = await asyncio.to_thread(service.get_table, range)
-    return JSONResponse(result)
+    result = await asyncio.to_thread(_require_service(request).get_table, range)
+    return JSONResponse(success(result))

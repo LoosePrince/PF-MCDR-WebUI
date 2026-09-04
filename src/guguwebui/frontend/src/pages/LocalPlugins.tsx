@@ -34,7 +34,8 @@ import { Modal } from '../components/Modal';
 import { PluginRelationModal } from '../components/PluginRelationModal';
 import { VersionSelectModal } from '../components/VersionSelectModal';
 import { ConfigFileRowSkeleton, PluginCardSkeleton } from '../components/Skeleton';
-import api, { isCancel } from '../utils/api';
+import api, { isCancel, unwrapData } from '../utils/api';
+import { formatEpochDate } from '../utils/format';
 
 interface PluginDescription {
   [key: string]: string;
@@ -160,15 +161,17 @@ const LocalPlugins: React.FC = () => {
     setLoading(true);
     try {
       const resp = await api.get('/plugins', { signal });
-      const pluginList = resp.data.plugins || [];
+      const pluginList = unwrapData<{ plugins?: PluginMetadata[] }>(resp, {}).plugins || [];
 
       // Fetch repository info for each plugin concurrently
       const pluginsWithRepo = await Promise.all(pluginList.map(async (p: PluginMetadata) => {
         try {
-          const repoResp = await api.get(`/pim/plugin_repository?plugin_id=${p.id}`, { signal });
-          const ok = repoResp.data?.status === 'success' || repoResp.data?.success === true;
-          const repo = repoResp.data?.repository;
-          if (ok && repo) {
+          const repoResp = await api.get(`/plugins/${encodeURIComponent(p.id)}/repository`, { signal });
+          const repo = unwrapData<{ repository?: { name_key?: string; name?: string; url?: string; is_official?: boolean } | string | null } | null>(
+            repoResp,
+            null
+          )?.repository;
+          if (repo) {
             const nameKey = (typeof repo === 'object' && repo.name_key) ? repo.name_key : 'custom';
             const name = typeof repo === 'object' && 'name' in repo && repo.name
               ? repo.name
@@ -282,11 +285,18 @@ const LocalPlugins: React.FC = () => {
     }
     taskPollingRef.current = true;
     try {
-      const resp = await api.get(`/pim/task_status?task_id=${taskId}`);
-      if (resp.data.success && resp.data.task_info) {
-        const taskInfo = resp.data.task_info;
+      const resp = await api.get(`/pim/tasks/${encodeURIComponent(taskId)}`);
+      const taskInfo = unwrapData<{
+        task_info?: {
+          status?: string;
+          message?: string;
+          all_messages?: string[];
+          plugin_id?: string;
+        }
+      } | null>(resp, null)?.task_info;
+      if (taskInfo) {
         const status: TaskStatus = {
-          status: taskInfo.status,
+          status: taskInfo.status || 'running',
           message: taskInfo.message || '',
           all_messages: taskInfo.all_messages || [],
           plugin_id: taskInfo.plugin_id
@@ -331,9 +341,8 @@ const LocalPlugins: React.FC = () => {
     try {
       // status 'loaded' -> false (unload), others -> true (load)
       const targetStatus = plugin.status !== 'loaded';
-      const resp = await api.post('/toggle_plugin', {
-        plugin_id: plugin.id,
-        status: targetStatus
+      const resp = await api.put(`/plugins/${encodeURIComponent(plugin.id)}/enabled`, {
+        enabled: targetStatus
       });
 
       if (resp.data.status === 'success') {
@@ -357,9 +366,7 @@ const LocalPlugins: React.FC = () => {
     }
 
     try {
-      const resp = await api.post('/reload_plugin', {
-        plugin_id: plugin.id
-      });
+      const resp = await api.post(`/plugins/${encodeURIComponent(plugin.id)}/reload`);
       if (resp.data.status === 'success') {
         notify(t('plugins.msg.reload_success'), 'success');
         fetchPlugins();
@@ -382,17 +389,16 @@ const LocalPlugins: React.FC = () => {
 
   const confirmUninstall = async (plugin: PluginMetadata) => {
     try {
-      const resp = await api.post('/pim/uninstall_plugin', {
-        plugin_id: plugin.id
-      });
-      if (resp.data.success) {
-        setInstallingTaskId(resp.data.task_id);
+      const resp = await api.post(`/plugins/${encodeURIComponent(plugin.id)}/uninstall`);
+      const taskId = unwrapData<{ task_id?: string } | null>(resp, null)?.task_id;
+      if (taskId) {
+        setInstallingTaskId(taskId);
         setOperatingPluginId(plugin.id);
         setOperationType('uninstall');
         setTaskProgress(null);
         setShowTaskModal(true);
       } else {
-        notify(t('plugins.msg.uninstall_failed_prefix', { message: resp.data.error }), 'error');
+        notify(t('plugins.msg.uninstall_failed'), 'error');
       }
     } catch (error) {
       notify(t('plugins.msg.uninstall_failed'), 'error');
@@ -408,19 +414,21 @@ const LocalPlugins: React.FC = () => {
     setShowConfirmModal(true);
   };
 
-  const confirmUpdate = async (plugin: PluginMetadata) => {
+  const confirmUpdate = async (plugin: PluginMetadata, requestedVersion?: string) => {
     try {
-      const resp = await api.post('/pim/update_plugin', {
-        plugin_id: plugin.id
-      });
-      if (resp.data.success) {
-        setInstallingTaskId(resp.data.task_id);
+      const resp = await api.post(
+        `/plugins/${encodeURIComponent(plugin.id)}/update`,
+        requestedVersion ? { version: requestedVersion } : {}
+      );
+      const taskId = unwrapData<{ task_id?: string } | null>(resp, null)?.task_id;
+      if (taskId) {
+        setInstallingTaskId(taskId);
         setOperatingPluginId(plugin.id);
         setOperationType('update');
         setTaskProgress(null);
         setShowTaskModal(true);
       } else {
-        notify(t('plugins.msg.update_failed_prefix', { message: resp.data.error }), 'error');
+        notify(t('plugins.msg.update_failed'), 'error');
       }
     } catch (error) {
       notify(t('plugins.msg.update_failed'), 'error');
@@ -436,8 +444,9 @@ const LocalPlugins: React.FC = () => {
     setConfigData(null);
     setConfigTranslations(null);
     try {
-      const resp = await api.get(`/list_config_files?plugin_id=${plugin.id}`);
-      setConfigFiles(resp.data.files || []);
+      const resp = await api.get(`/plugins/${encodeURIComponent(plugin.id)}/config-files`);
+      const listDoc = unwrapData<{ files?: Array<{ path: string; name: string; has_web: boolean }> }>(resp, {});
+      setConfigFiles(listDoc?.files || []);
     } catch (error) {
       notify(t('plugins.msg.load_config_files_failed'), 'error');
     } finally {
@@ -459,15 +468,18 @@ const LocalPlugins: React.FC = () => {
       setEditorMode(mode);
       setLoadingConfigs(true);
       try {
+        const loadParams = { path: file };
         if (mode === 'code') {
-          const resp = await api.get(`/load_config_file?path=${encodeURIComponent(file)}`);
-          const data = resp.data;
-          setConfigContent(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+          const resp = await api.get('/config-files', { params: loadParams });
+          const doc = unwrapData<{ content?: unknown }>(resp, {});
+          const data = doc?.content;
+          setConfigContent(typeof data === 'string' ? data : JSON.stringify(data ?? '', null, 2));
         } else if (mode === 'web') {
           // Force auto type to get HTML from backend
-          const resp = await api.get(`/load_config?path=${encodeURIComponent(file)}&type=auto`);
-          if (resp.data && resp.data.type === 'html') {
-            setConfigContent(resp.data.content);
+          const resp = await api.get('/config-files', { params: { ...loadParams, type: 'auto' } });
+          const doc = unwrapData<{ type?: string; content?: string }>(resp, {});
+          if (doc && doc.type === 'html') {
+            setConfigContent(doc.content || '');
           } else {
             // Fallback to code if web fails or not available
             setEditorMode('code');
@@ -475,20 +487,22 @@ const LocalPlugins: React.FC = () => {
           }
         } else {
           // Force json type to avoid auto-switching to HTML
-          const resp = await api.get(`/load_config?path=${encodeURIComponent(file)}&type=json`);
+          const resp = await api.get('/config-files', { params: { ...loadParams, type: 'json' } });
+          const doc = unwrapData<{ type?: string; config_data?: GenericConfigObject | null }>(resp, {});
 
           // Validation: If backend still returns HTML structure when JSON is requested, ignore it
-          if (resp.data && resp.data.type === 'html') {
+          if (doc && doc.type === 'html') {
             notify(t('plugins.config_modal.cannot_edit_form'), 'error');
             setEditorMode('code');
             return;
           }
 
-          setConfigData(resp.data);
+          setConfigData(doc?.config_data ?? null);
           // Fetch translations - explicitly set type=json to avoid HTML return
           try {
-            const transResp = await api.get(`/load_config?path=${encodeURIComponent(file)}&translation=true&type=json`);
-            setConfigTranslations(transResp.data);
+            const transResp = await api.get('/config-files', { params: { ...loadParams, translation: true, type: 'json' } });
+            const transDoc = unwrapData<{ config_data?: ConfigTranslationTree | null }>(transResp, {});
+            setConfigTranslations(transDoc?.config_data ?? null);
           } catch (e) {
             console.error('Failed to load translations:', e);
             setConfigTranslations(null);
@@ -572,9 +586,10 @@ const LocalPlugins: React.FC = () => {
       setConfigData(null);
       setConfigTranslations(null);
       try {
-        const resp = await api.get(`/list_config_files?plugin_id=${plugin.id}`);
+        const resp = await api.get(`/plugins/${encodeURIComponent(plugin.id)}/config-files`);
         if (cancelled) return;
-        const files = resp.data.files || [];
+        const listDoc = unwrapData<{ files?: Array<{ path: string; name: string; has_web: boolean }> }>(resp, {});
+        const files = listDoc?.files || [];
         setConfigFiles(files);
 
         if (configParam) {
@@ -618,16 +633,11 @@ const LocalPlugins: React.FC = () => {
     setIsSavingConfig(true);
     try {
       let resp;
+      const saveParams = { path: editingFile };
       if (editorMode === 'code') {
-        resp = await api.post('/save_config_file', {
-          action: editingFile,
-          content: configContent
-        });
+        resp = await api.put('/config-files', { content: configContent }, { params: saveParams });
       } else {
-        resp = await api.post('/save_config', {
-          file_path: editingFile,
-          config_data: configData
-        });
+        resp = await api.put('/config-files', { config_data: configData }, { params: saveParams });
       }
 
       if (resp.data.status === 'success') {
@@ -646,20 +656,8 @@ const LocalPlugins: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string | undefined): string => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '';
-      return date.toLocaleDateString(i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch {
-      return '';
-    }
-  };
+  // released_at 已统一为 epoch 秒（旧 ISO/release_date 兼容已删除），集中走 formatEpochDate
+  const formatDate = (epochSec: number | undefined): string => formatEpochDate(epochSec, '');
 
   const openVersions = async (plugin: PluginMetadata) => {
     setSelectedPlugin(plugin);
@@ -675,8 +673,9 @@ const LocalPlugins: React.FC = () => {
       // 如果本地仓库探测失败/缺失，则在打开版本弹窗时兜底再查一次
       if (!repoUrl) {
         try {
-          const repoResp = await api.get(`/pim/plugin_repository?plugin_id=${plugin.id}`);
-          const url = repoResp.data?.repository?.url;
+          const repoResp = await api.get(`/plugins/${encodeURIComponent(plugin.id)}/repository`);
+          const repo = unwrapData<{ repository?: { url?: string } | null } | null>(repoResp, null);
+          const url = repo?.repository?.url;
           if (typeof url === 'string' && url.trim()) {
             repoUrl = url.trim();
           }
@@ -684,21 +683,18 @@ const LocalPlugins: React.FC = () => {
           // 忽略仓库探测失败，后续将按默认仓库继续获取版本列表
         }
       }
-      const query = repoUrl
-        ? `/pim/plugin_versions?plugin_id=${plugin.id}&repo_url=${encodeURIComponent(repoUrl)}`
-        : `/pim/plugin_versions?plugin_id=${plugin.id}`;
-      const resp = await api.get(query);
-      if (resp.data.success) {
-        // 映射后端字段到前端字段，并格式化日期
-        const versions = (resp.data.versions || []).map((v: Record<string, unknown>) => ({
-          ...v,
-          date: formatDate(typeof v.release_date === 'string' ? v.release_date : undefined),
-          downloads: typeof v.download_count === 'number' ? v.download_count : 0
-        }));
-        setAvailableVersions(versions);
-      } else {
-        setAvailableVersions([]);
-      }
+      const resp = await api.get(`/plugins/${encodeURIComponent(plugin.id)}/versions`, {
+        params: repoUrl ? { repo_url: repoUrl } : undefined
+      });
+      const backendVersions = unwrapData<{ versions?: Array<Record<string, unknown>> }>(resp, {}).versions || [];
+      // 映射后端字段到前端字段；时间统一为 released_at epoch 秒
+      const versions = backendVersions.map((v: Record<string, unknown>) => ({
+        version: String(v.version ?? ''),
+        prerelease: !!v.prerelease,
+        date: formatDate(typeof v.released_at === 'number' ? v.released_at : undefined),
+        downloads: typeof v.download_count === 'number' ? v.download_count : 0
+      }));
+      setAvailableVersions(versions);
     } catch (error) {
       notify(t('plugins.msg.load_versions_failed'), 'error');
     } finally {
@@ -1081,7 +1077,7 @@ const LocalPlugins: React.FC = () => {
         t={t}
         onSelectVersion={(version) => {
           setShowVersionModal(false);
-          confirmUpdate({ ...selectedPlugin!, version_latest: version });
+          confirmUpdate(selectedPlugin!, version);
         }}
       />
 

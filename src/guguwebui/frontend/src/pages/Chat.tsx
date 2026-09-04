@@ -12,20 +12,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MessageLineSkeleton } from '../components/Skeleton'
 import { useAuth } from '../hooks/useAuth'
-import api from '../utils/api'
+import api, { unwrapData } from '../utils/api'
 import { parseRText } from '../utils/rtextParser'
-
-interface ChatMessage {
-  id: number
-  player_id: string
-  uuid?: string
-  message: string
-  timestamp: number
-  is_plugin: boolean
-  is_rtext: boolean
-  rtext_data?: unknown
-  message_source: string
-}
+import type { ChatMessage, ChatOnlineStatus } from '../types/api'
 
 interface ServerStatus {
   status: string
@@ -33,11 +22,7 @@ interface ServerStatus {
   players: string
 }
 
-interface OnlineStatus {
-  web: string[]
-  game: string[]
-  bot: string[]
-}
+type OnlineStatus = ChatOnlineStatus
 
 const Chat: React.FC = () => {
   const { t } = useTranslation()
@@ -98,13 +83,12 @@ const Chat: React.FC = () => {
   const fetchInitialMessages = useCallback(async () => {
     setIsLoadingMessages(true)
     try {
-      const resp = await api.post('/chat/get_messages', { limit: 50, offset: 0 })
-      if (resp.data.status === 'success') {
-        const msgs = resp.data.messages || []
-        // Backend returns newest first [N, ..., O], we want [O, ..., N] for rendering
-        setChatMessages([...msgs].reverse())
-        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
-      }
+      const resp = await api.get('/chat/messages', { params: { limit: 50, offset: 0 } })
+      const d = unwrapData<{ items?: ChatMessage[] }>(resp)
+      const msgs = d?.items || []
+      // Backend returns newest first [N, ..., O], we want [O, ..., N] for rendering
+      setChatMessages([...msgs].reverse())
+      setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
     } catch (e) {
       console.error('Failed to load messages', e)
     } finally {
@@ -120,23 +104,21 @@ const Chat: React.FC = () => {
     const currentMaxId = chatMessagesRef.current.length > 0 ? Math.max(...chatMessagesRef.current.map(m => m.id)) : 0
 
     try {
-      const resp = await api.post('/chat/get_new_messages', {
-        after_id: currentMaxId,
-        player_id: username
+      const resp = await api.get('/chat/messages/incremental', {
+        params: { after_id: currentMaxId, player_id: username }
       })
-      if (resp.data.status === 'success') {
-        if (resp.data.messages && resp.data.messages.length > 0) {
-          // resp.data.messages are newest, we append them to the end
-          const newMsgs = [...resp.data.messages].reverse()
-          setChatMessages(prev => [...prev, ...newMsgs])
-        }
-        if (resp.data.online) {
-          setOnlineStatus({
-            web: resp.data.online.web || [],
-            game: resp.data.online.game || [],
-            bot: resp.data.online.bot || []
-          })
-        }
+      const d = unwrapData<{ messages?: ChatMessage[]; online?: OnlineStatus }>(resp)
+      if (d?.messages && d.messages.length > 0) {
+        // d.messages are newest, we append them to the end
+        const newMsgs = [...d.messages].reverse()
+        setChatMessages(prev => [...prev, ...newMsgs])
+      }
+      if (d?.online) {
+        setOnlineStatus({
+          web: d.online.web || [],
+          game: d.online.game || [],
+          bot: d.online.bot || []
+        })
       }
     } catch (e) {
       console.error('Failed to load new messages', e)
@@ -149,11 +131,12 @@ const Chat: React.FC = () => {
     if (statusFetchingRef.current) return
     statusFetchingRef.current = true
     try {
-      const resp = await api.get('/get_server_status')
+      const resp = await api.get('/server/status')
+      const st = unwrapData<{ online?: boolean; version?: string; players?: string }>(resp)
       setServerStatus({
-        status: resp.data.status || 'unknown',
-        version: resp.data.version || '',
-        players: resp.data.players || '0/0'
+        status: st?.online ? 'online' : 'unknown',
+        version: st?.version || '',
+        players: st?.players || '0/0'
       })
     } catch (e) {
       // ignore status polling error
@@ -184,22 +167,21 @@ const Chat: React.FC = () => {
     const scrollHeight = chatContainerRef.current?.scrollHeight || 0
 
     try {
-      const resp = await api.post('/chat/get_messages', { limit, before_id: beforeId })
-      if (resp.data.status === 'success') {
-        const msgs = resp.data.messages || []
-        // msgs are newer -> older history. For state [Old -> New], prepend them reversed.
-        const historicalMsgs = [...msgs].reverse()
-        setChatMessages(prev => [...historicalMsgs, ...prev])
-        setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
+      const resp = await api.get('/chat/messages', { params: { limit, before_id: beforeId } })
+      const d = unwrapData<{ items?: ChatMessage[] }>(resp)
+      const msgs = d?.items || []
+      // msgs are newer -> older history. For state [Old -> New], prepend them reversed.
+      const historicalMsgs = [...msgs].reverse()
+      setChatMessages(prev => [...historicalMsgs, ...prev])
+      setHasMoreMessages(msgs.length > 0 && Math.min(...msgs.map((m: ChatMessage) => m.id)) > 1)
 
-        // After DOM update, restore scroll position
-        requestAnimationFrame(() => {
-          if (chatContainerRef.current) {
-            const newScrollHeight = chatContainerRef.current.scrollHeight
-            chatContainerRef.current.scrollTop = newScrollHeight - scrollHeight
-          }
-        })
-      }
+      // After DOM update, restore scroll position
+      requestAnimationFrame(() => {
+        if (chatContainerRef.current) {
+          const newScrollHeight = chatContainerRef.current.scrollHeight
+          chatContainerRef.current.scrollTop = newScrollHeight - scrollHeight
+        }
+      })
     } catch (e) {
       console.error('Failed to load historical messages', e)
     } finally {
@@ -216,7 +198,7 @@ const Chat: React.FC = () => {
 
     setIsSending(true)
     try {
-      const resp = await api.post('/chat/send_message', {
+      const resp = await api.post('/chat/messages', {
         message: chatMessage.trim(),
         player_id: username
       })
@@ -238,7 +220,7 @@ const Chat: React.FC = () => {
   const handleKickPlayer = async (name: string) => {
     if (!window.confirm(t('page.chat.kick_confirm', { name }))) return
     try {
-      await api.post('/send_command', { command: `/kick ${name}` })
+      await api.post('/server/commands', { command: `/kick ${name}` })
       loadNewMessages()
     } catch (e) {
       console.error('Kick failed', e)
@@ -251,7 +233,7 @@ const Chat: React.FC = () => {
       return parseRText(msg.rtext_data, {
         onCommandClick: async (command: string) => {
           try {
-            await api.post('/chat/send_message', {
+            await api.post('/chat/messages', {
               message: command,
               player_id: username
             })

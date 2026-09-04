@@ -1,8 +1,16 @@
-"""玩家管理 API（仅管理员）：玩家列表、假人、白名单、OP、封禁、踢出。"""
+"""玩家管理 API（仅管理员）：玩家列表、假人、白名单、OP、封禁、踢出。
+
+- 读接口保持资源路径，统一 `data` 外壳（service 返回体中的自造 status 键在路由层剥离）；
+- 动作迁到子资源：ban/unban/kick → POST /players/{target}/ban|unban|kick，
+  op → PUT/DELETE /players/{name}/op，白名单成员 → PUT/DELETE /players/whitelist/{name}，
+  开关 → PUT /players/whitelist、重载 → POST /players/whitelist/reload；
+- 目标类型（player|ip）未知值 → 400 `invalid_type`（不再静默按玩家处理）。
+"""
 
 from __future__ import annotations
 
 import asyncio
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -11,20 +19,32 @@ from guguwebui.dependencies.auth import get_current_admin
 from guguwebui.services.operation_audit_service import record_operation
 from guguwebui.services.player_service import PlayerService
 from guguwebui.structures import (
-    KickRequest,
-    PlayerActionRequest,
-    PlayerNameRequest,
+    BusinessException,
+    PlayerBanRequest,
+    PlayerKickRequest,
+    PlayerUnbanRequest,
     WhitelistSetRequest,
 )
+from guguwebui.structures.envelope import ApiSuccessEnvelope, success
 
 router = APIRouter(tags=["players"])
+
+_PLAYER_TYPES = ("player", "ip")
+
+# service 动作失败返回 {status:"error", code: ...} → HTTP 状态映射
+_FAILURE_STATUS: Dict[str, int] = {
+    "server_not_running": 400,
+    "command_failed": 400,
+    "ban_not_found": 404,
+    "file_write_failed": 500,
+}
 
 
 def _get_service(request: Request) -> PlayerService:
     return request.app.state.player_service
 
 
-def _audit(admin: dict, operation_type: str, summary: str, detail: dict = None) -> None:
+def _audit(admin: dict, operation_type: str, summary: str, detail: dict | None = None) -> None:
     try:
         record_operation(
             admin,
@@ -36,7 +56,35 @@ def _audit(admin: dict, operation_type: str, summary: str, detail: dict = None) 
         pass
 
 
-@router.get("/players")
+def _ensure_ok(result: Dict[str, Any], default_message: str) -> None:
+    """service 动作结果非 success → 抛统一 BusinessException。"""
+    if result.get("status") == "success":
+        return
+    code = str(result.get("code") or "action_failed")
+    status_code = _FAILURE_STATUS.get(code, 400)
+    raise BusinessException(
+        str(result.get("message") or default_message),
+        status_code=status_code,
+        code=code,
+    )
+
+
+def _validate_type(raw_type: str) -> str:
+    typ = (raw_type or "").strip().lower()
+    if typ not in _PLAYER_TYPES:
+        raise BusinessException(
+            f"Unsupported type: {raw_type}",
+            status_code=400,
+            code="invalid_type",
+        )
+    return typ
+
+
+def _pick(result: Dict[str, Any], keys: tuple) -> Dict[str, Any]:
+    return {k: result[k] for k in keys if k in result}
+
+
+@router.get("/players", response_model=ApiSuccessEnvelope)
 async def api_get_players(
     request: Request,
     search: str = "",
@@ -47,237 +95,202 @@ async def api_get_players(
     _admin: dict = Depends(get_current_admin),
 ):
     """汇总玩家列表（支持搜索与筛选，exclude_bots 时仅列出真实玩家）"""
-    service = _get_service(request)
     result = await asyncio.to_thread(
-        service.get_players, search, filter, offset, limit, exclude_bots
+        _get_service(request).get_players, search, filter, offset, limit, exclude_bots
     )
-    return JSONResponse({"status": "success", **result})
+    # 分页列表统一 items 键（保留统计/状态扩展字段）
+    return JSONResponse(
+        success(
+            {
+                "items": result.get("players", []),
+                "total": result.get("total", 0),
+                "offset": result.get("offset", 0),
+                "limit": result.get("limit", 0),
+                "online_count": result.get("online_count", 0),
+                "bot_count": result.get("bot_count", 0),
+                "server_running": result.get("server_running", False),
+            }
+        )
+    )
 
 
-@router.get("/players/bots")
+@router.get("/players/bots", response_model=ApiSuccessEnvelope)
 async def api_get_bots(
     request: Request,
     _admin: dict = Depends(get_current_admin),
 ):
     """识别出的假人列表"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.get_bots)
-    return JSONResponse({"status": "success", **result})
+    result = await asyncio.to_thread(_get_service(request).get_bots)
+    return JSONResponse(success(result))
 
 
-@router.get("/players/whitelist")
+@router.get("/players/whitelist", response_model=ApiSuccessEnvelope)
 async def api_get_whitelist(
     request: Request,
     _admin: dict = Depends(get_current_admin),
 ):
     """白名单状态与成员"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.get_whitelist)
-    return JSONResponse(result)
+    result = await asyncio.to_thread(_get_service(request).get_whitelist)
+    return JSONResponse(success(_pick(result, ("enabled", "members", "server_running"))))
 
 
-@router.post("/players/whitelist/set")
+@router.put("/players/whitelist", response_model=ApiSuccessEnvelope)
 async def api_set_whitelist(
     request: Request,
     body: WhitelistSetRequest,
     admin: dict = Depends(get_current_admin),
 ):
     """开关白名单"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.set_whitelist_enabled, body.enabled)
-    if result.get("status") == "success":
-        _audit(
-            admin,
-            "whitelist.set",
-            "开关白名单",
-            {"enabled": body.enabled},
-        )
-    status_code = 200 if result.get("status") == "success" else 400
-    return JSONResponse(result, status_code=status_code)
+    result = await asyncio.to_thread(_get_service(request).set_whitelist_enabled, body.enabled)
+    _ensure_ok(result, "切换白名单失败")
+    _audit(admin, "whitelist.set", "开关白名单", {"enabled": body.enabled})
+    return JSONResponse(success(message=result.get("message")))
 
 
-@router.post("/players/whitelist/reload")
+@router.post("/players/whitelist/reload", response_model=ApiSuccessEnvelope)
 async def api_reload_whitelist(
     request: Request,
     admin: dict = Depends(get_current_admin),
 ):
     """重载白名单"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.reload_whitelist)
-    if result.get("status") == "success":
-        _audit(admin, "whitelist.reload", "重载白名单")
-    status_code = 200 if result.get("status") == "success" else 400
-    return JSONResponse(result, status_code=status_code)
+    result = await asyncio.to_thread(_get_service(request).reload_whitelist)
+    _ensure_ok(result, "重载白名单失败")
+    _audit(admin, "whitelist.reload", "重载白名单")
+    return JSONResponse(success(message=result.get("message")))
 
 
-@router.post("/players/whitelist/add")
+@router.put("/players/whitelist/{name}", response_model=ApiSuccessEnvelope)
 async def api_whitelist_add(
     request: Request,
-    body: PlayerNameRequest,
+    name: str,
     admin: dict = Depends(get_current_admin),
 ):
     """添加白名单成员（自动触发重载）"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.whitelist_add, body.name.strip())
-    if result.get("status") == "success":
-        _audit(
-            admin,
-            "whitelist.add",
-            "添加白名单成员",
-            {"name": body.name.strip()},
-        )
-    status_code = 200 if result.get("status") == "success" else 400
-    return JSONResponse(result, status_code=status_code)
+    result = await asyncio.to_thread(_get_service(request).whitelist_add, name.strip())
+    _ensure_ok(result, "添加白名单成员失败")
+    _audit(admin, "whitelist.add", "添加白名单成员", {"name": name.strip()})
+    return JSONResponse(success(message=result.get("message")))
 
 
-@router.post("/players/whitelist/remove")
+@router.delete("/players/whitelist/{name}", response_model=ApiSuccessEnvelope)
 async def api_whitelist_remove(
     request: Request,
-    body: PlayerNameRequest,
+    name: str,
     admin: dict = Depends(get_current_admin),
 ):
     """移除白名单成员（自动触发重载）"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.whitelist_remove, body.name.strip())
-    if result.get("status") == "success":
-        _audit(
-            admin,
-            "whitelist.remove",
-            "移除白名单成员",
-            {"name": body.name.strip()},
-        )
-    status_code = 200 if result.get("status") == "success" else 400
-    return JSONResponse(result, status_code=status_code)
+    result = await asyncio.to_thread(_get_service(request).whitelist_remove, name.strip())
+    _ensure_ok(result, "移除白名单成员失败")
+    _audit(admin, "whitelist.remove", "移除白名单成员", {"name": name.strip()})
+    return JSONResponse(success(message=result.get("message")))
 
 
-@router.get("/players/ops")
+@router.get("/players/ops", response_model=ApiSuccessEnvelope)
 async def api_get_ops(
     request: Request,
     _admin: dict = Depends(get_current_admin),
 ):
     """OP 列表"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.get_ops)
-    return JSONResponse(result)
+    result = await asyncio.to_thread(_get_service(request).get_ops)
+    return JSONResponse(success(_pick(result, ("ops", "server_running"))))
 
 
-@router.post("/players/op")
+@router.put("/players/{name}/op", response_model=ApiSuccessEnvelope)
 async def api_op_player(
     request: Request,
-    body: PlayerNameRequest,
+    name: str,
     admin: dict = Depends(get_current_admin),
 ):
     """设为 OP"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.op_player, body.name.strip())
-    if result.get("status") == "success":
-        _audit(
-            admin,
-            "player.op",
-            "设为 OP",
-            {"name": body.name.strip()},
-        )
-    status_code = 200 if result.get("status") == "success" else 400
-    return JSONResponse(result, status_code=status_code)
+    result = await asyncio.to_thread(_get_service(request).op_player, name.strip())
+    _ensure_ok(result, "设置 OP 失败")
+    _audit(admin, "player.op", "设为 OP", {"name": name.strip()})
+    return JSONResponse(success(message=result.get("message")))
 
 
-@router.post("/players/deop")
+@router.delete("/players/{name}/op", response_model=ApiSuccessEnvelope)
 async def api_deop_player(
     request: Request,
-    body: PlayerNameRequest,
+    name: str,
     admin: dict = Depends(get_current_admin),
 ):
     """取消 OP"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.deop_player, body.name.strip())
-    if result.get("status") == "success":
-        _audit(
-            admin,
-            "player.deop",
-            "取消 OP",
-            {"name": body.name.strip()},
-        )
-    status_code = 200 if result.get("status") == "success" else 400
-    return JSONResponse(result, status_code=status_code)
+    result = await asyncio.to_thread(_get_service(request).deop_player, name.strip())
+    _ensure_ok(result, "取消 OP 失败")
+    _audit(admin, "player.deop", "取消 OP", {"name": name.strip()})
+    return JSONResponse(success(message=result.get("message")))
 
 
-@router.get("/players/bans")
+@router.get("/players/bans", response_model=ApiSuccessEnvelope)
 async def api_get_bans(
     request: Request,
     _admin: dict = Depends(get_current_admin),
 ):
     """封禁列表（玩家与 IP）"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(service.get_bans)
-    return JSONResponse(result)
+    result = await asyncio.to_thread(_get_service(request).get_bans)
+    return JSONResponse(success(_pick(result, ("players", "ips", "server_running"))))
 
 
-@router.post("/players/ban")
+@router.post("/players/{target}/ban", response_model=ApiSuccessEnvelope)
 async def api_ban(
     request: Request,
-    body: PlayerActionRequest,
+    target: str,
+    body: PlayerBanRequest,
     admin: dict = Depends(get_current_admin),
 ):
     """封禁玩家 / IP（可填理由）"""
-    service = _get_service(request)
-    target = body.target.strip()
+    typ = _validate_type(body.type)
+    target = target.strip()
     reason = (body.reason or "").strip()
-    if body.type == "ip":
-        result = await asyncio.to_thread(service.ban_ip, target, reason)
+    if typ == "ip":
+        result = await asyncio.to_thread(_get_service(request).ban_ip, target, reason)
     else:
-        result = await asyncio.to_thread(service.ban_player, target, reason)
-    if result.get("status") == "success":
-        _audit(
-            admin,
-            "player.ban_ip" if body.type == "ip" else "player.ban",
-            "封禁 IP" if body.type == "ip" else "封禁玩家",
-            {"target": target, "reason": reason, "needs_restart": result.get("needs_restart", False)},
-        )
-    status_code = 200 if result.get("status") == "success" else 400
-    return JSONResponse(result, status_code=status_code)
+        result = await asyncio.to_thread(_get_service(request).ban_player, target, reason)
+    _ensure_ok(result, "封禁失败")
+    _audit(
+        admin,
+        "player.ban_ip" if typ == "ip" else "player.ban",
+        "封禁 IP" if typ == "ip" else "封禁玩家",
+        {"target": target, "reason": reason, "needs_restart": result.get("needs_restart", False)},
+    )
+    return JSONResponse(success(message=result.get("message")))
 
 
-@router.post("/players/unban")
+@router.post("/players/{target}/unban", response_model=ApiSuccessEnvelope)
 async def api_unban(
     request: Request,
-    body: PlayerActionRequest,
+    target: str,
+    body: PlayerUnbanRequest,
     admin: dict = Depends(get_current_admin),
 ):
     """解封玩家 / IP（通过修改文件，重启后生效）"""
-    service = _get_service(request)
-    target = body.target.strip()
-    if body.type == "ip":
-        result = await asyncio.to_thread(service.unban_ip, target)
+    typ = _validate_type(body.type)
+    target = target.strip()
+    if typ == "ip":
+        result = await asyncio.to_thread(_get_service(request).unban_ip, target)
     else:
-        result = await asyncio.to_thread(service.unban_player, target)
-    if result.get("status") == "success":
-        _audit(
-            admin,
-            "player.unban_ip" if body.type == "ip" else "player.unban",
-            "解封 IP" if body.type == "ip" else "解封玩家",
-            {"target": target, "needs_restart": True},
-        )
-    status_code = 200 if result.get("status") == "success" else 400
-    return JSONResponse(result, status_code=status_code)
+        result = await asyncio.to_thread(_get_service(request).unban_player, target)
+    _ensure_ok(result, "解封失败")
+    _audit(
+        admin,
+        "player.unban_ip" if typ == "ip" else "player.unban",
+        "解封 IP" if typ == "ip" else "解封玩家",
+        {"target": target, "needs_restart": True},
+    )
+    return JSONResponse(success(message=result.get("message")))
 
 
-@router.post("/players/kick")
+@router.post("/players/{name}/kick", response_model=ApiSuccessEnvelope)
 async def api_kick(
     request: Request,
-    body: KickRequest,
+    name: str,
+    body: PlayerKickRequest,
     admin: dict = Depends(get_current_admin),
 ):
     """踢出玩家"""
-    service = _get_service(request)
-    result = await asyncio.to_thread(
-        service.kick_player, body.name.strip(), (body.reason or "").strip()
-    )
-    if result.get("status") == "success":
-        _audit(
-            admin,
-            "player.kick",
-            "踢出玩家",
-            {"name": body.name.strip(), "reason": (body.reason or "").strip()},
-        )
-    status_code = 200 if result.get("status") == "success" else 400
-    return JSONResponse(result, status_code=status_code)
+    name = name.strip()
+    reason = (body.reason or "").strip()
+    result = await asyncio.to_thread(_get_service(request).kick_player, name, reason)
+    _ensure_ok(result, "踢出玩家失败")
+    _audit(admin, "player.kick", "踢出玩家", {"name": name, "reason": reason})
+    return JSONResponse(success(message=result.get("message")))

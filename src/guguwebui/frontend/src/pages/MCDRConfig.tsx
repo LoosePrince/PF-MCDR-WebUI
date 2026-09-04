@@ -23,12 +23,11 @@ import { useSearchParams } from 'react-router-dom';
 import { NiceSelect } from '../components/NiceSelect';
 import { MCDRConfigSectionSkeleton, Skeleton } from '../components/Skeleton';
 import { MCDR_SITE_URL } from '../constants';
-import api, { isCancel } from '../utils/api';
+import api, { isCancel, unwrapData } from '../utils/api';
 
 interface RconConfig {
   rcon_host: string;
   rcon_port: number;
-  rcon_password: string;
 }
 
 interface MCDRConfigData extends Record<string, unknown> {
@@ -135,15 +134,18 @@ const MCDRConfig: React.FC = () => {
     setLoading(true);
     try {
       const [configResp, permResp, rconResp] = await Promise.all([
-        api.get('/load_config?path=config.yml', { signal }),
-        api.get('/load_config?path=permission.yml', { signal }),
-        api.get('/get_rcon_status', { signal }).catch(() => ({ data: { rcon_enabled: false, rcon_connected: false } }))
+        api.get('/config-files', { params: { path: 'config.yml' }, signal }),
+        api.get('/config-files', { params: { path: 'permission.yml' }, signal }),
+        api.get('/server/rcon-status', { signal }).catch(() => ({ data: null }))
       ]);
-      setConfigData(configResp.data as MCDRConfigData);
-      setPermissionData(permResp.data as Record<string, string[]>);
+      const configDoc = unwrapData<{ config_data?: MCDRConfigData }>(configResp, {});
+      const permDoc = unwrapData<{ config_data?: Record<string, string[]> }>(permResp, {});
+      setConfigData(configDoc?.config_data || {});
+      setPermissionData(permDoc?.config_data || {});
+      const rconStatusData = unwrapData<{ rcon_enabled?: boolean; rcon_connected?: boolean }>(rconResp, {});
       setRconStatus({
-        rcon_enabled: rconResp.data?.rcon_enabled ?? false,
-        rcon_connected: rconResp.data?.rcon_connected ?? false,
+        rcon_enabled: rconStatusData?.rcon_enabled ?? false,
+        rcon_connected: rconStatusData?.rcon_connected ?? false,
       });
     } catch (error: unknown) {
       const err = error as { name?: string; code?: string };
@@ -169,9 +171,8 @@ const MCDRConfig: React.FC = () => {
     setSaving(true);
       const data = file === 'config.yml' ? configData : permissionData;
     try {
-      const resp = await api.post('/save_config', {
-        file_path: file,
-        config_data: data
+      const resp = await api.put('/config-files', { config_data: data }, {
+        params: { path: file }
       });
       if (resp.data.status === 'success') {
         notify(t('page.mcdr.msg.save_success'), 'success');
@@ -189,19 +190,22 @@ const MCDRConfig: React.FC = () => {
   const setupRcon = async () => {
     setSettingUpRcon(true);
     try {
-      const resp = await api.post('/setup_rcon');
+      const resp = await api.post('/server/rcon-setup');
       if (resp.data.status === 'success') {
-        setRconConfig(resp.data.config);
+        const cfg = unwrapData<{ rcon_host?: string; rcon_port?: number }>(resp, {});
+        setRconConfig({ rcon_host: cfg?.rcon_host || '', rcon_port: cfg?.rcon_port ?? 0 });
         setShowRconSetupModal(false);
         setShowRconRestartModal(true);
         const [configResp, rconResp] = await Promise.all([
-          api.get('/load_config?path=config.yml'),
-          api.get('/get_rcon_status'),
+          api.get('/config-files', { params: { path: 'config.yml' } }),
+          api.get('/server/rcon-status'),
         ]);
-        setConfigData(configResp.data as MCDRConfigData);
+        const reloadDoc = unwrapData<{ config_data?: MCDRConfigData }>(configResp, {});
+        setConfigData(reloadDoc?.config_data || {});
+        const rconAfterSetup = unwrapData<{ rcon_enabled?: boolean; rcon_connected?: boolean }>(rconResp, {});
         setRconStatus({
-          rcon_enabled: rconResp.data?.rcon_enabled ?? false,
-          rcon_connected: rconResp.data?.rcon_connected ?? false,
+          rcon_enabled: rconAfterSetup?.rcon_enabled ?? false,
+          rcon_connected: rconAfterSetup?.rcon_connected ?? false,
         });
         notify(t('page.mcdr.rcon.setup_success_msg'), 'success');
       } else {
@@ -217,7 +221,7 @@ const MCDRConfig: React.FC = () => {
   const restartServer = async () => {
     setRestarting(true);
     try {
-      const resp = await api.post('/control_server', { action: 'restart' });
+      const resp = await api.post('/server/controls', { action: 'restart' });
       if (resp.data.status === 'success') {
         setShowRconRestartModal(false);
         notify(t('page.mcdr.rcon.restart_success'), 'success');
@@ -851,7 +855,6 @@ const MCDRConfig: React.FC = () => {
             <div className="space-y-1 text-sm font-mono opacity-80">
               <div className="flex justify-between"><span>{t('page.mcdr.rcon.config_host')}:</span> <span>{rconConfig?.rcon_host}</span></div>
               <div className="flex justify-between"><span>{t('page.mcdr.rcon.config_port')}:</span> <span>{rconConfig?.rcon_port}</span></div>
-              <div className="flex justify-between"><span>{t('page.mcdr.rcon.config_password')}:</span> <span>{rconConfig?.rcon_password}</span></div>
             </div>
           </div>
           <p className="text-gray-600 dark:text-gray-400">{t('page.mcdr.rcon.restart_question')}</p>

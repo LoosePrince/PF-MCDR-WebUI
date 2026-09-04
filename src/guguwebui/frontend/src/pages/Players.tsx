@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { NiceSelect } from '../components/NiceSelect'
 import { Skeleton, TableRowSkeleton } from '../components/Skeleton'
-import api, { isCancel } from '../utils/api'
+import api, { getApiErrorMessage, isCancel, unwrapData } from '../utils/api'
 
 type TabKey = 'all' | 'players' | 'bots' | 'whitelist' | 'ops' | 'bans'
 
@@ -227,15 +227,23 @@ const Players: React.FC = () => {
       if (append) setLoadingMore(true)
       else setLoading(true)
       try {
-        const { data } = await api.get('/players', {
+        const resp = await api.get('/players', {
           params: { search, filter, offset, limit: 50, exclude_bots: tab === 'players' },
         })
-        if (data.status === 'success' && Array.isArray(data.players)) {
+        // 分页列表统一 items 键（原 data.players 契约已下线）
+        const data = unwrapData<{
+          items?: PlayerRow[]
+          total?: number
+          online_count?: number
+          bot_count?: number
+          server_running?: boolean
+        }>(resp, {})
+        if (resp.data.status === 'success' && Array.isArray(data.items)) {
           setServerRunning(!!data.server_running)
           setTotal(typeof data.total === 'number' ? data.total : 0)
           setOnlineCount(typeof data.online_count === 'number' ? data.online_count : 0)
           setBotCount(typeof data.bot_count === 'number' ? data.bot_count : 0)
-          const rows = data.players as PlayerRow[]
+          const rows = data.items as PlayerRow[]
           setPlayers((prev) => (append ? [...prev, ...rows] : rows))
           setNextOffset(offset + rows.length)
         } else {
@@ -258,8 +266,9 @@ const Players: React.FC = () => {
   const loadBots = useCallback(async () => {
     setBotsLoading(true)
     try {
-      const { data } = await api.get('/players/bots')
-      if (data.status === 'success' && Array.isArray(data.bots)) {
+      const resp = await api.get('/players/bots')
+      const data = unwrapData<{ bots?: PlayerRow[]; server_running?: boolean }>(resp, {})
+      if (resp.data.status === 'success' && Array.isArray(data.bots)) {
         setBots(data.bots as PlayerRow[])
         setServerRunning(!!data.server_running)
       }
@@ -274,9 +283,10 @@ const Players: React.FC = () => {
   const loadWhitelist = useCallback(async () => {
     setWhitelistLoading(true)
     try {
-      const { data } = await api.get('/players/whitelist')
-      if (data.status === 'success') {
-        setWhitelist(data as WhitelistData)
+      const resp = await api.get('/players/whitelist')
+      const data = unwrapData<WhitelistData | null>(resp, null)
+      if (resp.data.status === 'success' && data) {
+        setWhitelist(data)
       }
     } catch (e: unknown) {
       if (isCancel(e)) return
@@ -289,9 +299,10 @@ const Players: React.FC = () => {
   const loadOps = useCallback(async () => {
     setOpsLoading(true)
     try {
-      const { data } = await api.get('/players/ops')
-      if (data.status === 'success') {
-        setOps(data as OpsData)
+      const resp = await api.get('/players/ops')
+      const data = unwrapData<OpsData | null>(resp, null)
+      if (resp.data.status === 'success' && data) {
+        setOps(data)
       }
     } catch (e: unknown) {
       if (isCancel(e)) return
@@ -304,9 +315,10 @@ const Players: React.FC = () => {
   const loadBans = useCallback(async () => {
     setBansLoading(true)
     try {
-      const { data } = await api.get('/players/bans')
-      if (data.status === 'success') {
-        setBans(data as BansData)
+      const resp = await api.get('/players/bans')
+      const data = unwrapData<BansData | null>(resp, null)
+      if (resp.data.status === 'success' && data) {
+        setBans(data)
       }
     } catch (e: unknown) {
       if (isCancel(e)) return
@@ -370,7 +382,7 @@ const Players: React.FC = () => {
         return false
       } catch (e: unknown) {
         if (isCancel(e)) return false
-        showNotice(t('page.players.msg.action_failed'), 'error')
+        showNotice(getApiErrorMessage(e, t('page.players.msg.action_failed')), 'error')
         return false
       } finally {
         setActionLoading(null)
@@ -383,39 +395,49 @@ const Players: React.FC = () => {
 
   const handleToggleOp = (p: PlayerRow) =>
     void runAction(`op:${p.name}`, () =>
-      api.post(p.is_op ? '/players/deop' : '/players/op', { name: p.name })
+      p.is_op
+        ? api.delete(`/players/${encodeURIComponent(p.name)}/op`)
+        : api.put(`/players/${encodeURIComponent(p.name)}/op`)
     )
 
   const handleToggleWhitelist = (p: PlayerRow) =>
     void runAction(`wl:${p.name}`, () =>
-      api.post(p.whitelisted ? '/players/whitelist/remove' : '/players/whitelist/add', { name: p.name })
+      p.whitelisted
+        ? api.delete(`/players/whitelist/${encodeURIComponent(p.name)}`)
+        : api.put(`/players/whitelist/${encodeURIComponent(p.name)}`)
     )
 
   const handleUnban = (p: PlayerRow) => setUnbanModal({ type: 'player', target: p.name })
 
   const confirmBan = async (target: string, type: 'player' | 'ip', reason: string) => {
     setBanModal(null)
-    await runAction(`ban:${target}`, () => api.post('/players/ban', { target, type, reason }))
+    await runAction(`ban:${target}`, () =>
+      api.post(`/players/${encodeURIComponent(target)}/ban`, { type, reason })
+    )
   }
 
   const confirmUnban = async () => {
     if (!unbanModal) return
     const { type, target } = unbanModal
     setUnbanModal(null)
-    await runAction(`unban:${target}`, () => api.post('/players/unban', { target, type }))
+    await runAction(`unban:${target}`, () =>
+      api.post(`/players/${encodeURIComponent(target)}/unban`, { type })
+    )
   }
 
   const confirmKick = async (reason: string) => {
     if (!kickModal) return
     const name = kickModal.name
     setKickModal(null)
-    await runAction(`kick:${name}`, () => api.post('/players/kick', { name, reason }))
+    await runAction(`kick:${name}`, () =>
+      api.post(`/players/${encodeURIComponent(name)}/kick`, { reason })
+    )
   }
 
   // ---------- 白名单 / OP / 封禁页操作 ----------
 
   const handleWhitelistSet = (enabled: boolean) =>
-    void runAction(`wlset:${enabled}`, () => api.post('/players/whitelist/set', { enabled }))
+    void runAction(`wlset:${enabled}`, () => api.put('/players/whitelist', { enabled }))
 
   const handleWhitelistReload = () =>
     void runAction('wlreload', () => api.post('/players/whitelist/reload'))
@@ -423,29 +445,41 @@ const Players: React.FC = () => {
   const handleWhitelistAdd = async () => {
     const name = newMember.trim()
     if (!name) return
-    const ok = await runAction('wladd', () => api.post('/players/whitelist/add', { name }))
+    const ok = await runAction('wladd', () =>
+      api.put(`/players/whitelist/${encodeURIComponent(name)}`)
+    )
     if (ok) setNewMember('')
   }
 
   const handleWhitelistRemove = (name: string) =>
-    void runAction(`wlremove:${name}`, () => api.post('/players/whitelist/remove', { name }))
+    void runAction(`wlremove:${name}`, () =>
+      api.delete(`/players/whitelist/${encodeURIComponent(name)}`)
+    )
 
   const handleOpAdd = async () => {
     const name = newOpName.trim()
     if (!name) return
-    const ok = await runAction('opadd', () => api.post('/players/op', { name }))
+    const ok = await runAction('opadd', () =>
+      api.put(`/players/${encodeURIComponent(name)}/op`)
+    )
     if (ok) setNewOpName('')
   }
 
   const handleOpRemove = (name: string) =>
-    void runAction(`deop:${name}`, () => api.post('/players/deop', { name }))
+    void runAction(`deop:${name}`, () =>
+      api.delete(`/players/${encodeURIComponent(name)}/op`)
+    )
 
   const handleBanForm = async () => {
     const target = banForm.target.trim()
     if (!target) return
     const ok = await runAction(
       'banform',
-      () => api.post('/players/ban', { target, type: banForm.type, reason: banForm.reason.trim() })
+      () =>
+        api.post(`/players/${encodeURIComponent(target)}/ban`, {
+          type: banForm.type,
+          reason: banForm.reason.trim(),
+        })
     )
     if (ok) setBanForm((f) => ({ ...f, target: '', reason: '' }))
   }
