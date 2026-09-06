@@ -363,6 +363,21 @@ is_super_admin, is_panel}`；支持 multipart 文件解析；错误语义
 - `GET /api/players/bans`：`data = {players:[{name?,uuid?,reason?,created?,
   expires?,source?}], ips:[...], server_running}`（时间字段来自原版封禁文件，
   属文件内容）。
+- 在线情况统计（会话日志驱动，数据存于 `guguwebui_static/player_stats.json`
+  的 `sessions`，保留 90 天；`range ∈ 10m|30m|1h|6h|12h|1d|3d|7d`，非法值
+  422 `validation_error`；`exclude_bots` 排除无 IP 玩家/假人）：
+  - `GET /api/players/stats/overview?range=1h&exclude_bots=`：`data =
+    {range, current_online, avg_online, peak_online, peak_ts(epoch 秒),
+    active_players, total_sessions}`。
+  - `GET /api/players/stats/online-history?range=1h&exclude_bots=`：`data =
+    {range, sample: "1m", points: [{t(epoch 秒), value}]}`（扫描线精确
+    并发数，按分钟分桶，服务端降采样 ≤1500 点）。
+  - `GET /api/players/stats/daily?range=7d&exclude_bots=`：`data =
+    {range, points: [{date: "YYYY-MM-DD", players, sessions, playtime}]}`。
+  - `GET /api/players/stats/players?exclude_bots=&limit=`：`data =
+    {players: [{name, uuid?, online, sessions, total_playtime, avg_session,
+    first_seen?, last_seen?}], total}`（累计时长来自聚合含历史，会话次数/
+    平均每次来自会话日志）。
 - `PUT /api/players/whitelist`：body `{enabled}` 开关；`POST
   /api/players/whitelist/reload`：重载。
 - `PUT/DELETE /api/players/whitelist/{name}`：增删成员（自动重载）。

@@ -10,9 +10,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from guguwebui.dependencies.auth import get_current_admin
@@ -30,6 +30,9 @@ from guguwebui.structures.envelope import ApiSuccessEnvelope, success
 router = APIRouter(tags=["players"])
 
 _PLAYER_TYPES = ("player", "ip")
+
+# 在线统计时间范围（与服务器状态页 RANGE_MAP 一致）
+StatsRangeKey = Literal["10m", "30m", "1h", "6h", "12h", "1d", "3d", "7d"]
 
 # service 动作失败返回 {status:"error", code: ...} → HTTP 状态映射
 _FAILURE_STATUS: Dict[str, int] = {
@@ -119,8 +122,64 @@ async def api_get_bots(
     request: Request,
     _admin: dict = Depends(get_current_admin),
 ):
-    """识别出的假人列表"""
+    """识别出的无IP玩家/假人列表"""
     result = await asyncio.to_thread(_get_service(request).get_bots)
+    return JSONResponse(success(result))
+
+
+@router.get("/players/stats/overview", response_model=ApiSuccessEnvelope)
+async def api_get_player_stats_overview(
+    request: Request,
+    range: StatsRangeKey = Query("1h"),
+    exclude_bots: bool = Query(False),
+    _admin: dict = Depends(get_current_admin),
+):
+    """在线情况摘要：当前/平均/峰值在线、活跃玩家、会话数（exclude_bots 排除无IP玩家/假人）"""
+    result = await asyncio.to_thread(
+        _get_service(request).get_stats_overview, range, exclude_bots
+    )
+    return JSONResponse(success(result))
+
+
+@router.get("/players/stats/online-history", response_model=ApiSuccessEnvelope)
+async def api_get_player_stats_online_history(
+    request: Request,
+    range: StatsRangeKey = Query("1h"),
+    exclude_bots: bool = Query(False),
+    _admin: dict = Depends(get_current_admin),
+):
+    """在线人数曲线（按分钟分桶，exclude_bots 排除无IP玩家/假人）"""
+    result = await asyncio.to_thread(
+        _get_service(request).get_stats_online_history, range, exclude_bots
+    )
+    return JSONResponse(success(result))
+
+
+@router.get("/players/stats/daily", response_model=ApiSuccessEnvelope)
+async def api_get_player_stats_daily(
+    request: Request,
+    range: StatsRangeKey = Query("7d"),
+    exclude_bots: bool = Query(False),
+    _admin: dict = Depends(get_current_admin),
+):
+    """每日活跃统计（唯一玩家/会话数/在线时长）"""
+    result = await asyncio.to_thread(
+        _get_service(request).get_stats_daily, range, exclude_bots
+    )
+    return JSONResponse(success(result))
+
+
+@router.get("/players/stats/players", response_model=ApiSuccessEnvelope)
+async def api_get_player_stats_players(
+    request: Request,
+    exclude_bots: bool = Query(False),
+    limit: int = Query(50),
+    _admin: dict = Depends(get_current_admin),
+):
+    """玩家在线时长排行（累计时长 + 会话次数 / 平均每次）"""
+    result = await asyncio.to_thread(
+        _get_service(request).get_stats_players, exclude_bots, limit
+    )
     return JSONResponse(success(result))
 
 

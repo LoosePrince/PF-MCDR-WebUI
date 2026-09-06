@@ -281,25 +281,31 @@
             "search_placeholder": "Search player / UUID / IP...",
             "server_offline": "Server is not running",
             "server_offline_tip": "Some actions are unavailable; bans are applied by editing files directly (take effect after restart)",
-            "count": "{{total}} players, {{online}} online, {{bots}} bots",
+            "count": "{{total}} players, {{online}} online, {{bots}} no-IP/bots",
             "count_players": "{{total}} players, {{online}} online",
             "empty": "No players yet",
-            "bots_empty": "No bots detected",
+            "bots_empty": "No no-IP players / bots detected",
+            "bots_info": {
+                "title": "About No-IP Players / Bots Detection",
+                "desc": "Players here are identified by whether they have an IP record: real players get an IP logged when joining, while Carpet bots have none. IP information is provided by the player_ip_logger plugin; detection may be inaccurate if it is not installed or enabled.",
+                "goto_plugin": "View Plugin Details"
+            },
             "load_failed": "Failed to load player data",
             "load_more": "Load more",
             "tabs": {
                 "all": "All",
                 "players": "Players",
-                "bots": "Bots",
+                "bots": "No-IP Players / Bots",
                 "whitelist": "Whitelist",
                 "ops": "Operators",
-                "bans": "Bans"
+                "bans": "Bans",
+                "stats": "Statistics"
             },
             "filters": {
                 "all": "All",
                 "online": "Online",
                 "offline": "Offline",
-                "bot": "Bots",
+                "bot": "No-IP / Bots",
                 "op": "OP"
             },
             "col": {
@@ -316,9 +322,29 @@
             "status": {
                 "online": "Online",
                 "offline": "Offline",
-                "bot": "Bot",
+                "bot": "No-IP / Bot",
                 "whitelisted": "Whitelist",
                 "banned": "Banned"
+            },
+            "stats": {
+                "summary": "Online Overview",
+                "exclude_bots": "Exclude no-IP players / bots",
+                "current_online": "Currently Online",
+                "avg_online": "Average Online",
+                "peak_online": "Peak Online",
+                "active_players": "Active Players",
+                "total_sessions": "Total Sessions",
+                "online_players": "Online Players",
+                "online_trend": "Online Players Trend",
+                "daily_active": "Daily Active Players",
+                "online_playtime": "Online Time",
+                "players_rank": "Player Online Time Ranking",
+                "players_tip": "Session data is recorded from when statistics were enabled; total time covers full history",
+                "col_playtime": "Total Online",
+                "col_sessions": "Sessions",
+                "col_avg_session": "Avg Per Session",
+                "empty": "No statistics yet",
+                "load_failed": "Failed to load statistics"
             },
             "session": "Session",
             "total_playtime": "Total",

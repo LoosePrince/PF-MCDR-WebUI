@@ -11,6 +11,8 @@ STATIC_PATH = "./guguwebui_static"
 USER_DB_PATH = Path(STATIC_PATH) / "db.json"
 AUDIT_LOG_PATH = Path(STATIC_PATH) / "audit_log.bin"
 PLAYER_STATS_PATH = Path(STATIC_PATH) / "player_stats.json"
+# 玩家会话日志保留天数（在线情况统计的历史窗口）
+PLAYER_STATS_SESSION_RETENTION_DAYS = 90
 PATH_DB_PATH = Path("./config") / "guguwebui" / "config_path.json"
 
 # 插件网页 api_handler：multipart 单文件字段默认最大字节数（超过则 413）

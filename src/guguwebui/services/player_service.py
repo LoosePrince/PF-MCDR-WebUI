@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
 import json
 import os
@@ -20,7 +21,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import javaproperties
 
-from guguwebui.constant import PLAYER_STATS_PATH
+from guguwebui.constant import (
+    PLAYER_STATS_PATH,
+    PLAYER_STATS_SESSION_RETENTION_DAYS,
+)
+from guguwebui.services.monitor_service import RANGE_MAP
 from guguwebui.utils.api_cache import api_cache
 from guguwebui.utils.mc_util import format_uuid, get_minecraft_path
 from guguwebui.utils.nbt_util import read_playerdata
@@ -32,7 +37,7 @@ _STATS_LOCK = threading.Lock()
 _POS_RE = re.compile(r"\[([^\]]*)\]")
 _DIM_RE = re.compile(r'"([^"]+)"')
 
-_DEFAULT_STATS: Dict[str, Any] = {"players": {}}
+_DEFAULT_STATS: Dict[str, Any] = {"players": {}, "sessions": []}
 
 
 def _parse_pos_feedback(feedback: Optional[str]) -> Optional[Dict[str, float]]:
@@ -178,11 +183,27 @@ class PlayerService:
 
     def _load_stats(self) -> Dict[str, Any]:
         with _STATS_LOCK:
-            return self._load_json(PLAYER_STATS_PATH, _DEFAULT_STATS) or _DEFAULT_STATS
+            data = self._load_json(PLAYER_STATS_PATH, _DEFAULT_STATS)
+            if not isinstance(data, dict):
+                data = _DEFAULT_STATS
+            # 深拷贝：文件不存在 / 内容为假值时会回落到模块级 _DEFAULT_STATS，
+            # 直接返回共享对象会被后续 setdefault/append 就地修改而跨实例串数据
+            return copy.deepcopy(data)
 
     def _save_stats(self, stats: Dict[str, Any]) -> None:
         with _STATS_LOCK:
+            self._prune_sessions(stats)
             self._save_json(PLAYER_STATS_PATH, stats)
+
+    @staticmethod
+    def _prune_sessions(stats: Dict[str, Any]) -> None:
+        """裁剪超期会话，控制 player_stats.json 体积（开环会话按加入时间判定）。"""
+        cutoff = time.time() - PLAYER_STATS_SESSION_RETENTION_DAYS * 86400
+        sessions = stats.get("sessions")
+        if isinstance(sessions, list) and sessions:
+            kept = [s for s in sessions if (s.get("l") or s.get("j") or 0) >= cutoff]
+            if len(kept) != len(sessions):
+                stats["sessions"] = kept
 
     def on_player_joined(self, server, player: str, info=None) -> None:
         """记录上线时间与 IP（真实玩家有 IP，Carpet 假人没有）。"""
@@ -214,24 +235,51 @@ class PlayerService:
                 except Exception:
                     entry["uuid"] = self._uuid_from_usercache(player)
 
+            # 会话日志：先关闭该玩家的旧开环会话（事件丢失时防止重复计数），再追加新会话
+            sessions = stats.setdefault("sessions", [])
+            for s in sessions:
+                if s.get("p") == player and s.get("l") is None:
+                    s["l"] = now
+            sessions.append(
+                {
+                    "p": player,
+                    "u": entry.get("uuid"),
+                    "j": now,
+                    "l": None,
+                    "ip": ip,
+                }
+            )
+
             self._save_stats(stats)
         except Exception as e:
             self.server.logger.debug(f"记录玩家上线数据失败: {e}")
 
     def on_player_left(self, server, player: str) -> None:
-        """玩家下线：累计本次会话时长。"""
+        """玩家下线：关闭会话日志并累计本次会话时长。"""
         try:
+            now = time.time()
             join_time = _JOIN_TIMES.pop(player, None)
-            if join_time is None:
-                return
-            duration = time.time() - join_time
-            if duration <= 0:
-                return
             stats = self._load_stats()
+
+            # 关闭该玩家的开环会话；_JOIN_TIMES 丢失（插件重载）时以会话记录补回加入时间
+            sessions = stats.setdefault("sessions", [])
+            closed = False
+            for s in reversed(sessions):
+                if s.get("p") == player and s.get("l") is None:
+                    if join_time is None and isinstance(s.get("j"), (int, float)):
+                        join_time = s["j"]
+                    s["l"] = now
+                    closed = True
+                    break
+
             entry = stats.setdefault("players", {}).setdefault(player, {})
-            entry["total_playtime"] = entry.get("total_playtime", 0) + duration
-            entry["last_seen"] = time.time()
-            self._save_stats(stats)
+            if join_time is not None:
+                duration = now - join_time
+                if duration > 0:
+                    entry["total_playtime"] = entry.get("total_playtime", 0) + duration
+            entry["last_seen"] = now
+            if closed or join_time is not None:
+                self._save_stats(stats)
         except Exception as e:
             self.server.logger.debug(f"记录玩家下线数据失败: {e}")
 
@@ -595,6 +643,313 @@ class PlayerService:
             "total": len(bots),
             "server_running": self.server.is_server_running(),
         }
+
+    # ------------------------------------------------------------------ #
+    # 在线情况统计（会话日志驱动）
+    # ------------------------------------------------------------------ #
+
+    def _range_seconds(self, range_key: str) -> int:
+        """统计时间范围（秒），复用服务器状态页的 RANGE_MAP。"""
+        return RANGE_MAP.get(range_key, RANGE_MAP["1h"])
+
+    def _reconcile_open_sessions(self) -> None:
+        """兜底：关闭已不在线玩家的开环会话（丢下线事件 / 插件重载 / 服务器崩溃）。"""
+        try:
+            online = set(self._get_online_players())
+            stats = self._load_stats()
+            sessions = stats.get("sessions")
+            if not isinstance(sessions, list) or not sessions:
+                return
+            now = time.time()
+            changed = False
+            for s in sessions:
+                if s.get("l") is None and s.get("p") not in online:
+                    s["l"] = now
+                    changed = True
+            if changed:
+                self._save_stats(stats)
+        except Exception:
+            pass
+
+    def _active_sessions(
+        self, start: float, end: float, exclude_bots: bool
+    ) -> Tuple[List[Dict[str, Any]], set]:
+        """窗口内活跃的会话与玩家集合（可排除无 IP 玩家/假人）。"""
+        stats = self._load_stats()
+        sessions = stats.get("sessions") or []
+        if exclude_bots:
+            sessions = [s for s in sessions if s.get("ip")]
+        active = []
+        players = set()
+        for s in sessions:
+            j = s.get("j") or 0
+            l = s.get("l")
+            if j > end or (l is not None and l < start):
+                continue
+            active.append(s)
+            if s.get("p"):
+                players.add(s["p"])
+        return active, players
+
+    @staticmethod
+    def _online_curve(
+        sessions: List[Dict[str, Any]], start: float, end: float
+    ) -> Tuple[List[Dict[str, Any]], int, int]:
+        """扫描线求窗口内并发曲线：返回 (每分钟序列 [{t, value}], 峰值, 峰值时刻)。
+
+        join 事件 +1、leave 事件 -1，前缀和即为任意时刻的精确并发数，
+        峰值与峰值时刻均为精确值（而非采样近似）。
+        """
+        baseline = 0
+        events = []
+        for s in sessions:
+            j = s.get("j") or 0
+            l = s.get("l")
+            if j > end or (l is not None and l < start):
+                continue
+            if l is not None and l < j:
+                l = j
+            if j < start:
+                baseline += 1
+            else:
+                events.append((j, 1))
+            if l is not None and l <= end:
+                events.append((l, -1))
+        events.sort(key=lambda e: (e[0], e[1]))
+
+        cnt = baseline
+        peak = baseline
+        peak_ts = int(start)
+        points = []
+        idx = 0
+        n = len(events)
+        first_minute = int(start // 60) * 60
+        if first_minute < start:
+            first_minute += 60
+        m = first_minute
+        while m <= end:
+            while idx < n and events[idx][0] <= m:
+                cnt += events[idx][1]
+                if cnt > peak:
+                    peak = cnt
+                    peak_ts = int(events[idx][0])
+                idx += 1
+            points.append({"t": m, "value": cnt})
+            m += 60
+        # 处理最后一个不足一分钟窗口内的事件（同时用于峰值计算），
+        # 并补一个窗口终点采样点，避免该分钟内的在线活动在曲线上“隐身”
+        while idx < n and events[idx][0] <= end:
+            cnt += events[idx][1]
+            if cnt > peak:
+                peak = cnt
+                peak_ts = int(events[idx][0])
+            idx += 1
+        if points and points[-1]["t"] < int(end):
+            points.append({"t": int(end), "value": cnt})
+        return points, peak, peak_ts
+
+    @staticmethod
+    def _downsample_points(
+        points: List[Dict[str, Any]], max_points: int = 1500
+    ) -> List[Dict[str, Any]]:
+        """相邻桶取均值降采样，控制返回点数。"""
+        if len(points) <= max_points:
+            return points
+        bucket = len(points) / max_points
+        result = []
+        idx = 0.0
+        while idx < len(points):
+            start_i = int(idx)
+            end_i = min(int(idx + bucket), len(points))
+            chunk = points[start_i:end_i]
+            if not chunk:
+                break
+            vals = [c["value"] for c in chunk if c.get("value") is not None]
+            result.append(
+                {
+                    "t": chunk[0]["t"],
+                    "value": round(sum(vals) / len(vals), 2) if vals else 0,
+                }
+            )
+            idx += bucket
+        return result
+
+    def get_stats_overview(
+        self, range_key: str = "1h", exclude_bots: bool = False
+    ) -> Dict[str, Any]:
+        """在线情况摘要：当前 / 平均 / 峰值在线、活跃玩家数、会话数。"""
+        range_seconds = self._range_seconds(range_key)
+        end = time.time()
+        start = end - range_seconds
+        self._reconcile_open_sessions()
+        sessions, active_players = self._active_sessions(start, end, exclude_bots)
+
+        # 当前在线（以实时名单为准，排除无 IP 玩家时按历史 IP 证据过滤）
+        online_names = self._get_online_players()
+        if exclude_bots:
+            stats_all = self._load_stats()
+            real_players = {
+                n for n, e in stats_all.get("players", {}).items() if e.get("ips")
+            }
+            for s in sessions:
+                if s.get("ip") and s.get("p"):
+                    real_players.add(s["p"])
+            current_online = sum(1 for n in online_names if n in real_players)
+        else:
+            current_online = len(online_names)
+
+        # 平均在线：窗口内玩家分钟数 / 窗口时长
+        player_minutes = 0.0
+        for s in sessions:
+            j = s.get("j") or 0
+            l = s.get("l")
+            eff_l = l if l is not None else end
+            player_minutes += max(0.0, min(eff_l, end) - max(j, start))
+        avg_online = round(player_minutes / range_seconds, 2) if range_seconds > 0 else 0.0
+
+        _, peak, peak_ts = self._online_curve(sessions, start, end)
+
+        return {
+            "range": range_key,
+            "current_online": current_online,
+            "avg_online": avg_online,
+            "peak_online": peak,
+            "peak_ts": peak_ts,
+            "active_players": len(active_players),
+            "total_sessions": len(sessions),
+        }
+
+    def get_stats_online_history(
+        self, range_key: str = "1h", exclude_bots: bool = False
+    ) -> Dict[str, Any]:
+        """在线人数曲线：按分钟分桶 + 降采样。"""
+        range_seconds = self._range_seconds(range_key)
+        end = time.time()
+        start = end - range_seconds
+        self._reconcile_open_sessions()
+        sessions, _ = self._active_sessions(start, end, exclude_bots)
+        points, _, _ = self._online_curve(sessions, start, end)
+        return {
+            "range": range_key,
+            "sample": "1m",
+            "points": self._downsample_points(points),
+        }
+
+    def get_stats_daily(
+        self, range_key: str = "7d", exclude_bots: bool = False
+    ) -> Dict[str, Any]:
+        """每日活跃统计：唯一玩家 / 会话数 / 在线时长（本地时区按天分组）。"""
+        range_seconds = self._range_seconds(range_key)
+        end = time.time()
+        start = end - range_seconds
+        self._reconcile_open_sessions()
+        sessions, _ = self._active_sessions(start, end, exclude_bots)
+
+        day0 = datetime.datetime.fromtimestamp(start).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        now_dt = datetime.datetime.fromtimestamp(end)
+        points = []
+        cur = day0
+        while cur <= now_dt:
+            day_begin = cur.timestamp()
+            day_end = (cur + datetime.timedelta(days=1)).timestamp()
+            eff_begin = max(day_begin, start)
+            eff_end = min(day_end, end)
+            if eff_end > eff_begin:
+                players = set()
+                session_count = 0
+                playtime = 0.0
+                for s in sessions:
+                    j = s.get("j") or 0
+                    l = s.get("l")
+                    if l is not None and l < eff_begin:
+                        continue
+                    if j > eff_end:
+                        continue
+                    if s.get("p"):
+                        players.add(s["p"])
+                    if eff_begin <= j < eff_end:
+                        session_count += 1
+                    eff_l = min(l, end) if l is not None else min(eff_end, end)
+                    playtime += max(0.0, min(eff_l, eff_end) - max(j, eff_begin))
+                points.append(
+                    {
+                        "date": cur.strftime("%Y-%m-%d"),
+                        "players": len(players),
+                        "sessions": session_count,
+                        "playtime": round(playtime),
+                    }
+                )
+            cur = cur + datetime.timedelta(days=1)
+        return {"range": range_key, "points": points}
+
+    def get_stats_players(
+        self, exclude_bots: bool = False, limit: int = 50
+    ) -> Dict[str, Any]:
+        """玩家在线统计排行：累计时长（聚合，含历史）+ 会话派生指标。"""
+        limit = max(1, min(int(limit or 50), 200))
+        self._reconcile_open_sessions()
+        stats = self._load_stats()
+        players_data = stats.get("players", {})
+        sessions = stats.get("sessions") or []
+
+        # 真实玩家判定：聚合 IP 记录或任意会话带 IP
+        real_players = {n for n, e in players_data.items() if e.get("ips")}
+        for s in sessions:
+            if s.get("ip") and s.get("p"):
+                real_players.add(s["p"])
+
+        online_now = set(self._get_online_players())
+        now = time.time()
+
+        per_player: Dict[str, Dict[str, Any]] = {}
+        for s in sessions:
+            p = s.get("p")
+            if not p:
+                continue
+            rec = per_player.setdefault(p, {"sessions": 0, "playtime": 0.0})
+            rec["sessions"] += 1
+            j = s.get("j") or 0
+            l = s.get("l")
+            if l is not None:
+                rec["playtime"] += max(0.0, l - j)
+            else:
+                rec["playtime"] += max(0.0, now - j)
+
+        rows = []
+        for name, rec in per_player.items():
+            if exclude_bots and name not in real_players:
+                continue
+            data = players_data.get(name, {})
+            agg_playtime = data.get("total_playtime")
+            if not isinstance(agg_playtime, (int, float)):
+                agg_playtime = rec["playtime"]
+            rows.append(
+                {
+                    "name": name,
+                    "uuid": data.get("uuid"),
+                    "online": name in online_now,
+                    "sessions": rec["sessions"],
+                    "total_playtime": round(agg_playtime, 1),
+                    "avg_session": (
+                        round(rec["playtime"] / rec["sessions"], 1)
+                        if rec["sessions"]
+                        else 0
+                    ),
+                    "first_seen": data.get("first_seen"),
+                    "last_seen": data.get("last_seen"),
+                }
+            )
+
+        rows.sort(
+            key=lambda r: (
+                -(r["total_playtime"] or 0),
+                -(r["sessions"] or 0),
+                (r["name"] or "").lower(),
+            )
+        )
+        return {"players": rows[:limit], "total": len(rows)}
 
     # ------------------------------------------------------------------ #
     # 命令执行

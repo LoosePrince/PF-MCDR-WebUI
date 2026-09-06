@@ -156,6 +156,45 @@ def client():
                 "server_running": True,
             }
 
+        def get_stats_overview(self, range_key="1h", exclude_bots=False):
+            return {
+                "range": range_key,
+                "current_online": 1,
+                "avg_online": 0.5,
+                "peak_online": 1,
+                "peak_ts": 1700000000,
+                "active_players": 1,
+                "total_sessions": 1,
+            }
+
+        def get_stats_online_history(self, range_key="1h", exclude_bots=False):
+            return {
+                "range": range_key,
+                "sample": "1m",
+                "points": [{"t": 1700000000, "value": 1}],
+            }
+
+        def get_stats_daily(self, range_key="7d", exclude_bots=False):
+            return {
+                "range": range_key,
+                "points": [{"date": "2026-09-01", "players": 1, "sessions": 1, "playtime": 3600}],
+            }
+
+        def get_stats_players(self, exclude_bots=False, limit=50):
+            return {
+                "players": [
+                    {
+                        "name": "Steve",
+                        "online": True,
+                        "sessions": 1,
+                        "total_playtime": 3600,
+                        "avg_session": 3600,
+                        "last_seen": 1700000000,
+                    }
+                ],
+                "total": 1,
+            }
+
     class _ModService:
         async def list_mods(self):
             return {"status": "success", "mods": [], "server_running": True, "mods_path": "/tmp"}
@@ -259,6 +298,39 @@ def test_smoke_players_pagination_contract(client):
     assert page["items"][0]["name"] == "Steve"
     assert page["total"] == 1
     assert page["server_running"] is True
+
+
+def test_smoke_player_stats_endpoints(client):
+    """玩家在线统计 4 个端点：统一外壳 + exclude_bots 参数透传。"""
+    resp = client.get("/api/players/stats/overview", params={"range": "1h", "exclude_bots": "true"})
+    assert resp.status_code == 200
+    ov = _unwrap(resp)
+    assert ov["range"] == "1h"
+    assert ov["current_online"] == 1
+    assert ov["peak_ts"] == 1700000000
+
+    resp = client.get("/api/players/stats/online-history", params={"range": "6h"})
+    assert resp.status_code == 200
+    hist = _unwrap(resp)
+    assert hist["sample"] == "1m"
+    assert hist["points"][0]["value"] == 1
+
+    resp = client.get("/api/players/stats/daily", params={"range": "7d", "exclude_bots": "true"})
+    assert resp.status_code == 200
+    daily = _unwrap(resp)
+    assert daily["points"][0]["date"] == "2026-09-01"
+    assert daily["points"][0]["playtime"] == 3600
+
+    resp = client.get("/api/players/stats/players", params={"exclude_bots": "true", "limit": 50})
+    assert resp.status_code == 200
+    rank = _unwrap(resp)
+    assert rank["players"][0]["name"] == "Steve"
+    assert rank["players"][0]["total_playtime"] == 3600
+
+    # 非法 range → 422 统一错误体
+    resp = client.get("/api/players/stats/overview", params={"range": "999y"})
+    assert resp.status_code == 422
+    assert resp.json()["status"] == "error"
 
 
 def test_smoke_mod_upload_conflict_error_body(client):

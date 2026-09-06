@@ -1,7 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  Activity,
   Ban,
+  BarChart3,
   Bot,
+  ExternalLink,
+  Info,
   LayoutGrid,
   ListChecks,
   Plus,
@@ -10,7 +14,9 @@ import {
   Shield,
   ShieldCheck,
   ShieldOff,
+  TrendingUp,
   Undo2,
+  UserCheck,
   Users,
   UserX,
   X
@@ -18,12 +24,25 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from 'recharts'
 import { NiceSelect } from '../components/NiceSelect'
-import { Skeleton, TableRowSkeleton } from '../components/Skeleton'
+import { ChartSkeleton, MiniStatSkeleton, Skeleton, TableRowSkeleton } from '../components/Skeleton'
+import StatusChart, { ChartPoint } from '../components/StatusChart'
+import { STATUS_RANGES } from '../constants'
+import { useTheme } from '../hooks/useTheme'
 import api, { getApiErrorMessage, isCancel, unwrapData } from '../utils/api'
 
-type TabKey = 'all' | 'players' | 'bots' | 'whitelist' | 'ops' | 'bans'
+type TabKey = 'all' | 'players' | 'bots' | 'whitelist' | 'ops' | 'bans' | 'stats'
+type StatsRangeKey = (typeof STATUS_RANGES)[number]
 
 interface PlayerRow {
   name: string
@@ -82,6 +101,34 @@ interface BansData {
   server_running: boolean
 }
 
+interface PlayerStatsOverview {
+  range: string
+  current_online: number
+  avg_online: number
+  peak_online: number
+  peak_ts: number | null
+  active_players: number
+  total_sessions: number
+}
+
+interface DailyStatPoint {
+  date: string
+  players: number
+  sessions: number
+  playtime: number
+}
+
+interface PlayerStatsRow {
+  name: string
+  uuid?: string | null
+  online: boolean
+  sessions: number
+  total_playtime?: number | null
+  avg_session: number
+  first_seen?: number | null
+  last_seen?: number | null
+}
+
 const TABS: { key: TabKey; labelKey: string; icon: LucideIcon }[] = [
   { key: 'all', labelKey: 'page.players.tabs.all', icon: LayoutGrid },
   { key: 'players', labelKey: 'page.players.tabs.players', icon: Users },
@@ -89,6 +136,7 @@ const TABS: { key: TabKey; labelKey: string; icon: LucideIcon }[] = [
   { key: 'whitelist', labelKey: 'page.players.tabs.whitelist', icon: ListChecks },
   { key: 'ops', labelKey: 'page.players.tabs.ops', icon: Shield },
   { key: 'bans', labelKey: 'page.players.tabs.bans', icon: Ban },
+  { key: 'stats', labelKey: 'page.players.tabs.stats', icon: BarChart3 },
 ]
 
 const ActionBtn: React.FC<{
@@ -134,11 +182,62 @@ const badgeClass = (tone: 'green' | 'amber' | 'blue' | 'rose' | 'slate') => {
 
 const shortUuid = (uuid?: string | null) => (uuid ? `${uuid.slice(0, 8)}…` : '—')
 
-const TAB_VALUES: TabKey[] = ['all', 'players', 'bots', 'whitelist', 'ops', 'bans']
+/** 统计摘要小卡片 */
+const StatCard: React.FC<{
+  label: string
+  value: string
+  sub?: string
+  icon: React.ReactNode
+}> = ({ label, value, sub, icon }) => (
+  <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 p-3 flex flex-col gap-1 min-w-0">
+    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+      <span className="text-blue-500 dark:text-blue-400 shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
+    </div>
+    <p className="text-lg font-bold text-slate-900 dark:text-white tabular-nums truncate">{value}</p>
+    {sub && <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{sub}</p>}
+  </div>
+)
+
+/** 每日活跃柱状图 Tooltip */
+const DailyTooltip: React.FC<{
+  active?: boolean
+  label?: string | number
+  payload?: Array<{ value?: number | string; payload?: DailyStatPoint }>
+  fmtDuration: (s?: number | null) => string
+  labels: { players: string; sessions: string; playtime: string }
+}> = ({ active, label, payload, fmtDuration, labels }) => {
+  if (!active || !payload || payload.length === 0) return null
+  const row = payload[0]?.payload
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg px-3 py-2 text-xs">
+      <div className="font-semibold text-slate-700 dark:text-slate-200 mb-1">{String(label ?? '')}</div>
+      <div className="flex items-center justify-between gap-4 py-0.5">
+        <span className="text-slate-500 dark:text-slate-400">{labels.players}</span>
+        <span className="font-semibold text-slate-800 dark:text-slate-100">{row?.players ?? 0}</span>
+      </div>
+      <div className="flex items-center justify-between gap-4 py-0.5">
+        <span className="text-slate-500 dark:text-slate-400">{labels.sessions}</span>
+        <span className="font-semibold text-slate-800 dark:text-slate-100">{row?.sessions ?? 0}</span>
+      </div>
+      <div className="flex items-center justify-between gap-4 py-0.5">
+        <span className="text-slate-500 dark:text-slate-400">{labels.playtime}</span>
+        <span className="font-semibold text-slate-800 dark:text-slate-100">{fmtDuration(row?.playtime)}</span>
+      </div>
+    </div>
+  )
+}
+
+const TAB_VALUES: TabKey[] = ['all', 'players', 'bots', 'whitelist', 'ops', 'bans', 'stats']
 const FILTER_VALUES = ['all', 'online', 'offline', 'bot', 'op']
+
+/** 统计页时间轴带日期格式的范围 */
+const LONG_RANGES: StatsRangeKey[] = ['12h', '1d', '3d', '7d']
+const ONLINE_COLOR = '#10b981'
 
 const Players: React.FC = () => {
   const { t } = useTranslation()
+  const { isDark } = useTheme()
   const [searchParams, setSearchParams] = useSearchParams()
 
   // tab / filter 与 URL 查询参数同步（?tab=players&filter=online）
@@ -203,6 +302,15 @@ const Players: React.FC = () => {
   const [opsLoading, setOpsLoading] = useState(false)
   const [bans, setBans] = useState<BansData | null>(null)
   const [bansLoading, setBansLoading] = useState(false)
+
+  // 在线统计
+  const [statsRange, setStatsRange] = useState<StatsRangeKey>('1h')
+  const [statsExcludeBots, setStatsExcludeBots] = useState(true)
+  const [statsOverview, setStatsOverview] = useState<PlayerStatsOverview | null>(null)
+  const [statsHistory, setStatsHistory] = useState<ChartPoint[]>([])
+  const [statsDaily, setStatsDaily] = useState<DailyStatPoint[]>([])
+  const [statsPlayers, setStatsPlayers] = useState<PlayerStatsRow[]>([])
+  const [statsLoading, setStatsLoading] = useState(false)
 
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
@@ -328,6 +436,42 @@ const Players: React.FC = () => {
     }
   }, [showNotice, t])
 
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true)
+    try {
+      const commonParams = { range: statsRange, exclude_bots: statsExcludeBots }
+      const [ovResp, histResp, dailyResp, playersResp] = await Promise.all([
+        api.get('/players/stats/overview', { params: commonParams }),
+        api.get('/players/stats/online-history', { params: commonParams }),
+        api.get('/players/stats/daily', { params: commonParams }),
+        api.get('/players/stats/players', {
+          params: { exclude_bots: statsExcludeBots, limit: 50 },
+        }),
+      ])
+      if (ovResp.data.status === 'success') {
+        const ov = unwrapData<PlayerStatsOverview | null>(ovResp, null)
+        setStatsOverview(ov)
+      }
+      if (histResp.data.status === 'success') {
+        const hist = unwrapData<{ points?: ChartPoint[] }>(histResp, {})
+        setStatsHistory(hist.points ?? [])
+      }
+      if (dailyResp.data.status === 'success') {
+        const daily = unwrapData<{ points?: DailyStatPoint[] }>(dailyResp, {})
+        setStatsDaily(daily.points ?? [])
+      }
+      if (playersResp.data.status === 'success') {
+        const pl = unwrapData<{ players?: PlayerStatsRow[] }>(playersResp, {})
+        setStatsPlayers(pl.players ?? [])
+      }
+    } catch (e: unknown) {
+      if (isCancel(e)) return
+      showNotice(t('page.players.stats.load_failed'), 'error')
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [showNotice, statsExcludeBots, statsRange, t])
+
   // 玩家列表加载（带防抖）
   useEffect(() => {
     if (tab !== 'players' && tab !== 'all') return
@@ -345,6 +489,24 @@ const Players: React.FC = () => {
     else if (tab === 'bans') void loadBans()
   }, [tab, loadBans, loadBots, loadOps, loadWhitelist])
 
+  // 在线统计加载（带防抖，范围 / 排除开关变化时重新拉取）
+  useEffect(() => {
+    if (tab !== 'stats') return
+    const timer = window.setTimeout(() => {
+      void loadStats()
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [tab, statsRange, statsExcludeBots, loadStats])
+
+  // 在线统计自动刷新
+  useEffect(() => {
+    if (tab !== 'stats') return
+    const interval = window.setInterval(() => {
+      void loadStats()
+    }, 30000)
+    return () => window.clearInterval(interval)
+  }, [tab, loadStats])
+
   // 玩家 / 假人列表自动刷新
   useEffect(() => {
     if (tab !== 'players' && tab !== 'all' && tab !== 'bots') return
@@ -361,7 +523,8 @@ const Players: React.FC = () => {
     else if (tab === 'whitelist') await loadWhitelist()
     else if (tab === 'ops') await loadOps()
     else if (tab === 'bans') await loadBans()
-  }, [tab, loadBans, loadBots, loadOps, reloadPlayers, loadWhitelist])
+    else if (tab === 'stats') await loadStats()
+  }, [tab, loadBans, loadBots, loadOps, reloadPlayers, loadWhitelist, loadStats])
 
   const runAction = useCallback(
     async (
@@ -831,15 +994,255 @@ const Players: React.FC = () => {
           </div>
         )}
 
-        {/* 假人 */}
+        {/* 无IP玩家/假人 */}
         {tab === 'bots' && (
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <PlayerTable
-              rows={bots}
-              loading={botsLoading}
-              emptyText={t('page.players.bots_empty')}
-              renderActions={renderBotsActions}
-            />
+          <div className="space-y-4">
+            {/* 识别原理说明卡片 */}
+            <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-sm">
+              <Info className="w-4 h-4 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{t('page.players.bots_info.title')}</p>
+                <p className="text-xs mt-0.5 leading-relaxed">{t('page.players.bots_info.desc')}</p>
+              </div>
+              <Link
+                to="/online-plugins?detail=player_ip_logger"
+                className="ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                {t('page.players.bots_info.goto_plugin')}
+              </Link>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <PlayerTable
+                rows={bots}
+                loading={botsLoading}
+                emptyText={t('page.players.bots_empty')}
+                renderActions={renderBotsActions}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 在线统计 */}
+        {tab === 'stats' && (
+          <div className="space-y-4">
+            {/* 范围 + 排除无IP玩家开关 */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-1">
+                {STATUS_RANGES.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setStatsRange(r)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                      statsRange === r
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <label className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={statsExcludeBots}
+                  onChange={(e) => setStatsExcludeBots(e.target.checked)}
+                  className="w-4 h-4 rounded accent-blue-600"
+                />
+                {t('page.players.stats.exclude_bots')}
+              </label>
+            </div>
+
+            {/* 摘要卡片 */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+              <h3 className="font-bold text-slate-900 dark:text-white mb-4">{t('page.players.stats.summary')}</h3>
+              {statsLoading && !statsOverview ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <MiniStatSkeleton key={i} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+                  <StatCard
+                    label={t('page.players.stats.current_online')}
+                    value={statsOverview ? String(statsOverview.current_online) : '—'}
+                    icon={<Users className="w-4 h-4" />}
+                  />
+                  <StatCard
+                    label={t('page.players.stats.avg_online')}
+                    value={statsOverview ? String(statsOverview.avg_online) : '—'}
+                    icon={<Activity className="w-4 h-4" />}
+                  />
+                  <StatCard
+                    label={t('page.players.stats.peak_online')}
+                    value={statsOverview ? String(statsOverview.peak_online) : '—'}
+                    sub={statsOverview?.peak_ts ? fmtTime(statsOverview.peak_ts) : undefined}
+                    icon={<TrendingUp className="w-4 h-4" />}
+                  />
+                  <StatCard
+                    label={t('page.players.stats.active_players')}
+                    value={statsOverview ? String(statsOverview.active_players) : '—'}
+                    icon={<UserCheck className="w-4 h-4" />}
+                  />
+                  <StatCard
+                    label={t('page.players.stats.total_sessions')}
+                    value={statsOverview ? String(statsOverview.total_sessions) : '—'}
+                    icon={<ListChecks className="w-4 h-4" />}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 在线人数折线图 */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                <h3 className="font-bold text-slate-900 dark:text-white">{t('page.players.stats.online_trend')}</h3>
+                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="w-2 h-2 rounded-full" style={{ background: ONLINE_COLOR }} />
+                  {t('page.players.stats.online_players')}
+                </span>
+              </div>
+              {statsLoading && statsHistory.length === 0 ? (
+                <ChartSkeleton />
+              ) : statsHistory.length === 0 ? (
+                <div className="py-10 text-center text-slate-500 dark:text-slate-400 text-sm">
+                  {t('page.players.stats.empty')}
+                </div>
+              ) : (
+                <StatusChart
+                  data={statsHistory}
+                  series={[{ key: 'value', color: ONLINE_COLOR }]}
+                  names={{ value: t('page.players.stats.online_players') }}
+                  dark={isDark}
+                  tooltipValueFormatter={(_, v) => String(Math.round(v))}
+                  xLong={LONG_RANGES.includes(statsRange)}
+                />
+              )}
+            </div>
+
+            {/* 每日活跃柱状图（仅 1d 及以上范围） */}
+            {['1d', '3d', '7d'].includes(statsRange) && (
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+                <h3 className="font-bold text-slate-900 dark:text-white mb-3">{t('page.players.stats.daily_active')}</h3>
+                {statsLoading && statsDaily.length === 0 ? (
+                  <ChartSkeleton />
+                ) : statsDaily.length === 0 ? (
+                  <div className="py-10 text-center text-slate-500 dark:text-slate-400 text-sm">
+                    {t('page.players.stats.empty')}
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={statsDaily} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e2e8f0'} vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        stroke={isDark ? '#94a3b8' : '#64748b'}
+                        tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={{ stroke: isDark ? '#1e293b' : '#e2e8f0' }}
+                        minTickGap={24}
+                      />
+                      <YAxis
+                        stroke={isDark ? '#94a3b8' : '#64748b'}
+                        tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={40}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(148,163,184,0.12)' }}
+                        content={
+                          <DailyTooltip
+                            fmtDuration={fmtDuration}
+                            labels={{
+                              players: t('page.players.stats.active_players'),
+                              sessions: t('page.players.stats.total_sessions'),
+                              playtime: t('page.players.stats.online_playtime'),
+                            }}
+                          />
+                        }
+                      />
+                      <Bar dataKey="players" fill={ONLINE_COLOR} radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            )}
+
+            {/* 玩家在线时长排行 */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                <h3 className="font-bold text-slate-900 dark:text-white">{t('page.players.stats.players_rank')}</h3>
+                <span className="text-xs text-slate-500 dark:text-slate-400">{t('page.players.stats.players_tip')}</span>
+              </div>
+              <div className="overflow-x-auto mt-3">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
+                      <th className="px-4 py-3 whitespace-nowrap">{t('page.players.col.player')}</th>
+                      <th className="px-4 py-3 whitespace-nowrap">{t('page.players.col.status')}</th>
+                      <th className="px-4 py-3 whitespace-nowrap">{t('page.players.stats.col_playtime')}</th>
+                      <th className="px-4 py-3 whitespace-nowrap">{t('page.players.stats.col_sessions')}</th>
+                      <th className="px-4 py-3 whitespace-nowrap">{t('page.players.stats.col_avg_session')}</th>
+                      <th className="px-4 py-3 whitespace-nowrap">{t('page.players.col.last_seen')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statsLoading && statsPlayers.length === 0 ? (
+                      Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
+                    ) : statsPlayers.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-10 text-center text-slate-500 dark:text-slate-400">
+                          {t('page.players.stats.empty')}
+                        </td>
+                      </tr>
+                    ) : (
+                      statsPlayers.map((p) => (
+                        <tr
+                          key={p.name}
+                          className="border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50/80 dark:hover:bg-slate-800/30"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5 flex-wrap max-w-[14rem]">
+                              <span className="font-semibold text-slate-900 dark:text-white truncate" title={p.name}>
+                                {p.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
+                                p.online ? badgeClass('green') : badgeClass('slate')
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${p.online ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`} />
+                              {p.online ? t('page.players.status.online') : t('page.players.status.offline')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            {fmtDuration(p.total_playtime)}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            {p.sessions}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            {fmtDuration(p.avg_session)}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                            {p.online ? t('page.players.status.online') : fmtTime(p.last_seen)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 

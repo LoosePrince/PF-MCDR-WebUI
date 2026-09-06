@@ -282,25 +282,31 @@
             "search_placeholder": "搜索玩家 / UUID / IP...",
             "server_offline": "服务器未运行",
             "server_offline_tip": "部分操作不可用；封禁将通过直接修改文件完成（重启后生效）",
-            "count": "共 {{total}} 名玩家，在线 {{online}}，假人 {{bots}}",
+            "count": "共 {{total}} 名玩家，在线 {{online}}，无IP玩家/假人 {{bots}}",
             "count_players": "共 {{total}} 名玩家，在线 {{online}}",
             "empty": "暂无玩家",
-            "bots_empty": "暂无识别出的假人",
+            "bots_empty": "暂无无IP玩家/假人",
+            "bots_info": {
+                "title": "关于「无IP玩家/假人」识别",
+                "desc": "本列表依据玩家是否有 IP 记录进行分辨：真实玩家登录时会被记录 IP，而 Carpet 假人等没有 IP。IP 信息由 player_ip_logger 插件提供，未安装或未启用时识别可能不准确。",
+                "goto_plugin": "查看插件详情"
+            },
             "load_failed": "加载玩家数据失败",
             "load_more": "加载更多",
             "tabs": {
                 "all": "全部",
                 "players": "玩家",
-                "bots": "假人",
+                "bots": "无IP玩家/假人",
                 "whitelist": "白名单",
                 "ops": "管理员",
-                "bans": "封禁"
+                "bans": "封禁",
+                "stats": "统计"
             },
             "filters": {
                 "all": "全部",
                 "online": "在线",
                 "offline": "离线",
-                "bot": "假人",
+                "bot": "无IP玩家/假人",
                 "op": "OP"
             },
             "col": {
@@ -317,9 +323,29 @@
             "status": {
                 "online": "在线",
                 "offline": "离线",
-                "bot": "假人",
+                "bot": "无IP玩家/假人",
                 "whitelisted": "白名单",
                 "banned": "已封禁"
+            },
+            "stats": {
+                "summary": "在线概览",
+                "exclude_bots": "排除无IP玩家/假人",
+                "current_online": "当前在线",
+                "avg_online": "平均在线",
+                "peak_online": "峰值在线",
+                "active_players": "活跃玩家",
+                "total_sessions": "会话总数",
+                "online_players": "在线人数",
+                "online_trend": "在线人数趋势",
+                "daily_active": "每日活跃玩家",
+                "online_playtime": "在线时长",
+                "players_rank": "玩家在线时长排行",
+                "players_tip": "会话数据自启用统计后开始记录，累计时长为完整历史",
+                "col_playtime": "累计在线",
+                "col_sessions": "会话次数",
+                "col_avg_session": "平均每次",
+                "empty": "暂无统计数据",
+                "load_failed": "加载统计失败"
             },
             "session": "本次",
             "total_playtime": "累计",
