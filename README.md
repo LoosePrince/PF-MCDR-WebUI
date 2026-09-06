@@ -7,6 +7,7 @@
 [![议题](https://img.shields.io/github/issues/PFingan-Code/PF-MCDR-WebUI?style=flat-square&label=Issues)](https://github.com/PFingan-Code/PF-MCDR-WebUI/issues)
 [![已关闭issues](https://img.shields.io/github/issues-closed/PFingan-Code/PF-MCDR-WebUI?style=flat-square&label=已关闭%20Issues)](https://github.com/PFingan-Code/PF-MCDR-WebUI/issues?q=is%3Aissue+is%3Aclosed)
 [![下载量](https://img.shields.io/github/downloads/PFingan-Code/PF-MCDR-WebUI/total?style=flat-square&label=下载量)](https://github.com/PFingan-Code/PF-MCDR-WebUI/releases)
+[![最新发布下载量](https://img.shields.io/github/downloads/PFingan-Code/PF-MCDR-WebUI/latest/total?style=flat-square&label=最新版本下载量)](https://github.com/PFingan-Code/PF-MCDR-WebUI/releases/latest)
 
 > [!TIP]
 > 
